@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f766e">
+<title>Wo ist's? – Lager für zu Hause</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a href="#/" class="brand">📦 Wo ist's?</a>
+  <span class="privacy-pill" title="Alle Daten bleiben auf diesem Gerät">🔒 nur lokal</span>
+</header>
+<main id="view"></main>
+<nav class="tabs">
+  <a href="#/" data-tab="suche"><span>🔍</span>Suchen</a>
+  <a href="#/orte" data-tab="orte"><span>🏠</span>Orte</a>
+  <button data-act="add-item" class="fab" aria-label="Gegenstand einlagern">＋</button>
+  <a href="#/etiketten" data-tab="etiketten"><span>🏷️</span>Etiketten</a>
+  <a href="#/mehr" data-tab="mehr"><span>⚙️</span>Mehr</a>
+</nav>
+<dialog id="dlg"></dialog>
+<dialog id="lightbox"><img alt=""></dialog>
+<script src="tags.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

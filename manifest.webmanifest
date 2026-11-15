@@ -1,0 +1,16 @@
+{
+  "name": "Wo ist's? – Lager für zu Hause",
+  "short_name": "Wo ist's?",
+  "description": "Merkt sich, wo du Dinge verstaut hast. Alle Daten bleiben auf deinem Gerät.",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f1",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
