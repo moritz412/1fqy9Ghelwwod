@@ -15,29 +15,99 @@ export class NexusBot {
     const dark = new THREE.MeshStandardMaterial({ color: DARK, roughness: 0.6 });
     const glow = this.glowMat = new THREE.MeshBasicMaterial({ color: CYAN });
     const shadow = (m) => { m.castShadow = true; m.receiveShadow = true; return m; };
+    const up = this.upper = new THREE.Group();   // everything above the chassis
+    g.add(up);
 
     // ---- base with tracks
     const base = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.3, 0.5, 4, 0.08), white));
     base.position.y = 0.2;
-    g.add(base);
+    up.add(base);
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.035, 0.01), glow);
     bar.position.set(0, 0.16, 0.255);
-    g.add(bar);
+    up.add(bar);
+
+    // ---- chassis variants
+    this.chassis = {};
+    // tracks
+    const tracksG = this.chassis.tracks = new THREE.Group();
     this.tracks = [];
     for (const s of [-1, 1]) {
       const tr = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.26, 0.58, 4, 0.08), grey));
       tr.position.set(s * 0.36, 0.13, 0);
-      g.add(tr);
+      tracksG.add(tr);
       this.tracks.push(tr);
     }
+    // wheels
+    const wheelsG = this.chassis.wheels = new THREE.Group();
+    this.wheels = [];
+    const tyre = new THREE.CylinderGeometry(0.14, 0.14, 0.12, 20);
+    const hubGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.13, 12);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const w = new THREE.Group();
+      const t = shadow(new THREE.Mesh(tyre, grey));
+      const h = new THREE.Mesh(hubGeo, teal);
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.2, 0.03), dark);
+      t.rotation.z = Math.PI / 2; h.rotation.z = Math.PI / 2; spoke.rotation.z = Math.PI / 2;
+      w.add(t, h, spoke);
+      w.position.set(sx * 0.37, 0.14, sz * 0.19);
+      wheelsG.add(w);
+      this.wheels.push(w);
+    }
+    // walking legs (feet)
+    const feetG = this.chassis.feet = new THREE.Group();
+    this.legs2 = [];
+    const thighG = new THREE.CylinderGeometry(0.055, 0.05, 0.2, 10);
+    const shinG = new THREE.CylinderGeometry(0.05, 0.045, 0.2, 10);
+    for (const sx of [-1, 1]) {
+      const hip = new THREE.Group();
+      hip.position.set(sx * 0.17, 0.47, 0);
+      const jh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), grey);
+      const thigh = shadow(new THREE.Mesh(thighG, white)); thigh.position.y = -0.1;
+      const knee = new THREE.Group(); knee.position.y = -0.2;
+      const jk = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 8), grey);
+      const shin = shadow(new THREE.Mesh(shinG, white)); shin.position.y = -0.1;
+      const foot = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.06, 0.24, 2, 0.025), teal)); foot.position.set(0, -0.21, 0.04);
+      knee.add(jk, shin, foot);
+      hip.add(jh, thigh, knee);
+      feetG.add(hip);
+      this.legs2.push({ hip, knee, side: sx });
+    }
+    // spider legs
+    const spiderG = this.chassis.spider = new THREE.Group();
+    this.legs6 = [];
+    const upperG = new THREE.CylinderGeometry(0.035, 0.03, 0.34, 8); upperG.translate(0, 0.17, 0);
+    const lowerG = new THREE.CylinderGeometry(0.03, 0.012, 0.62, 8); lowerG.translate(0, -0.31, 0);
+    let li = 0;
+    for (const sx of [-1, 1]) for (const zz of [-0.17, 0, 0.17]) {
+      const root = new THREE.Group();
+      root.position.set(sx * 0.26, 0.42, zz);
+      root.rotation.y = sx * (Math.PI / 2) - sx * zz * 2.2;   // point outward, fanned
+      const hip = new THREE.Group();
+      const seg1 = shadow(new THREE.Mesh(upperG, grey));
+      seg1.rotation.x = 0.9;                                  // up and out
+      const knee = new THREE.Group();
+      knee.position.set(0, Math.cos(0.9) * 0.34, Math.sin(0.9) * 0.34);
+      const kj = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), teal);
+      const seg2 = shadow(new THREE.Mesh(lowerG, dark));
+      seg2.rotation.x = -0.25;
+      knee.add(kj, seg2);
+      hip.add(seg1, knee);
+      root.add(hip);
+      spiderG.add(root);
+      this.legs6.push({ root, hip, base: root.rotation.y, phase: (li % 2) * Math.PI + (sx > 0 ? Math.PI : 0) });
+      li++;
+    }
+    for (const k of Object.keys(this.chassis)) { this.chassis[k].visible = k === 'tracks'; g.add(this.chassis[k]); }
+    this.lift = 0;
+    this.walk = 0;
     const plate = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.05, 0.4, 2, 0.02), white));
     plate.position.y = 0.38;
-    g.add(plate);
+    up.add(plate);
 
     // ---- torso
     const torso = this.torso = new THREE.Group();
     torso.position.y = 0.4;
-    g.add(torso);
+    up.add(torso);
     const body = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.32, 0.4, 4, 0.1), white));
     body.position.y = 0.2;
     torso.add(body);
@@ -160,6 +230,13 @@ export class NexusBot {
     this.glowMat.color.setHex(lv.link ? 0xb48cff : (this.skinGlow || CYAN));
   }
 
+  setChassis(id) {
+    for (const k of Object.keys(this.chassis)) this.chassis[k].visible = k === id;
+    this.chassisId = id;
+    this.lift = { tracks: 0, wheels: 0.03, feet: 0.36, spider: 0.22 }[id] || 0;
+    this.upper.position.y = this.lift;
+  }
+
   setSkin(sk) {
     this.bodyMat.color.setHex(sk.body);
     this.bodyMat.metalness = sk.metal ? 0.8 : 0.05;
@@ -254,6 +331,25 @@ export class NexusBot {
       a.shoulder.rotation.z = a.side * (0.12 + g * 0.1);
     }
     for (const tr of this.tracks) tr.position.y = 0.13 + (moving ? Math.abs(Math.sin(t * 20)) * 0.006 : 0);
+    if (moving) this.walk += dt * (this.chassisId === 'spider' ? 14 : this.chassisId === 'feet' ? 9 : 12);
+    const w = this.walk;
+    if (this.chassisId === 'wheels') for (const wh of this.wheels) wh.rotation.x = w * 1.4;
+    if (this.chassisId === 'feet') {
+      for (const L of this.legs2) {
+        const ph = w + (L.side > 0 ? Math.PI : 0);
+        L.hip.rotation.x = moving ? Math.sin(ph) * 0.55 : 0;
+        L.knee.rotation.x = moving ? Math.max(0, -Math.sin(ph)) * 0.9 : 0;
+      }
+      this.upper.position.y = this.lift + (moving ? Math.abs(Math.cos(w)) * 0.03 : 0);
+    }
+    if (this.chassisId === 'spider') {
+      for (const L of this.legs6) {
+        const ph = w + L.phase;
+        L.root.rotation.y = L.base + (moving ? Math.sin(ph) * 0.35 : Math.sin(t * 1.5 + L.phase) * 0.04);
+        L.hip.rotation.x = moving ? Math.max(0, Math.sin(ph)) * -0.35 : 0;
+      }
+      this.upper.position.y = this.lift + (moving ? Math.sin(w * 2) * 0.012 : Math.sin(t * 2) * 0.006);
+    }
     if (this.hover.visible) this.hover.material.opacity = 0.25 + Math.sin(t * 6) * 0.1;
   }
 }

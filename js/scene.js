@@ -143,32 +143,54 @@ export function buildEnvironment(scene, renderer) {
   station.rotation.x = 0.35;
   scene.add(station);
 
-  // ---- market dock (sell & upgrade)
-  const dock = new THREE.Group();
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(WORLD.dock.r, WORLD.dock.r + 0.2, 0.18, 40), new THREE.MeshStandardMaterial({ color: 0xe9edf2, metalness: 0.3, roughness: 0.35 }));
-  pad.position.y = 0.09;
-  pad.receiveShadow = true;
-  dock.add(pad);
-  const padRing = new THREE.Mesh(new THREE.TorusGeometry(WORLD.dock.r - 0.3, 0.07, 8, 64), glow);
-  padRing.rotation.x = Math.PI / 2; padRing.position.y = 0.2;
-  dock.add(padRing);
-  const terminal = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.2, 0.6), white);
-  terminal.position.set(WORLD.dock.r + 0.6, 1.1, 0);
-  terminal.rotation.y = Math.PI / 2;
-  terminal.castShadow = true;
-  dock.add(terminal);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), new THREE.MeshBasicMaterial({ map: labelTexture('NEXUS', 'MARKT') }));
-  screen.position.set(WORLD.dock.r + 0.29, 1.4, 0);
-  screen.rotation.y = -Math.PI / 2;
-  dock.add(screen);
-  const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.5, 1.6, 40, 24, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x66e6ff, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
-  );
-  beam.position.y = 20;
-  dock.add(beam);
-  dock.position.set(WORLD.dock.x, 0, WORLD.dock.z);
-  scene.add(dock);
+  // ---- two stations: Nexus-Ablage (sell) and Nexus-Shop (buy)
+  function makeStation(pos, color, title, sub, extra) {
+    const g = new THREE.Group();
+    const r = pos.r;
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.2, 0.18, 40), new THREE.MeshStandardMaterial({ color: 0xe9edf2, metalness: 0.3, roughness: 0.35 }));
+    pad.position.y = 0.09;
+    pad.receiveShadow = true;
+    const ringMat = new THREE.MeshBasicMaterial({ color });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r - 0.3, 0.07, 8, 64), ringMat);
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.2;
+    // terminal on the outer side, facing the deck centre
+    const out = Math.atan2(pos.x, pos.z);
+    const tx = Math.sin(out) * (r + 0.7), tz = Math.cos(out) * (r + 0.7);
+    const terminal = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.2, 0.6), white);
+    terminal.position.set(tx, 1.1, tz);
+    terminal.rotation.y = out;
+    terminal.castShadow = true;
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), new THREE.MeshBasicMaterial({ map: labelTexture(title, sub, color) }));
+    screen.position.set(Math.sin(out) * (r + 0.39), 1.4, Math.cos(out) * (r + 0.39));
+    screen.rotation.y = out + Math.PI;
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 1.6, 40, 24, 1, true),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    beam.position.y = 20;
+    g.add(pad, ring, terminal, screen, beam);
+    if (extra) extra(g, out, r);
+    g.position.set(pos.x, 0, pos.z);
+    scene.add(g);
+    return { ring, beam };
+  }
+  const ablage = makeStation(WORLD.dock, 0x6ff3f0, 'NEXUS', 'ABLAGE', (g, out, r) => {
+    // recycler funnel
+    const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.35, 1.1, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a909c, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide }));
+    funnel.position.set(-Math.sin(out + 0.9) * (r + 0.4), 1.6, -Math.cos(out + 0.9) * (r + 0.4));
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.1, 8), dark);
+    leg.position.set(funnel.position.x, 0.55, funnel.position.z);
+    g.add(funnel, leg);
+  });
+  const shopSt = makeStation(WORLD.shop, 0xffb347, 'NEXUS', 'SHOP', (g, out, r) => {
+    // workshop arch
+    const archMat = new THREE.MeshStandardMaterial({ color: 0xffb347, metalness: 0.3, roughness: 0.4 });
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(r + 0.1, 0.12, 8, 40, Math.PI), archMat);
+    arch.rotation.y = out + Math.PI / 2;
+    arch.position.y = 0.1;
+    arch.castShadow = true;
+    g.add(arch);
+  });
 
   // freighter that dumped the scrap (decor)
   const ship = new THREE.Group();
@@ -186,8 +208,10 @@ export function buildEnvironment(scene, renderer) {
     update(dt, t) {
       station.rotation.y += dt * 0.02;
       planet.rotation.y += dt * 0.004;
-      padRing.material.color.setHSL(0.52, 1, 0.55 + Math.sin(t * 3) * 0.1);
-      beam.material.opacity = 0.1 + Math.sin(t * 2) * 0.03;
+      ablage.ring.material.color.setHSL(0.5, 1, 0.55 + Math.sin(t * 3) * 0.1);
+      ablage.beam.material.opacity = 0.1 + Math.sin(t * 2) * 0.03;
+      shopSt.ring.material.color.setHSL(0.09, 1, 0.6 + Math.sin(t * 3 + 1) * 0.1);
+      shopSt.beam.material.opacity = 0.1 + Math.sin(t * 2 + 1) * 0.03;
       ship.position.y = 26 + Math.sin(t * 0.4) * 0.6;
       guide.material.color.setHSL(0.5, 1, 0.45 + Math.sin(t * 2.5) * 0.15);
       // keep shadows centred on the action
@@ -254,12 +278,12 @@ function deckTexture() {
   return t;
 }
 
-function labelTexture(a, b) {
+function labelTexture(a, b, color = 0x66e6ff) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 188;
   const g = c.getContext('2d');
   g.fillStyle = '#05070c'; g.fillRect(0, 0, 256, 188);
-  g.fillStyle = '#66e6ff';
+  g.fillStyle = '#' + new THREE.Color(color).getHexString();
   g.font = 'bold 56px system-ui, sans-serif';
   g.textAlign = 'center';
   g.fillText(a, 128, 86);

@@ -13,7 +13,8 @@ export const PILE = {
 export const WORLD = {
   craterFloor: 24,  // radius of flat crater floor
   botLimit: 29.5,
-  dock: { x: 0, z: 19.5, r: 2.4 },
+  dock: { x: 0, z: 19.5, r: 2.4 },     // Nexus-Ablage (sell)
+  shop: { x: -19.5, z: 0, r: 2.4 },    // Nexus-Shop (buy)
   gravity: 2.2,     // low artificial gravity on the deck
 };
 
@@ -25,6 +26,8 @@ export const FINDS = [
   { id: 'platinum', name: 'Platin-Nugget',      rate: 1 / 8000,   value: 300,   color: '#e8ecf5' },
   { id: 'badge',    name: 'Pilotenabzeichen',   rate: 1 / 40000,  value: 1500,  color: '#7cf0b0' },
   { id: 'artifact', name: 'Alien-Artefakt',     rate: 1 / 400000, value: 20000, color: '#e58cff' },
+  { id: 'datacore', name: 'Datenkern',          rate: 1 / 3000,   value: 120,   color: '#7fb8ff' },
+  { id: 'graviton', name: 'Gravitonperle',      rate: 1 / 150000, value: 6000,  color: '#ffe27a' },
 ];
 
 // Nexus-Bot upgrades. Each track has levels; level 0 is the starting state.
@@ -89,11 +92,19 @@ export const BOT_UPGRADES = {
 
 // Automation helpers (buy many; price grows per unit).
 export const HELPERS = [
-  { id: 'mini',   name: 'Mini-Nexus',        rate: 2,    cost: 80,     desc: 'Kleiner Helfer-Bot, sortiert mit.' },
-  { id: 'drone',  name: 'Staubdrohne',       rate: 15,   cost: 2000,    desc: 'Saugt von oben, fliegt über den Haufen.' },
-  { id: 'belt',   name: 'Förderband',        rate: 80,   cost: 20000,   desc: 'Schießt Schrott in den Recycler.' },
-  { id: 'drill',  name: 'Kraterfräse',       rate: 500,  cost: 150000,  desc: 'Großer Bohrer, frisst sich durch.' },
-  { id: 'orbit',  name: 'Orbit-Kran',        rate: 3000, cost: 1000000, desc: 'Greifarme vom Stationsring.' },
+  { id: 'mini',   name: 'Atomar Funke',    rate: 2,    cost: 80,      desc: 'Kleinste Atomar-Drohne, sortiert fleißig mit.' },
+  { id: 'drone',  name: 'Atomar Sauger',   rate: 15,   cost: 2000,    desc: 'Saugt Schrott von oben weg.' },
+  { id: 'belt',   name: 'Atomar Träger',   rate: 80,   cost: 20000,   desc: 'Schwerlast-Drohne, trägt ganze Stapel.' },
+  { id: 'drill',  name: 'Atomar Fräse',    rate: 500,  cost: 150000,  desc: 'Bohrt sich mit Atomkraft durch den Berg.' },
+  { id: 'orbit',  name: 'Atomar Orbital',  rate: 3000, cost: 1000000, desc: 'Riesen-Drohne direkt vom Stationsring.' },
+];
+// Atomar core: multiplies the speed of all Atomar drones.
+export const ATOMAR_CORE = [
+  { name: 'Atomar-Kern I',   mult: 1,    cost: 0 },
+  { name: 'Atomar-Kern II',  mult: 1.25, cost: 1200 },
+  { name: 'Atomar-Kern III', mult: 1.6,  cost: 15000 },
+  { name: 'Atomar-Kern IV',  mult: 2.2,  cost: 150000 },
+  { name: 'Atomar-Kern V',   mult: 3.2,  cost: 1200000 },
 ];
 export const HELPER_COST_GROWTH = 1.15;
 
@@ -134,6 +145,11 @@ export const ACHIEVEMENTS = [
   { id: 'maxhands', name: 'Nexus-Kran',          desc: 'Rüste die Greifhände voll aus.',           check: (s) => s.levels.hands >= 5,         reward: 50000 },
   { id: 'style',    name: 'Stilbewusst',         desc: 'Kaufe einen neuen Skin.',                  check: (s) => (s.skins || []).length > 1,  reward: 100 },
   { id: 'core',     name: 'Herz der Station',    desc: 'Finde den Nexus-Kern.',                    check: (s) => s.coreFound,                 reward: 20000 },
+  { id: 'wheels',   name: 'Fahrgestell-Fan',     desc: 'Kaufe ein zweites Fahrwerk.',              check: (s) => (s.chassisOwned || []).length >= 2, reward: 100 },
+  { id: 'spider',   name: 'Spinnenbot',          desc: 'Kaufe die Spinnenbeine.',                  check: (s) => (s.chassisOwned || []).includes('spider'), reward: 6000 },
+  { id: 'tinker',   name: 'Bastler',             desc: 'Besitze 3 Module.',                        check: (s) => (s.modules || []).length >= 3, reward: 1500 },
+  { id: 'fusion',   name: 'Kernfusion',          desc: 'Rüste den Atomar-Kern auf Stufe III.',     check: (s) => (s.atomarLv || 0) >= 2, reward: 4000 },
+  { id: 'meteor',   name: 'Sternschnuppen-Fänger', desc: 'Sammle 10 Meteoriten.',                 check: (s) => (s.stats.meteors || 0) >= 10, reward: 2500 },
 ];
 
 export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };
@@ -148,3 +164,29 @@ export const DECKS = [
 ];
 export const STAR_BONUS = { finds: 0.25, helpers: 0.1 };
 export const TURBO = { duration: 8, cooldown: 40, factor: 2.5 };
+
+// Chassis for the Nexus-Bot. speed: multiplier, slope: slow-down on climbs (lower = better), reach: extra grab reach.
+export const CHASSIS = [
+  { id: 'tracks', name: 'Raupen',       cost: 0,     speed: 1,    slope: 0.6,  reach: 0,   desc: 'Robust und zuverlässig.' },
+  { id: 'wheels', name: 'Räder',        cost: 150,   speed: 1.45, slope: 1.1,  reach: 0,   desc: 'Flitzt über das Deck, quält sich am Hang.' },
+  { id: 'feet',   name: 'Laufbeine',    cost: 1500,  speed: 1.1,  slope: 0.2,  reach: 0.3, desc: 'Stapft sicher den Schrottberg hinauf.' },
+  { id: 'spider', name: 'Spinnenbeine', cost: 18000, speed: 1.35, slope: 0.03, reach: 0.8, desc: 'Klettert überall hin und greift weiter.' },
+];
+
+// Equippable modules (limited slots).
+export const MODULES = [
+  { id: 'auto',    icon: '🤖', name: 'Auto-Greifer',   cost: 300,    desc: 'Nexus greift von selbst, wenn er still am Haufen steht.' },
+  { id: 'magnet',  icon: '🧲', name: 'Magnet',         cost: 600,    desc: '+40 % Kupferspulen, Platin und Sondenteile.' },
+  { id: 'radar',   icon: '📡', name: 'Kapsel-Radar',   cost: 1500,   desc: 'Frachtkapseln kommen doppelt so oft.' },
+  { id: 'reach',   icon: '🦾', name: 'Teleskoparme',   cost: 4000,   desc: 'Größerer Greifbereich und mehr Reichweite.' },
+  { id: 'battery', icon: '🔋', name: 'Turbo-Akku',     cost: 6000,   desc: 'Turbo lädt 40 % schneller.' },
+  { id: 'cooler',  icon: '❄️', name: 'Turbo-Kühlung',  cost: 9000,   desc: 'Turbo hält 60 % länger.' },
+  { id: 'lure',    icon: '☄️', name: 'Meteor-Lockruf', cost: 20000,  desc: 'Ereignisse kommen fast doppelt so oft.' },
+  { id: 'sense',   icon: '💎', name: 'Schatzsinn',     cost: 60000,  desc: 'Seltene Funde 50 % häufiger.' },
+];
+export const MODULE_SLOTS = [
+  { slots: 1, cost: 0 },
+  { slots: 2, cost: 2500 },
+  { slots: 3, cost: 30000 },
+  { slots: 4, cost: 400000 },
+];

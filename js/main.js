@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
 import { Pile, PileView } from './pile.js';
@@ -19,6 +19,7 @@ function freshState(mode = 'career') {
     helpers: {},
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
+    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
 }
@@ -147,18 +148,25 @@ function rebuildDrones() {
     const look = DRONE_LOOK[h.id];
     for (let k = 0; k < n; k++) {
       const d = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.5, 16, 12), new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.4, metalness: 0.2 }));
-      body.scale.y = 0.6;
-      const eye = new THREE.Mesh(new THREE.BoxGeometry(look.size * 0.5, look.size * 0.12, 0.02), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
-      eye.position.set(0, 0, look.size * 0.5);
-      const rotor = new THREE.Mesh(new THREE.TorusGeometry(look.size * 0.6, 0.03, 6, 24), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
-      rotor.rotation.x = Math.PI / 2;
-      rotor.position.y = look.size * 0.25;
+      // Atomar look: glowing nucleus with three electron orbits
+      const body = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.28, 16, 12), new THREE.MeshStandardMaterial({ color: look.color, emissive: look.color, emissiveIntensity: 0.6, roughness: 0.3 }));
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      eye.position.set(0, 0, look.size * 0.27);
+      const rotor = new THREE.Group();
+      for (let r = 0; r < 3; r++) {
+        const orbit = new THREE.Mesh(new THREE.TorusGeometry(look.size * 0.55, 0.018 + look.size * 0.015, 6, 32), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
+        orbit.rotation.set(Math.PI / 2 + r * 1.05, r * 0.6, 0);
+        const electron = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        electron.position.x = look.size * 0.55;
+        orbit.add(electron);
+        rotor.add(orbit);
+      }
       const beam = new THREE.Mesh(new THREE.ConeGeometry(look.size * 0.5, 1, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
       beam.position.y = -0.5;
       d.add(body, eye, rotor, beam);
       d.userData = { phase: idx * 1.7 + k * 2.1, r: 4 + ((idx * 3 + k * 5) % 10), h: look.h, speed: 0.15 + (k % 3) * 0.05, beam, size: look.size };
       body.castShadow = true;
+      d.userData.rotor = rotor;
       droneGroup.add(d);
     }
     idx++;
@@ -172,6 +180,7 @@ function updateDrones(dt, t) {
     const ground = Math.max(0, pile.heightAt(x, z));
     d.position.set(x, ground + u.h + Math.sin(t * 2 + u.phase) * 0.2, z);
     d.rotation.y = -a;
+    if (u.rotor) u.rotor.children.forEach((o, i) => { o.rotation.z += dt * (2 + i); });
     const suck = (Math.sin(t * 1.3 + u.phase * 3) + 1) / 2;
     u.beam.material.opacity = suck > 0.7 ? (suck - 0.7) * 0.8 : 0;
     u.beam.scale.y = u.h;
@@ -206,7 +215,13 @@ function hint(text, color = '#fff') {
 const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
 const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
 const valueOf = (f) => Math.round(f.value * starMult());
-const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers);
+const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult;
+const hasMod = (id) => S.equipped && S.equipped.includes(id);
+const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
+const grabRadius = () => GRAB_RADIUS[S.levels.hands] + (hasMod('reach') ? 1 : 0);
+const reachDist = () => 2.2 + grabRadius() * 0.5 + chassisDef().reach + (hasMod('reach') ? 0.8 : 0);
+const turboDur = () => TURBO.duration * (hasMod('cooler') ? 1.6 : 1);
+const turboCd = () => TURBO.cooldown * (hasMod('battery') ? 0.6 : 1);
 
 let hudCache = {};
 function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
@@ -238,7 +253,13 @@ function poisson(l) {
 }
 function rollFinds(n, luck = 1) {
   const out = [];
-  FINDS.forEach((f, tier) => { const k = poisson(n * f.rate * (tier < 3 ? luck : 1)); if (k) out.push({ f, k, tier }); });
+  FINDS.forEach((f, tier) => {
+    let m = tier < 3 ? luck : 1;
+    if (S && hasMod('magnet') && ['copper', 'platinum', 'probe'].includes(f.id)) m *= 1.4;
+    if (S && hasMod('sense') && f.value >= 300) m *= 1.5;
+    const k = poisson(n * f.rate * m);
+    if (k) out.push({ f, k, tier: Math.min(5, tier) });
+  });
   return out;
 }
 
@@ -265,7 +286,7 @@ function handleFinds(list, byPlayer) {
     }
     if (take < k && fullWarnT <= 0) {
       fullWarnT = 3;
-      hint('Laderaum voll! Ab zum Nexus-Markt', '#ff6b6b');
+      hint('Laderaum voll! Ab zur Nexus-Ablage', '#ff6b6b');
       bot.setMood('sad', 2.5);
       say(pick(LINES.full));
       sfx.full();
@@ -308,7 +329,7 @@ function doGrab(x, z) {
   if (!playing) return;
   initAudio();
   const amount = lv('hands');
-  const radius = GRAB_RADIUS[S.levels.hands];
+  const radius = grabRadius();
   const cap = S.mode !== 'pure' && capsules.take(x, z);
   if (cap) openCapsule(cap.position);
   const met = events.take(x, z);
@@ -439,20 +460,20 @@ const turbo = { t: 0, cd: 0 };
 function useTurbo() {
   if (!playing || turbo.cd > 0) { if (turbo.cd > 0) sfx.deny(); return; }
   initAudio();
-  turbo.t = TURBO.duration;
-  turbo.cd = TURBO.cooldown;
+  turbo.t = turboDur();
+  turbo.cd = turboCd();
   sfx.turbo();
   vibrate(40);
-  bot.setMood('work', TURBO.duration);
+  bot.setMood('work', turboDur());
   say('TURBO! 💨', 1.5);
   grabState.holding = true; grabState.timer = 0;
-  setTimeout(() => { if (!grabBtn.classList.contains('active')) grabState.holding = false; }, TURBO.duration * 1000);
+  setTimeout(() => { if (!grabBtn.classList.contains('active')) grabState.holding = false; }, turboDur() * 1000);
 }
 function updateTurbo(dt) {
   turbo.t = Math.max(0, turbo.t - dt);
   turbo.cd = Math.max(0, turbo.cd - dt);
   const btn = $('btn-turbo');
-  const frac = turbo.t > 0 ? turbo.t / TURBO.duration : 1 - turbo.cd / TURBO.cooldown;
+  const frac = turbo.t > 0 ? turbo.t / turboDur() : 1 - turbo.cd / turboCd();
   btn.style.setProperty('--p', `${Math.round(frac * 360)}deg`);
   btn.classList.toggle('active', turbo.t > 0);
   btn.classList.toggle('ready', turbo.t <= 0 && turbo.cd <= 0);
@@ -538,121 +559,210 @@ function formatTime(s) {
 }
 
 // ================================================================ shop
-let shopTab = 'bot';
+let shopTab = 'bot', archTab = 'cargo';
 function openShop() {
-  if (S.mode === 'pure') { hint('Im Modus „Pur“ gibt es keinen Markt'); return; }
+  if (S.mode === 'pure') { hint('Im Modus „Pur“ gibt es keinen Shop'); return; }
   $('shop').classList.remove('hidden');
   grabState.holding = false;
   renderShop();
 }
 function closeShop() { $('shop').classList.add('hidden'); save(); }
+function openArchive() { $('archive').classList.remove('hidden'); grabState.holding = false; renderArchive(); }
+function closeArchive() { $('archive').classList.add('hidden'); }
 $('shop-close').addEventListener('click', closeShop);
+$('archive-close').addEventListener('click', closeArchive);
 $('btn-dock').addEventListener('click', () => { initAudio(); openShop(); });
-$('btn-sell').addEventListener('click', sellCargo);
-document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+$('btn-archive').addEventListener('click', () => { initAudio(); openArchive(); });
+document.querySelectorAll('#shop .tab').forEach((t) => t.addEventListener('click', () => {
   shopTab = t.dataset.tab;
-  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+  document.querySelectorAll('#shop .tab').forEach((x) => x.classList.toggle('active', x === t));
   renderShop();
 }));
+document.querySelectorAll('#archive .tab').forEach((t) => t.addEventListener('click', () => {
+  archTab = t.dataset.tab;
+  document.querySelectorAll('#archive .tab').forEach((x) => x.classList.toggle('active', x === t));
+  renderArchive();
+}));
+
+// generic shop row
+function shopItem(list, { title, desc, levels = null, btn, disabled = false, cls = '', onBuy = null, extra = '' }) {
+  const el = document.createElement('div');
+  el.className = 'item ' + cls;
+  el.innerHTML = `<div class="t">${title}</div><div class="d">${desc}</div>${levels ? `<div class="lv">${levels}</div>` : ''}${extra}`;
+  const b = document.createElement('button');
+  b.className = 'buy' + (btn === 'MAX' || btn === 'AKTIV' || btn === 'AUSGERÜSTET' ? ' max' : '');
+  b.textContent = btn;
+  b.disabled = disabled;
+  if (onBuy) b.onclick = onBuy;
+  el.appendChild(b);
+  list.appendChild(el);
+}
+function pay(cost) {
+  if (S.credits < cost) { sfx.deny(); return false; }
+  S.credits -= cost;
+  return true;
+}
+function bought(text) {
+  bot.setMood('happy', 2.5);
+  sfx.upgrade();
+  vibrate(30);
+  feed(text, '#ffb347');
+  renderShop(); updateHud(); save();
+}
+const dots = (n, cur) => Array.from({ length: n }, (_, i) => `<i class="${i < cur ? 'on' : ''}"></i>`).join('');
 
 function renderShop() {
   $('shop-credits').textContent = fmt(S.credits);
   const v = cargoValue();
-  const sell = $('btn-sell');
-  sell.disabled = !v;
-  sell.textContent = v ? `Ladung verkaufen: +${fmt(v)} ⬡ (${fmt(S.cargoCount)} Funde)` : (S.levels.link ? 'Nexus-Link verkauft automatisch' : 'Laderaum ist leer');
+  $('shop-note').textContent = v
+    ? `Im Laderaum: ${fmt(S.cargoCount)} Funde (${fmt(v)} ⬡) – verkaufen an der Nexus-Ablage (türkiser Strahl).`
+    : (S.levels.link ? 'Nexus-Link aktiv: Funde werden sofort verkauft.' : 'Funde verkaufst du an der Nexus-Ablage (türkiser Strahl).');
   const list = $('shop-list');
   list.innerHTML = '';
+
   if (shopTab === 'bot') {
     for (const [key, up] of Object.entries(BOT_UPGRADES)) {
       const cur = S.levels[key];
       const next = up.levels[cur + 1];
       const curL = up.levels[cur];
-      const el = document.createElement('div');
-      el.className = 'item';
       const desc = next ? (next.desc || `${fmt(curL.value)} → <b>${fmt(next.value)}</b> ${up.unit}`) : (curL.desc || `${fmt(curL.value)} ${up.unit}`);
-      el.innerHTML = `<div class="t">${up.title}: ${next ? next.name : curL.name}</div>
-        <div class="d">${desc}</div>
-        <div class="lv">${up.levels.slice(1).map((_, i) => `<i class="${i < cur ? 'on' : ''}"></i>`).join('')}</div>`;
-      const b = document.createElement('button');
-      b.className = 'buy' + (next ? '' : ' max');
-      if (next) {
-        b.textContent = `${fmt(next.cost)} ⬡`;
-        b.disabled = S.credits < next.cost;
-        b.onclick = () => {
-          if (S.credits < next.cost) return;
-          S.credits -= next.cost;
+      shopItem(list, {
+        title: `${up.title}: ${next ? next.name : curL.name}`, desc, levels: dots(up.levels.length - 1, cur),
+        btn: next ? `${fmt(next.cost)} ⬡` : 'MAX', disabled: !next || S.credits < next.cost,
+        onBuy: () => {
+          if (!next || !pay(next.cost)) return;
           S.levels[key]++;
           bot.applyUpgrades(S.levels);
-          bot.setMood('happy', 2.5);
           say(pick(LINES.upgrade));
-          sfx.upgrade();
-          vibrate(30);
-          feed(`Upgrade: ${next.name}`, '#ffb347');
-          renderShop(); updateHud(); save();
-        };
-      } else { b.textContent = 'MAX'; b.disabled = true; }
-      el.appendChild(b);
-      list.appendChild(el);
+          bought(`Upgrade: ${next.name}`);
+        },
+      });
+    }
+  } else if (shopTab === 'chassis') {
+    const intro = document.createElement('p');
+    intro.className = 'lead small';
+    intro.textContent = 'Fahrwerke einmal kaufen, danach jederzeit kostenlos wechseln. Der Antrieb (Nexus-Bot-Tab) wirkt auf jedes Fahrwerk.';
+    list.appendChild(intro);
+    for (const c of CHASSIS) {
+      const owned = S.chassisOwned.includes(c.id);
+      const active = S.chassis === c.id;
+      const stats = `Tempo ×${c.speed.toLocaleString('de-DE')} · Hang ${c.slope < 0.1 ? 'kein Problem' : c.slope < 0.4 ? 'gut' : c.slope < 0.8 ? 'mittel' : 'schwer'}${c.reach ? ` · Reichweite +${c.reach.toLocaleString('de-DE')} m` : ''}`;
+      shopItem(list, {
+        title: `${{ tracks: '🛞', wheels: '⚙️', feet: '🦿', spider: '🕷️' }[c.id]} ${c.name}`, desc: `${c.desc}<br>${stats}`,
+        btn: active ? 'AKTIV' : owned ? 'Ausrüsten' : `${fmt(c.cost)} ⬡`,
+        disabled: active || (!owned && S.credits < c.cost),
+        cls: active ? 'got' : '',
+        onBuy: () => {
+          if (!owned) { if (!pay(c.cost)) return; S.chassisOwned.push(c.id); }
+          S.chassis = c.id;
+          bot.setChassis(c.id);
+          say(pick({ wheels: ['Wrrrumm! 🛞', 'Räder! Ab geht’s!'], feet: ['Ich kann laufen! 🦿', 'Schritt für Schritt…'], spider: ['Acht… nein, sechs Beine! 🕷️', 'Jetzt klettere ich überall hoch!'], tracks: ['Gute alte Raupen.'] }[c.id]));
+          bought(`Fahrwerk: ${c.name}`);
+        },
+      });
+    }
+  } else if (shopTab === 'modules') {
+    const slots = MODULE_SLOTS[S.slotLv].slots;
+    const nextSlot = MODULE_SLOTS[S.slotLv + 1];
+    shopItem(list, {
+      title: `🔧 Modul-Slots: ${S.equipped.length}/${slots} belegt`,
+      desc: nextSlot ? `Erweitern auf ${nextSlot.slots} Slots` : 'Maximale Anzahl Slots',
+      levels: dots(MODULE_SLOTS.length - 1, S.slotLv),
+      btn: nextSlot ? `${fmt(nextSlot.cost)} ⬡` : 'MAX', disabled: !nextSlot || S.credits < nextSlot.cost,
+      onBuy: () => { if (!nextSlot || !pay(nextSlot.cost)) return; S.slotLv++; bought(`${nextSlot.slots} Modul-Slots`); },
+    });
+    for (const m of MODULES) {
+      const owned = S.modules.includes(m.id);
+      const on = S.equipped.includes(m.id);
+      shopItem(list, {
+        title: `${m.icon} ${m.name}`, desc: m.desc,
+        btn: on ? 'Ablegen' : owned ? (S.equipped.length >= slots ? 'Slots voll' : 'Ausrüsten') : `${fmt(m.cost)} ⬡`,
+        disabled: !on && (owned ? S.equipped.length >= slots : S.credits < m.cost),
+        cls: on ? 'got' : '',
+        onBuy: () => {
+          if (on) { S.equipped = S.equipped.filter((x) => x !== m.id); sfx.click(); renderShop(); save(); return; }
+          if (!owned) { if (!pay(m.cost)) return; S.modules.push(m.id); }
+          if (S.equipped.length < slots) S.equipped.push(m.id);
+          say(`${m.name} installiert! ${m.icon}`);
+          bought(`Modul: ${m.name}`);
+        },
+      });
     }
   } else if (shopTab === 'helpers') {
+    const core = ATOMAR_CORE[S.atomarLv], nextCore = ATOMAR_CORE[S.atomarLv + 1];
+    shopItem(list, {
+      title: `⚛️ ${nextCore ? nextCore.name : core.name}`,
+      desc: nextCore ? `Alle Atomar-Drohnen ×${core.mult.toLocaleString('de-DE')} → <b>×${nextCore.mult.toLocaleString('de-DE')}</b>` : `Alle Atomar-Drohnen ×${core.mult.toLocaleString('de-DE')}`,
+      levels: dots(ATOMAR_CORE.length - 1, S.atomarLv),
+      btn: nextCore ? `${fmt(nextCore.cost)} ⬡` : 'MAX', disabled: !nextCore || S.credits < nextCore.cost,
+      onBuy: () => { if (!nextCore || !pay(nextCore.cost)) return; S.atomarLv++; rebuildDrones(); bought(nextCore.name); },
+    });
     for (const h of HELPERS) {
       const owned = S.helpers[h.id] || 0;
       const cost = helperCost(h, owned);
-      const el = document.createElement('div');
-      el.className = 'item';
-      el.innerHTML = `<div class="t">${h.name} <span style="color:var(--muted)">× ${owned}</span></div>
-        <div class="d">${h.desc} · ${fmt(h.rate)} Teile/s pro Stück</div>`;
-      const b = document.createElement('button');
-      b.className = 'buy';
-      b.textContent = `${fmt(cost)} ⬡`;
-      b.disabled = S.credits < cost;
-      b.onclick = () => {
-        if (S.credits < cost) return;
-        S.credits -= cost;
-        S.helpers[h.id] = owned + 1;
-        rebuildDrones();
-        sfx.upgrade();
-        feed(`Neuer Helfer: ${h.name}`, '#ffb347');
-        renderShop(); updateHud(); save();
-      };
-      el.appendChild(b);
-      list.appendChild(el);
+      shopItem(list, {
+        title: `⚛️ ${h.name} <span style="color:var(--muted)">× ${owned}</span>`,
+        desc: `${h.desc} · ${fmt(h.rate * ATOMAR_CORE[S.atomarLv].mult)} Teile/s pro Drohne`,
+        btn: `${fmt(cost)} ⬡`, disabled: S.credits < cost,
+        onBuy: () => {
+          if (!pay(cost)) return;
+          S.helpers[h.id] = owned + 1;
+          rebuildDrones();
+          say(pick([`${h.name} meldet sich zum Dienst! ⚛️`, 'Verstärkung ist da!', 'Noch ein Atomar im Team!']));
+          bought(`Atomar-Drohne: ${h.name}`);
+        },
+      });
     }
     const info = document.createElement('p');
-    info.className = 'lead';
-    info.style.fontSize = '13px';
-    info.textContent = 'Helfer arbeiten auch, wenn das Spiel geschlossen ist (bis zu 2 Stunden). Ihre Funde werden direkt verkauft.';
+    info.className = 'lead small';
+    info.textContent = 'Atomar-Drohnen arbeiten auch, wenn das Spiel geschlossen ist (bis zu 2 Stunden). Ihre Funde werden direkt verkauft.';
     list.appendChild(info);
   } else if (shopTab === 'skins') {
     for (const sk of SKINS) {
       const owned = S.skins.includes(sk.id);
-      const el = document.createElement('div');
-      el.className = 'item';
       const sw = (c) => `<i class="sw" style="background:#${c.toString(16).padStart(6, '0')}"></i>`;
-      el.innerHTML = `<div class="t">${sw(sk.body)}${sw(sk.ear)} ${sk.name}</div><div class="d">${S.skin === sk.id ? 'Aktiv' : owned ? 'Gekauft – tippen zum Anziehen' : 'Neuer Look für deinen Nexus-Bot'}</div>`;
-      const b = document.createElement('button');
-      b.className = 'buy' + (S.skin === sk.id ? ' max' : '');
-      if (S.skin === sk.id) { b.textContent = 'AKTIV'; b.disabled = true; }
-      else if (owned) { b.textContent = 'Anziehen'; }
-      else { b.textContent = `${fmt(sk.cost)} ⬡`; b.disabled = S.credits < sk.cost; }
-      b.onclick = () => {
-        if (!owned) { if (S.credits < sk.cost) return; S.credits -= sk.cost; S.skins.push(sk.id); sfx.upgrade(); }
-        else sfx.click();
-        S.skin = sk.id;
-        bot.setSkin(sk);
-        bot.setMood('happy', 2);
-        say(pick(['Steht mir gut, oder?', 'Neuer Look! ✨', 'Ich fühle mich schick!']));
-        renderShop(); updateHud(); save();
-      };
-      el.appendChild(b);
-      list.appendChild(el);
+      shopItem(list, {
+        title: `${sw(sk.body)}${sw(sk.ear)} ${sk.name}`,
+        desc: S.skin === sk.id ? 'Aktiv' : owned ? 'Gekauft – tippen zum Anziehen' : 'Neuer Look für deinen Nexus-Bot',
+        btn: S.skin === sk.id ? 'AKTIV' : owned ? 'Anziehen' : `${fmt(sk.cost)} ⬡`,
+        disabled: S.skin === sk.id || (!owned && S.credits < sk.cost),
+        onBuy: () => {
+          if (!owned) { if (!pay(sk.cost)) return; S.skins.push(sk.id); }
+          S.skin = sk.id;
+          bot.setSkin(sk);
+          say(pick(['Steht mir gut, oder?', 'Neuer Look! ✨', 'Ich fühle mich schick!']));
+          bought(`Skin: ${sk.name}`);
+        },
+      });
     }
-  } else if (shopTab === 'achv') {
-    const done = S.achievements.length;
+  }
+}
+
+function renderArchive() {
+  const list = $('archive-list');
+  list.innerHTML = '';
+  if (archTab === 'cargo') {
+    const cap = lv('cargo');
     const head = document.createElement('p');
     head.className = 'lead';
-    head.textContent = `${done} von ${ACHIEVEMENTS.length} Erfolgen freigeschaltet`;
+    head.innerHTML = S.levels.link ? 'Nexus-Link aktiv: alle Funde gehen direkt zur Station.' : `Laderaum: <b>${fmt(S.cargoCount)} / ${fmt(cap)}</b> Funde · Wert <b>${fmt(cargoValue())} ⬡</b>`;
+    list.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'cargo-grid';
+    grid.innerHTML = FINDS.map((f) => {
+      const n = S.cargo[f.id] || 0;
+      return `<div class="cargo-cell ${n ? '' : 'empty'}" style="--c:${f.color}"><b>${fmt(n)}</b><span>${f.name}</span><small>${fmt(valueOf(f))} ⬡</small></div>`;
+    }).join('');
+    list.appendChild(grid);
+    const eq = document.createElement('p');
+    eq.className = 'lead small';
+    const ch = CHASSIS.find((c) => c.id === S.chassis);
+    eq.innerHTML = `Fahrwerk: <b>${ch.name}</b> · Module: ${S.equipped.length ? S.equipped.map((id) => { const m = MODULES.find((x) => x.id === id); return `${m.icon} ${m.name}`; }).join(', ') : 'keine'}`;
+    list.appendChild(eq);
+  } else if (archTab === 'achv') {
+    const head = document.createElement('p');
+    head.className = 'lead';
+    head.textContent = `${S.achievements.length} von ${ACHIEVEMENTS.length} Erfolgen freigeschaltet`;
     list.appendChild(head);
     for (const a of ACHIEVEMENTS) {
       const got = S.achievements.includes(a.id);
@@ -664,21 +774,22 @@ function renderShop() {
   } else {
     const el = document.createElement('div');
     el.className = 'stats';
-    el.innerHTML = FINDS.map((f) => `<span style="color:${f.color}">${f.name} <small style="color:var(--muted)">(${fmt(f.value)} ⬡)</small></span><span>${fmt(S.stats.found[f.id] || 0)}</span>`).join('') +
+    el.innerHTML = FINDS.map((f) => `<span style="color:${f.color}">${f.name} <small style="color:var(--muted)">(${fmt(valueOf(f))} ⬡)</small></span><span>${fmt(S.stats.found[f.id] || 0)}</span>`).join('') +
       `<span>Sortierte Teile</span><span>${fmt(S.stats.removed)}</span>
        <span>Griffe</span><span>${fmt(S.stats.grabs)}</span>
        <span>Verdient gesamt</span><span>${fmt(S.stats.earned)} ⬡</span>
        <span>Spielzeit</span><span>${formatTime(S.stats.time)}</span>
        <span>Frachtkapseln</span><span>${fmt(S.stats.capsules)}</span>
-       <span>Nexus-Kern</span><span>${S.coreFound ? '✔ gefunden' : 'verschollen'}</span>
        <span>Meteoriten</span><span>${fmt(S.stats.meteors || 0)}</span>
+       <span>Atomar-Drohnen</span><span>${fmt(Object.values(S.helpers).reduce((a, b) => a + b, 0))}</span>
+       <span>Nexus-Kern</span><span>${S.coreFound ? '✔ gefunden' : 'verschollen'}</span>
        <span>Sterne</span><span>⭐ ${S.stars || 0} (+${(S.stars || 0) * 25} % Fundwert)</span>`;
     list.appendChild(el);
     if (S.coreFound && S.mode !== 'pure') {
       const b = document.createElement('button');
       b.className = 'big'; b.style.marginTop = '12px';
       b.textContent = 'Zum nächsten Deck ⭐';
-      b.onclick = () => { closeShop(); nextDeck(); };
+      b.onclick = () => { closeArchive(); nextDeck(); };
       list.appendChild(b);
     }
   }
@@ -714,6 +825,7 @@ function setupWorld(state) {
   pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
+  bot.setChassis(S.chassis || 'tracks');
   bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
   bot.group.rotation.y = Math.PI;
   cam.yaw = 0; cam.pitch = 0.42; cam.dist = 7;
@@ -728,6 +840,9 @@ function startGame(state, offline) {
   state.achievements = state.achievements || [];
   state.stats.capsules = state.stats.capsules || 0;
   state.deck = state.deck || 0; state.stars = state.stars || 0;
+  state.chassis = state.chassis || 'tracks'; state.chassisOwned = state.chassisOwned || ['tracks'];
+  state.modules = state.modules || []; state.equipped = state.equipped || [];
+  state.slotLv = state.slotLv || 0; state.atomarLv = state.atomarLv || 0;
   setupWorld(state);
   $('overlay-start').classList.add('hidden');
   hud.classList.remove('hidden');
@@ -764,6 +879,7 @@ function nextDeck() {
   Object.assign(st, {
     deck: (old.deck || 0) + 1, stars: (old.stars || 0) + 1,
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
+    chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
   });
   st.credits = 100 * st.stars;
@@ -922,7 +1038,7 @@ function tapGrab(cx, cy) {
   if (!hit) return;
   const bp = bot.group.position;
   const d = Math.hypot(hit.point.x - bp.x, hit.point.z - bp.z);
-  const reach = 2.2 + GRAB_RADIUS[S.levels.hands] * 0.5;
+  const reach = reachDist();
   if (d > reach) { hint('Zu weit weg – fahr näher heran'); return; }
   bot.group.rotation.y = Math.atan2(hit.point.x - bp.x, hit.point.z - bp.z);
   doGrab(hit.point.x, hit.point.z);
@@ -932,7 +1048,8 @@ window.addEventListener('keydown', (e) => {
   input.keys.add(e.code);
   if (e.code === 'Space') { grabState.holding = true; e.preventDefault(); }
   if (e.code === 'KeyT') useTurbo();
-  if (e.code === 'KeyE' && playing && nearDock()) openShop();
+  if (e.code === 'KeyE' && playing && nearShop()) openShop();
+  if (e.code === 'KeyI' && playing) openArchive();
   if (e.code === 'Escape') closeShop();
 });
 window.addEventListener('keyup', (e) => {
@@ -940,6 +1057,10 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') grabState.holding = false;
 });
 
+function nearShop() {
+  const p = bot.group.position;
+  return Math.hypot(p.x - WORLD.shop.x, p.z - WORLD.shop.z) < WORLD.shop.r + 0.6;
+}
 function nearDock() {
   const p = bot.group.position;
   return Math.hypot(p.x - WORLD.dock.x, p.z - WORLD.dock.z) < WORLD.dock.r + 0.6;
@@ -951,8 +1072,8 @@ const TUTORIAL = [
     done: () => Math.hypot(bot.group.position.x, bot.group.position.z) < 15 || pile.heightAt(bot.group.position.x, bot.group.position.z) > 0.2 },
   { text: 'Halte jetzt GREIFEN gedrückt – ich sortiere Teil für Teil!', done: () => S.stats.grabs >= 12 },
   { text: 'Funde landen in meinem Laderaum (▣ oben links). Sammle Funde für 20 ⬡!', done: () => cargoValue() >= 20 || S.credits >= 20 },
-  { text: 'Bring die Funde zum Nexus-Markt – dem türkisen Lichtstrahl am Rand.', done: () => !$('shop').classList.contains('hidden') },
-  { text: 'Verkaufe die Ladung und kauf mir Krallenhände. Dann schaffe ich 5 Teile pro Griff!', done: () => S.levels.hands >= 1 },
+  { text: 'Fahr zur Nexus-Ablage (türkiser Lichtstrahl) – dort verkaufe ich die Funde automatisch.', done: () => S.stats.earned > 0 },
+  { text: 'Jetzt zum Nexus-Shop (oranger Lichtstrahl) und kauf mir Krallenhände!', done: () => S.levels.hands >= 1 },
   { text: 'Danke! 💚 Irgendwo hier ist der Nexus-Kern. Wenn es türkis aufblitzt: dort graben!', done: () => tutorialShown > 6 },
 ];
 let tutorialShown = 0;
@@ -963,25 +1084,31 @@ const LINES = {
   rare: ['WOW! Schau dir das an!', 'Selten! Sehr selten!', 'Meine Sensoren kribbeln!'],
   full: ['Mein Laderaum ist voll… 😟', 'Ich passe nichts mehr rein!'],
   upgrade: ['Ich fühle mich stärker!', 'Neues Teil – danke!', 'Upgrade installiert ✔'],
-  idle: ['Noch ein paar Millionen…', 'Irgendwo hier muss der Kern sein.', 'Schrott, Schrott, Schrott…', 'Ich habe Zeit. Viel Zeit.', 'Kennst du schon den Markt?'],
+  idle: ['Noch ein paar Millionen…', 'Irgendwo hier muss der Kern sein.', 'Schrott, Schrott, Schrott…', 'Ich habe Zeit. Viel Zeit.', 'Schon den Shop besucht? Da gibt’s Spinnenbeine!'],
   hot: ['Ich spüre etwas… ganz nah!', 'Hier! Hier muss er sein!'],
 };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 function say(text, dur = 2.6) { chatter = { text, t: dur }; idleChat = 30 + Math.random() * 30; }
 
 function updateDockArrow() {
-  const want = S.mode !== 'pure' && !nearDock() &&
-    (S.tutorial === 3 || (!S.levels.link && S.cargoCount >= lv('cargo')));
-  $('dock-chip').classList.toggle('hidden', !want);
-  if (!want) return;
+  let target = null, label = '';
+  const full = !S.levels.link && S.cargoCount >= lv('cargo');
+  if (S.mode !== 'pure') {
+    if ((S.tutorial === 3 || full) && !nearDock()) { target = WORLD.dock; label = 'Ablage'; }
+    else if (S.tutorial === 4 && !nearShop()) { target = WORLD.shop; label = 'Shop'; }
+  }
+  $('dock-chip').classList.toggle('hidden', !target);
+  if (!target) return;
   const p = bot.group.position;
-  const dx = WORLD.dock.x - p.x, dz = WORLD.dock.z - p.z;
-  // angle of dock direction relative to camera forward (screen up)
+  const dx = target.x - p.x, dz = target.z - p.z;
   const fwd = Math.atan2(-Math.sin(cam.yaw), -Math.cos(cam.yaw));
   const dir = Math.atan2(dx, dz);
   const rel = Math.atan2(Math.sin(fwd - dir), Math.cos(fwd - dir));
   $('dock-arrow').style.transform = `rotate(${(-90 + rel * 180 / Math.PI).toFixed(0)}deg)`;
+  setText('dock-label', label);
   setText('dock-dist', fmt(Math.hypot(dx, dz)));
+  $('dock-chip').style.color = label === 'Shop' ? '#ffb347' : '#6ff3f0';
+  $('dock-chip').style.borderColor = label === 'Shop' ? '#ffb347' : '#6ff3f0';
 }
 
 function updateBubble(dt) {
@@ -990,7 +1117,7 @@ function updateBubble(dt) {
     const step = TUTORIAL[S.tutorial];
     if (S.tutorial === TUTORIAL.length - 1) tutorialShown += dt;
     if (step.done()) { S.tutorial++; tutorialShown = 0; bot.setMood('happy', 1); save(); }
-    else if ($('shop').classList.contains('hidden') || S.tutorial === 4) { text = `<span class="step">Schritt ${S.tutorial + 1}/${TUTORIAL.length}</span>${step.text}`; tut = true; }
+    else if ($('shop').classList.contains('hidden')) { text = `<span class="step">Schritt ${S.tutorial + 1}/${TUTORIAL.length}</span>${step.text}`; tut = true; }
   }
   if (!text) {
     idleChat -= dt;
@@ -1056,6 +1183,8 @@ const clock = new THREE.Clock();
 const camTarget = new THREE.Vector3();
 const tmpV = new THREE.Vector3();
 let demoT = 0;
+let autoGrabT = 0;
+let wasInAblage = false;
 
 function updateBot(dt) {
   let jx = input.jx, jy = input.jy;
@@ -1072,11 +1201,12 @@ function updateBot(dt) {
     const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
     const mx = fx * -jy + rx * jx, mz = fz * -jy + rz * jx;
     const ml = Math.hypot(mx, mz) || 1;
-    const speed = lv('drive') * mag;
+    const ch = chassisDef();
+    const speed = lv('drive') * ch.speed * mag;
     // climbing the heap is slower
     const ahead = pile.heightAt(p.x + (mx / ml) * 0.4, p.z + (mz / ml) * 0.4);
     const slope = Math.max(0, (ahead - Math.max(0, pile.heightAt(p.x, p.z))) / 0.4);
-    const slow = 1 / (1 + slope * 0.6);
+    const slow = 1 / (1 + slope * ch.slope);
     p.x += (mx / ml) * speed * slow * dt;
     p.z += (mz / ml) * speed * slow * dt;
     const r = Math.hypot(p.x, p.z);
@@ -1101,6 +1231,16 @@ function updateBot(dt) {
     dust.puff(p.x - Math.sin(a) * 0.4, p.y, p.z - Math.cos(a) * 0.4, 1, 0.6);
   }
 
+  // auto-grabber module: grabs by itself while standing at the heap
+  if (hasMod('auto') && !moving && !grabState.holding && playing && $('shop').classList.contains('hidden')) {
+    autoGrabT -= dt;
+    if (autoGrabT <= 0) {
+      autoGrabT = 1.6 / lv('speed');
+      const [x, z] = frontPoint();
+      const c = pile.cellAt(x, z);
+      if (c >= 0 && pile.counts[c] > 0) doGrab(x, z);
+    }
+  }
   // hold-to-grab
   if (grabState.holding && playing) {
     grabState.timer -= dt;
@@ -1138,12 +1278,24 @@ function animate() {
       automationTick(dt);
       updateBot(dt);
       updateCamera(dt);
-      $('btn-dock').classList.toggle('hidden', !nearDock() || S.mode === 'pure');
+      $('btn-dock').classList.toggle('hidden', !nearShop() || S.mode === 'pure');
+      const inA = nearDock();
+      if (inA && !wasInAblage && S.mode !== 'pure') {
+        if (cargoValue() > 0) {
+          const v = cargoValue();
+          sellCargo();
+          floatLabel(camera, tmpV2.copy(bot.group.position).setY(bot.group.position.y + 2), `+${fmt(v)} ⬡`, '#6ff3f0', true);
+          dust.puff(WORLD.dock.x, 0.2, WORLD.dock.z, 6, 1.2, 0x6ff3f0);
+        } else if (S.stats.grabs > 0) hint('Nexus-Ablage: Laderaum ist leer', '#6ff3f0');
+      }
+      wasInAblage = inA;
       updateHud();
       updateScannerHud();
       updateBubble(dt);
       updateDockArrow();
       checkAchievements(dt);
+      capsules.speed = hasMod('radar') ? 2 : 1;
+      events.speed = hasMod('lure') ? 1.8 : 1;
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
       events.update(dt, t, pile, camera);
       updateTurbo(dt);
@@ -1183,4 +1335,4 @@ showStart();
 animate();
 
 // test hook
-window.__nx = { get S() { return S; }, get pile() { return pile; }, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

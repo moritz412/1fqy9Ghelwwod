@@ -31,10 +31,11 @@
     <div id="topleft">
       <div class="chip" id="credits-chip">⬡ <span id="credits">0</span></div>
       <div class="chip" id="cargo-chip">▣ <span id="cargo">0/20</span></div>
-      <div class="chip hidden" id="dock-chip"><span id="dock-arrow">➤</span> Markt <span id="dock-dist">0</span> m</div>
+      <div class="chip hidden" id="dock-chip"><span id="dock-arrow">➤</span> <span id="dock-label">Ablage</span> <span id="dock-dist">0</span> m</div>
       <div class="chip hidden" id="rate-chip">⚙ <span id="rate">0</span>/s</div>
     </div>
     <button class="icon-btn" id="btn-menu" aria-label="Menü">☰</button>
+    <button class="icon-btn" id="btn-archive" aria-label="Archiv">📖</button>
 
     <div id="scanner" class="hidden">
       <span class="label">Kern-Resonanz</span>
@@ -51,28 +52,47 @@
     <div id="event" class="hidden"><b></b><small></small><span id="event-t"></span></div>
     <button id="btn-turbo" aria-label="Turbo"><span>💨</span><small>TURBO</small></button>
     <button id="btn-grab" aria-label="Greifen"><span>GREIFEN</span><small id="grab-amt">1 Teil</small></button>
-    <button id="btn-dock" class="hidden">NEXUS-MARKT</button>
+    <button id="btn-dock" class="hidden">NEXUS-SHOP</button>
   </div>
 
-  <!-- Shop -->
+  <!-- Shop (only at the Nexus-Shop station) -->
   <div id="shop" class="overlay hidden">
     <div class="card wide">
       <div class="shop-head">
         <div>
-          <div class="kicker">Nexus-Markt · Andockstation</div>
+          <div class="kicker shop-kicker">Nexus-Shop · Werkstatt</div>
           <h2>⬡ <span id="shop-credits">0</span></h2>
         </div>
         <button class="icon-btn" id="shop-close" aria-label="Schließen">✕</button>
       </div>
-      <button class="big" id="btn-sell">Ladung verkaufen</button>
+      <p class="lead small" id="shop-note"></p>
       <div class="tabs">
         <button class="tab active" data-tab="bot">Nexus-Bot</button>
-        <button class="tab" data-tab="helpers">Helfer</button>
+        <button class="tab" data-tab="chassis">Fahrwerk</button>
+        <button class="tab" data-tab="modules">Module</button>
+        <button class="tab" data-tab="helpers">Atomar</button>
         <button class="tab" data-tab="skins">Skins</button>
-        <button class="tab" data-tab="achv">Erfolge</button>
-        <button class="tab" data-tab="stats">Fundbuch</button>
       </div>
       <div id="shop-list"></div>
+    </div>
+  </div>
+
+  <!-- Archive (anywhere): cargo, finds, achievements -->
+  <div id="archive" class="overlay hidden">
+    <div class="card wide">
+      <div class="shop-head">
+        <div>
+          <div class="kicker">Nexus-Archiv</div>
+          <h2>📖 Ablage &amp; Sammlung</h2>
+        </div>
+        <button class="icon-btn" id="archive-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="cargo">Laderaum</button>
+        <button class="tab" data-tab="finds">Fundbuch</button>
+        <button class="tab" data-tab="achv">Erfolge</button>
+      </div>
+      <div id="archive-list"></div>
     </div>
   </div>
 
@@ -85,7 +105,7 @@
       <ul class="howto">
         <li>🕹 <b>Stick:</b> fahren · <b>Ziehen:</b> Kamera · <b>Kneifen:</b> Zoom</li>
         <li>✋ <b>GREIFEN halten</b> oder auf den Haufen tippen</li>
-        <li>⬡ Funde am <b>Nexus-Markt</b> verkaufen, Bot aufrüsten</li>
+        <li>⬡ Funde an der <b>Ablage</b> verkaufen, im <b>Shop</b> aufrüsten</li>
         <li>💠 <b>Türkises Aufblitzen</b> = der Kern ist nah</li>
       </ul>
       <button class="big" id="btn-start">Weiter sortieren</button>

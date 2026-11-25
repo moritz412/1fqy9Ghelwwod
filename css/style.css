@@ -58,6 +58,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   font-size: 20px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 #btn-menu { position: absolute; top: calc(10px + var(--safe-t)); right: calc(10px + var(--safe-r)); }
+#btn-archive { position: absolute; top: calc(66px + var(--safe-t)); right: calc(10px + var(--safe-r)); }
 
 #scanner {
   position: absolute; top: calc(134px + var(--safe-t)); left: 50%; transform: translateX(-50%);
@@ -187,6 +188,20 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 #btn-turbo small { font-size: 9px; font-weight: 900; letter-spacing: .08em; }
 #btn-turbo.ready { animation: pulseBtn 1.4s infinite; border-color: #ffb347; }
 #btn-turbo.active { box-shadow: inset 0 0 0 5px rgba(10,16,26,.9), 0 0 24px rgba(255,179,71,.8); }
+
+#btn-dock { background: linear-gradient(180deg, #ffd08a, #ffb347); color: #3a2208; box-shadow: 0 5px 0 #8a5312; }
+.shop-kicker { color: #ffb347; }
+.lead.small { font-size: 12.5px; margin: 0 0 6px; }
+.cargo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin: 6px 0 12px; }
+.cargo-cell {
+  background: rgba(255,255,255,.04); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); border-radius: 14px;
+  padding: 10px; display: flex; flex-direction: column; gap: 2px;
+}
+.cargo-cell b { font-size: 22px; color: var(--c); font-variant-numeric: tabular-nums; }
+.cargo-cell span { font-size: 12px; font-weight: 700; }
+.cargo-cell small { font-size: 11px; color: var(--muted); }
+.cargo-cell.empty { opacity: .4; }
+#dock-chip { color: #6ff3f0; border-color: #6ff3f0; }
 
 /* ---------- Overlays ---------- */
 .overlay {

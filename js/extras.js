@@ -43,7 +43,7 @@ export class Capsules {
   }
 
   update(dt, t, pile) {
-    this.timer -= dt;
+    this.timer -= dt * (this.speed || 1);
     if (this.timer <= 0) { this.timer = CAPSULE.respawn * (0.6 + Math.random() * 0.8); this.spawn(pile); }
     for (const g of this.list) {
       const u = g.userData;

@@ -159,6 +159,7 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | 0.3 ✅  | Einführung in Sprechblasen, schnellerer Start, Zoom-Schutz für iOS       |
 | 0.4 ✅  | Schrottformen, Staub, Credit-Anzeigen, Frachtkapseln, 16 Erfolge, 6 Bot-Skins, Musik/Motor/Stationsbrummen |
 | 0.5 ✅  | Ereignisse (Meteoritenschauer, Glückswelle), Turbo, Decks mit Sternen (Eiswrack, Goldmine, Alienschrott), Tagesbonus, mitlaufende Kamera |
-| 0.6     | PC-Modelle (Bot, Schrott, Funde), Bestenliste, Koop-Versuch              |
+| 0.6 ✅  | Nexus-Ablage (Verkauf) und Nexus-Shop (Werkstatt) getrennt, Archiv, Fahrwerke (Raupen, Räder, Laufbeine, Spinnenbeine), 8 Module mit Slots, Atomar-Drohnen mit Atomar-Kern, 2 neue Funde, 5 neue Erfolge |
+| 0.7     | PC-Modelle (Bot, Schrott, Funde), Bestenliste, Koop-Versuch              |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

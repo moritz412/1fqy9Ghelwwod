@@ -63,7 +63,7 @@ export class Events {
   update(dt, t, pile, camera) {
     // schedule
     if (!this.active) {
-      this.next -= dt;
+      this.next -= dt * (this.speed || 1);
       if (this.next <= 0) {
         this.next = 100 + Math.random() * 80;
         this.start(Math.random() < 0.55 ? 'meteor' : 'luck', pile);
