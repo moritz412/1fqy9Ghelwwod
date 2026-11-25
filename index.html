@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2a1d3f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sternsplitter">
+  <meta name="description" content="Sternsplitter – ein 3D-Grabespiel: Finde den gefallenen Stern tief im Wüstensand.">
+  <title>Sternsplitter</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": {
+        "three": "./vendor/three.module.min.js",
+        "three/addons/OrbitControls.js": "./vendor/OrbitControls.js"
+    } }
+  </script>
+</head>
+<body>
+  <div id="sky"><div class="stars"></div></div>
+  <canvas id="game"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-left">
+      <div class="pill" id="pill-level">Level <b id="level">1</b></div>
+      <div class="pill energy">⚡ <b id="energy">0</b></div>
+      <div class="pill">⛏️ <b id="depth">0</b> m</div>
+      <div class="pill">★ <b id="score">0</b></div>
+    </div>
+    <div id="heat">
+      <div class="heat-track"><div id="heat-fill"></div></div>
+      <div id="heat-label">Tippe auf den Sand, um zu graben</div>
+    </div>
+    <div class="hud-right">
+      <button class="icon-btn" id="btn-sound" aria-label="Ton an/aus">🔊</button>
+      <button class="icon-btn" id="btn-menu" aria-label="Menü">☰</button>
+    </div>
+  </div>
+
+  <div id="toolbar" class="hidden">
+    <button class="tool active" data-tool="shovel"><span class="ti">🪏</span><span class="tn">Schaufel</span><span class="tc">1⚡</span></button>
+    <button class="tool" data-tool="drill"><span class="ti">🔩</span><span class="tn">Bohrer</span><span class="tc">2⚡</span></button>
+    <button class="tool" data-tool="dynamite"><span class="ti">🧨</span><span class="tn">Dynamit</span><span class="tc" id="dyn-count">×1</span></button>
+    <button class="tool action" id="btn-sonar"><span class="ti">📡</span><span class="tn">Sonar</span><span class="tc">3⚡</span></button>
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- Hauptmenü -->
+  <div id="menu" class="overlay">
+    <div class="card">
+      <div class="logo">✦</div>
+      <h1>Sternsplitter</h1>
+      <p class="lead">Letzte Nacht ist ein Stern über der Wüste von Qarum zersprungen. Seine Splitter liegen tief im Sand vergraben. Grab dich hinab, folge der Wärme – und bring das Sternenlicht zurück.</p>
+      <button class="big" id="btn-continue">▶ Sternsuche · Level <span id="menu-level">1</span></button>
+      <button class="big alt" id="btn-deep">⬇ Tiefenrausch <small id="menu-record"></small></button>
+      <div class="row">
+        <button class="small" id="btn-levels">Level wählen</button>
+        <button class="small" id="btn-help">So geht's</button>
+      </div>
+      <div id="levelgrid" class="hidden"></div>
+    </div>
+  </div>
+
+  <!-- Anleitung -->
+  <div id="help" class="overlay hidden">
+    <div class="card">
+      <h2>So geht's</h2>
+      <ul class="help">
+        <li><b>Tippen</b> = graben · <b>Wischen</b> = drehen · <b>Zwei Finger</b> = zoomen</li>
+        <li>🪏 <b>Schaufel</b>: gräbt eine Kuhle. Harte Schichten brauchen mehrere Schläge.</li>
+        <li>🔩 <b>Bohrer</b>: bohrt einen tiefen Tunnel in Blickrichtung – auch durch Stein.</li>
+        <li>🧨 <b>Dynamit</b>: sprengt einen großen Krater. Begrenzte Anzahl!</li>
+        <li>📡 <b>Sonar</b>: zeigt ungefähr, wo der Splitter liegt.</li>
+        <li>🌡️ Die <b>Wärmeanzeige</b> verrät nach jedem Graben, wie nah du bist.</li>
+        <li>💎 Edelsteine geben Energie, 🦴 Fossilien und 🟠 Bernstein Punkte.</li>
+        <li>⏳ Sand rieselt nach – grabe im Sand lieber breit als tief.</li>
+      </ul>
+      <button class="big" data-close>Verstanden</button>
+    </div>
+  </div>
+
+  <!-- Ergebnis -->
+  <div id="result" class="overlay hidden">
+    <div class="card">
+      <div class="logo" id="res-icon">✦</div>
+      <h2 id="res-title">Gefunden!</h2>
+      <div id="res-stars" class="stars-rating"></div>
+      <p id="res-text"></p>
+      <button class="big" id="res-next">Weiter</button>
+      <button class="big alt" id="res-retry">Nochmal</button>
+      <button class="small" id="res-menu">Menü</button>
+    </div>
+  </div>
+
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
