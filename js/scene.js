@@ -52,11 +52,13 @@ export function buildEnvironment(scene, renderer) {
     [0x6a2c9a, -120, 120, -380, 260], [0x1f5fa0, 160, 90, -360, 220], [0xa03a5a, 300, 160, 100, 240],
     [0x2a7a8a, -330, 140, 120, 280], [0x5a2a8a, 60, 220, 330, 300],
   ];
+  const nebSprites = [];
   for (const [col, x, y, z, size] of nebulae) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebTex, color: col, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
     sp.position.set(x, y, z);
     sp.scale.set(size, size * 0.6, 1);
     scene.add(sp);
+    nebSprites.push(sp);
   }
   // ---- the sun: glowing disc in the direction of the key light
   const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebTex, color: 0xfff1d0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
@@ -79,10 +81,11 @@ export function buildEnvironment(scene, renderer) {
   scene.add(planet);
 
   // ---- hangar deck (round platform)
+  const deckTopMat = new THREE.MeshStandardMaterial({ map: deckTexture(), metalness: 0.35, roughness: 0.65 });
   const deck = new THREE.Mesh(
     new THREE.CylinderGeometry(32, 33, 2, 64),
     [new THREE.MeshStandardMaterial({ color: 0x8a909c, metalness: 0.6, roughness: 0.5 }),
-     new THREE.MeshStandardMaterial({ map: deckTexture(), metalness: 0.35, roughness: 0.65 }),
+     deckTopMat,
      new THREE.MeshStandardMaterial({ color: 0x30343d })],
   );
   deck.position.y = -1;
@@ -242,6 +245,7 @@ export function buildEnvironment(scene, renderer) {
   moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
   const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: nebTex, color: 0xcfe9ff, size: 0.18, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(motes);
+  let moteDir = 0.12;
 
   // ---- blinking position lights on the dome ring
   const blinkMat = new THREE.MeshBasicMaterial({ color: 0xff4040 });
@@ -267,7 +271,105 @@ export function buildEnvironment(scene, renderer) {
   ship.rotation.y = -0.7;
   scene.add(ship);
 
+  // ---- deck themes (scenery per deck)
+  const decoGroups = {};
+  const THEMES = [
+    { bg: 0x02030a, fog: 0x070a14, hemi: [0x9fb8ff, 0x1a1c24], sun: 0xfff3e0, deck: 0xffffff, motes: 0xcfe9ff, moteSize: 0.18, moteDir: 0.12,
+      neb: [0x6a2c9a, 0x1f5fa0, 0xa03a5a, 0x2a7a8a, 0x5a2a8a], planet: ['#c97a5a', '#e0a476', '#8f5a7a', '#5a3d6b', '#d98c5f', '#f0c49a', '#7a4a6a'], sunGlow: 0xfff1d0 },
+    { bg: 0x020814, fog: 0x0a1a2a, hemi: [0xbfe6ff, 0x1a2a3a], sun: 0xe8f4ff, deck: 0xd8ecff, motes: 0xffffff, moteSize: 0.26, moteDir: -0.6,
+      neb: [0x1f5fa0, 0x2a8ab0, 0x6ab0e0, 0x1a4a8a, 0x3a7ac0], planet: ['#cfeaff', '#9fd0f0', '#6aa8d8', '#e8f6ff', '#4a88c0', '#b0dcf8'], sunGlow: 0xdff2ff, deco: 'ice' },
+    { bg: 0x0d0702, fog: 0x1a0f05, hemi: [0xffd8a0, 0x2a1a0a], sun: 0xffc070, deck: 0xffe8c8, motes: 0xffc040, moteSize: 0.14, moteDir: 0.5,
+      neb: [0xa05a1a, 0xc07a2a, 0x8a3a1a, 0xd09a3a, 0x6a2a0a], planet: ['#d9822b', '#f0b050', '#a04a1a', '#ffd080', '#7a3a10', '#c86a20'], sunGlow: 0xffd090, deco: 'rock' },
+    { bg: 0x05020a, fog: 0x0f0518, hemi: [0xc0a0ff, 0x0a1a10], sun: 0xe0ffe0, deck: 0xe0d0ff, motes: 0x7cff9a, moteSize: 0.2, moteDir: 0.25,
+      neb: [0x2a8a4a, 0x7a2aa0, 0x1a6a5a, 0xa03ac0, 0x3aa06a], planet: ['#3a9a5a', '#8a4ac0', '#5ad08a', '#2a1a4a', '#b07ae0', '#1a6a4a'], sunGlow: 0xd0ffd8, deco: 'alien' },
+  ];
+  function buildDeco(kind) {
+    const g = new THREE.Group();
+    const rr = mulberry32(kind.length * 31);
+    if (kind === 'ice') {
+      const mat = new THREE.MeshStandardMaterial({ color: 0xbfefff, emissive: 0x2a8ab0, emissiveIntensity: 0.4, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.85, flatShading: true });
+      for (let k = 0; k < 26; k++) {
+        const a = rr() * Math.PI * 2, r = 25.5 + rr() * 5;
+        const h = 1.5 + rr() * 4.5;
+        const c = new THREE.Mesh(new THREE.ConeGeometry(0.4 + rr() * 0.7, h, 5), mat);
+        c.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+        c.rotation.set((rr() - 0.5) * 0.5, rr() * 6, (rr() - 0.5) * 0.5);
+        c.castShadow = true;
+        g.add(c);
+      }
+    } else if (kind === 'rock') {
+      const mat = new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 0.9, flatShading: true });
+      const gold = new THREE.MeshStandardMaterial({ color: 0xffc040, metalness: 1, roughness: 0.25, emissive: 0x402000 });
+      for (let k = 0; k < 18; k++) {
+        const a = rr() * Math.PI * 2, r = 45 + rr() * 40;
+        const s2 = 2 + rr() * 6;
+        const m = new THREE.Mesh(new THREE.DodecahedronGeometry(s2, 0), mat);
+        m.position.set(Math.cos(a) * r, 5 + rr() * 30, Math.sin(a) * r);
+        m.rotation.set(rr() * 6, rr() * 6, 0);
+        m.userData.spin = (rr() - 0.5) * 0.2;
+        const vein = new THREE.Mesh(new THREE.OctahedronGeometry(s2 * 0.35, 0), gold);
+        vein.position.set(s2 * 0.8, 0, 0);
+        m.add(vein);
+        g.add(m);
+      }
+      for (let k = 0; k < 14; k++) {
+        const a = rr() * Math.PI * 2, r = 26 + rr() * 4;
+        const sp = new THREE.Mesh(new THREE.ConeGeometry(0.6 + rr(), 2 + rr() * 3, 6), mat);
+        sp.position.set(Math.cos(a) * r, 1.2, Math.sin(a) * r);
+        sp.castShadow = true;
+        g.add(sp);
+      }
+    } else if (kind === 'alien') {
+      const stem = new THREE.MeshStandardMaterial({ color: 0x2a4a3a, roughness: 0.8 });
+      for (let k = 0; k < 22; k++) {
+        const a = rr() * Math.PI * 2, r = 25.5 + rr() * 5;
+        const h = 1.5 + rr() * 3.5;
+        const plant = new THREE.Group();
+        const st = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.14, h, 6), stem);
+        st.position.y = h / 2;
+        st.rotation.z = (rr() - 0.5) * 0.4;
+        const col = rr() < 0.5 ? 0x7cff9a : 0xc07aff;
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.25 + rr() * 0.35, 12, 8), new THREE.MeshBasicMaterial({ color: col }));
+        bulb.position.y = h;
+        const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebTex, color: col, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
+        glow.scale.setScalar(2.2);
+        glow.position.y = h;
+        plant.add(st, bulb, glow);
+        plant.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+        plant.userData.sway = rr() * 6;
+        g.add(plant);
+      }
+    }
+    g.userData.kind = kind;
+    scene.add(g);
+    return g;
+  }
+  let currentDeco = null;
+  function setTheme(i) {
+    const th = THEMES[i % THEMES.length];
+    scene.background = new THREE.Color(th.bg);
+    scene.fog.color.setHex(th.fog);
+    hemi.color.setHex(th.hemi[0]); hemi.groundColor.setHex(th.hemi[1]);
+    sun.color.setHex(th.sun);
+    deckTopMat.color.setHex(th.deck);
+    motes.material.color.setHex(th.motes);
+    motes.material.size = th.moteSize;
+    moteDir = th.moteDir;
+    nebSprites.forEach((sp, k) => sp.material.color.setHex(th.neb[k % th.neb.length]));
+    sunGlow.material.color.setHex(th.sunGlow);
+    planet.material.map = planetTexture(th.planet);
+    planet.material.needsUpdate = true;
+    for (const g of Object.values(decoGroups)) g.visible = false;
+    currentDeco = null;
+    if (th.deco) {
+      if (!decoGroups[th.deco]) decoGroups[th.deco] = buildDeco(th.deco);
+      decoGroups[th.deco].visible = true;
+      currentDeco = decoGroups[th.deco];
+    }
+  }
+
   return {
+    setTheme,
     update(dt, t) {
       station.rotation.y += dt * 0.02;
       planet.rotation.y += dt * 0.004;
@@ -281,24 +383,32 @@ export function buildEnvironment(scene, renderer) {
       for (let k = 0; k < MOTES; k++) {
         const sd = moteSeed[k];
         mp.setX(k, mp.getX(k) + Math.sin(t * 0.2 + sd) * dt * 0.25);
-        mp.setY(k, (mp.getY(k) + dt * 0.12 * (0.5 + (sd % 1))) % 14);
+        let ny = mp.getY(k) + dt * moteDir * (0.5 + (sd % 1));
+        if (ny > 14) ny -= 14; if (ny < 0) ny += 14;
+        mp.setY(k, ny);
         mp.setZ(k, mp.getZ(k) + Math.cos(t * 0.17 + sd) * dt * 0.25);
       }
       mp.needsUpdate = true;
       blinkers.forEach((b, i) => { b.visible = Math.sin(t * 2 + i * 0.9) > 0.2; });
       sunCore.material.opacity = 0.9 + Math.sin(t * 0.7) * 0.1;
+      if (currentDeco) {
+        for (const c of currentDeco.children) {
+          if (c.userData.spin) c.rotation.y += dt * c.userData.spin;
+          if (c.userData.sway !== undefined) c.rotation.z = Math.sin(t * 0.8 + c.userData.sway) * 0.08;
+        }
+      }
       // keep shadows centred on the action
     },
     sun,
   };
 }
 
-function planetTexture() {
+function planetTexture(cols0) {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 256;
   const g = c.getContext('2d');
   const rnd = mulberry32(9);
-  const cols = ['#c97a5a', '#e0a476', '#8f5a7a', '#5a3d6b', '#d98c5f', '#f0c49a', '#7a4a6a'];
+  const cols = cols0 || ['#c97a5a', '#e0a476', '#8f5a7a', '#5a3d6b', '#d98c5f', '#f0c49a', '#7a4a6a'];
   let y = 0;
   while (y < 256) {
     const h = 6 + rnd() * 26;

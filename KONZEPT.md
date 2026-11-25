@@ -161,6 +161,7 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | 0.5 ✅  | Ereignisse (Meteoritenschauer, Glückswelle), Turbo, Decks mit Sternen (Eiswrack, Goldmine, Alienschrott), Tagesbonus, mitlaufende Kamera |
 | 0.6 ✅  | Nexus-Ablage (Verkauf) und Nexus-Shop (Werkstatt) getrennt, Archiv, Fahrwerke (Raupen, Räder, Laufbeine, Spinnenbeine), 8 Module mit Slots, Atomar-Drohnen mit Atomar-Kern, 2 neue Funde, 5 neue Erfolge |
 | 0.7 ✅  | Nexus-Level (XP), Lager mit „behalten“, Fabrikator mit 5 Verbrauchsgegenständen und Schnellleiste, Aufträge, Kombo-Serie, Ziel-Anzeige, 6 neue Erfolge |
-| 0.8     | PC-Modelle (Bot, Schrott, Funde), Bestenliste, Koop-Versuch              |
+| 0.8 ✅  | Teilen-Button, Grafik (Detail-Textur, Nebel, Sonne, Staub), Deck-Kulissen (Eiswrack, Goldmine, Alienschrott) mit eigenen Fundboni, sichtbare Atomar-Drohnen (max. 6), Nexus-Link 350.000 ⬡ mit 25 % Gebühr |
+| 0.9     | PC-Modelle (Bot, Schrott, Funde), Bestenliste, Koop-Versuch              |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

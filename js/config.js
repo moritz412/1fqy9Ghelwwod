@@ -85,7 +85,7 @@ export const BOT_UPGRADES = {
     title: 'Nexus-Link', unit: '',
     levels: [
       { name: 'Kein Link',  value: 0, cost: 0,     desc: 'Funde müssen zum Dock gebracht werden.' },
-      { name: 'Nexus-Link', value: 1, cost: 60000, desc: 'Funde werden sofort zur Station gebeamt und verkauft.' },
+      { name: 'Nexus-Link', value: 1, cost: 350000, desc: 'Funde werden sofort zur Station gebeamt und verkauft – mit 25 % Transportgebühr.' },
     ],
   },
 };
@@ -163,10 +163,10 @@ export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };
 // Decks (prestige): after finding the core you can move on to the next deck.
 // Each star = +25 % find value and +10 % helper speed, permanently.
 export const DECKS = [
-  { name: 'Hangardeck 7',  title: 'Schrottberg',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
-  { name: 'Kühldeck 3',    title: 'Eiswrack',        base: [0.3, 0.36, 0.43],  pebbles: [[1.6, 2.1, 2.6], [2.2, 2.4, 2.6], [1.2, 1.5, 2.0], [1.4, 1.6, 1.8]] },
-  { name: 'Frachtdeck 12', title: 'Goldmine',        base: [0.33, 0.26, 0.16], pebbles: [[2.6, 2.0, 0.7], [2.2, 1.4, 0.5], [1.6, 1.4, 1.2], [1.2, 0.9, 0.6]] },
-  { name: 'Labordeck X',   title: 'Alienschrott',    base: [0.2, 0.17, 0.26],  pebbles: [[1.4, 0.8, 2.4], [0.7, 2.2, 1.3], [1.9, 1.0, 1.9], [1.0, 1.0, 1.2]] },
+  { name: 'Hangardeck 7',  title: 'Schrottberg',     boost: {}, perk: 'Normaler Schrott',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
+  { name: 'Kühldeck 3',    title: 'Eiswrack',        boost: { ice: 3, datacore: 1.5 }, perk: '3× Eiskristalle, mehr Datenkerne',        base: [0.3, 0.36, 0.43],  pebbles: [[1.6, 2.1, 2.6], [2.2, 2.4, 2.6], [1.2, 1.5, 2.0], [1.4, 1.6, 1.8]] },
+  { name: 'Frachtdeck 12', title: 'Goldmine',        boost: { platinum: 2.5, copper: 1.5, graviton: 2 }, perk: '2,5× Platin, doppelte Gravitonperlen',        base: [0.33, 0.26, 0.16], pebbles: [[2.6, 2.0, 0.7], [2.2, 1.4, 0.5], [1.6, 1.4, 1.2], [1.2, 0.9, 0.6]] },
+  { name: 'Labordeck X',   title: 'Alienschrott',    boost: { artifact: 4, badge: 1.5 }, perk: '4× Alien-Artefakte, mehr Abzeichen',    base: [0.2, 0.17, 0.26],  pebbles: [[1.4, 0.8, 2.4], [0.7, 2.2, 1.3], [1.9, 1.0, 1.9], [1.0, 1.0, 1.2]] },
 ];
 export const STAR_BONUS = { finds: 0.25, helpers: 0.1 };
 export const TURBO = { duration: 8, cooldown: 40, factor: 2.5 };

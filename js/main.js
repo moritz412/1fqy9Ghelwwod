@@ -132,26 +132,38 @@ function updateDebris(dt) {
 }
 
 // ================================================================ helper drones (visual)
+const haloTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.4, 'rgba(255,255,255,0.25)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
 const droneGroup = new THREE.Group();
 scene.add(droneGroup);
 const DRONE_LOOK = {
-  mini: { color: 0xf3f4f2, size: 0.35, h: 1.2 },
-  drone: { color: 0x2fc9a8, size: 0.45, h: 3 },
-  belt: { color: 0xffb347, size: 0.6, h: 4 },
-  drill: { color: 0xff6b6b, size: 0.8, h: 5 },
-  orbit: { color: 0xb48cff, size: 1.2, h: 9 },
+  mini: { color: 0xf3f4f2, size: 0.9, h: 2.4 },
+  drone: { color: 0x2fc9a8, size: 1.1, h: 3.2 },
+  belt: { color: 0xffb347, size: 1.3, h: 4.2 },
+  drill: { color: 0xff6b6b, size: 1.6, h: 5.2 },
+  orbit: { color: 0xb48cff, size: 2.4, h: 8 },
 };
+const MAX_VISIBLE_DRONES = 6;
 function rebuildDrones() {
   droneGroup.clear();
   if (!S) return;
-  let idx = 0;
-  for (const h of HELPERS) {
-    const n = Math.min(S.helpers[h.id] || 0, 3);
+  let idx = 0, shown = 0;
+  // strongest types first, max 2 per type and 6 in total, so it stays calm
+  for (const h of [...HELPERS].reverse()) {
+    const n = Math.min(S.helpers[h.id] || 0, 2, MAX_VISIBLE_DRONES - shown);
+    shown += n;
     const look = DRONE_LOOK[h.id];
     for (let k = 0; k < n; k++) {
       const d = new THREE.Group();
       // Atomar look: glowing nucleus with three electron orbits
-      const body = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.28, 16, 12), new THREE.MeshStandardMaterial({ color: look.color, emissive: look.color, emissiveIntensity: 0.6, roughness: 0.3 }));
+      const body = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.28, 16, 12), new THREE.MeshStandardMaterial({ color: look.color, emissive: look.color, emissiveIntensity: 0.9, roughness: 0.3 }));
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: look.color, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+      halo.scale.setScalar(look.size * 1.6);
       const eye = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
       eye.position.set(0, 0, look.size * 0.27);
       const rotor = new THREE.Group();
@@ -165,8 +177,8 @@ function rebuildDrones() {
       }
       const beam = new THREE.Mesh(new THREE.ConeGeometry(look.size * 0.5, 1, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
       beam.position.y = -0.5;
-      d.add(body, eye, rotor, beam);
-      d.userData = { phase: idx * 1.7 + k * 2.1, r: 4 + ((idx * 3 + k * 5) % 10), h: look.h, speed: 0.15 + (k % 3) * 0.05, beam, size: look.size };
+      d.add(body, eye, rotor, beam, halo);
+      d.userData = { phase: idx * 1.7 + k * 2.1 + shown, r: 5 + ((idx * 3 + k * 5) % 9), h: look.h, speed: 0.15 + (k % 3) * 0.05, beam, size: look.size };
       body.castShadow = true;
       d.userData.rotor = rotor;
       droneGroup.add(d);
@@ -184,10 +196,10 @@ function updateDrones(dt, t) {
     d.rotation.y = -a;
     if (u.rotor) u.rotor.children.forEach((o, i) => { o.rotation.z += dt * (2 + i); });
     const suck = (Math.sin(t * 1.3 + u.phase * 3) + 1) / 2;
-    u.beam.material.opacity = suck > 0.7 ? (suck - 0.7) * 0.8 : 0;
+    u.beam.material.opacity = suck > 0.55 ? (suck - 0.55) * 0.9 : 0;
     u.beam.scale.y = u.h;
     u.beam.position.y = -u.h / 2;
-    if (suck > 0.95 && Math.random() < dt * 8 && pile.total > 0) spawnDebris(x, ground, z, 1, 0, 0, 0.7);
+    if (suck > 0.85 && Math.random() < dt * 10 && pile.total > 0) { spawnDebris(x, ground, z, 1, 0, 0, 0.8); dust.puff(x, ground, z, 1, 0.7); }
   }
 }
 
@@ -264,6 +276,7 @@ function rollFinds(n, luck = 1) {
     let m = tier < 3 ? luck : 1;
     if (S && hasMod('magnet') && ['copper', 'platinum', 'probe'].includes(f.id)) m *= 1.4;
     if (S && hasMod('sense') && f.value >= 300) m *= 1.5;
+    if (S) m *= (DECKS[(S.deck || 0) % DECKS.length].boost || {})[f.id] || 1;
     const k = poisson(n * f.rate * m);
     if (k) out.push({ f, k, tier: Math.min(5, tier) });
   });
@@ -278,7 +291,8 @@ function handleFinds(list, byPlayer) {
     S.stats.found[f.id] = (S.stats.found[f.id] || 0) + k;
     if (!byPlayer || S.levels.link || S.mode === 'pure') {
       if (byPlayer && S.levels.link && S.keep.includes(f.id)) { S.vault[f.id] = (S.vault[f.id] || 0) + k; feed(`+${fmt(k)} ${f.name} → Lager`, f.color); best = Math.max(best, tier); continue; }
-      if (S.mode !== 'pure') { S.credits += valueOf(f) * k; S.stats.earned += valueOf(f) * k; }
+      const fee = byPlayer && S.levels.link ? 0.75 : 1;
+      if (S.mode !== 'pure') { const v = Math.round(valueOf(f) * k * fee); S.credits += v; S.stats.earned += v; }
       if (byPlayer) { feed(`+${fmt(k)} ${f.name}`, f.color); best = Math.max(best, tier); }
       else if (tier >= 3) feed(`Helfer: ${f.name}!`, f.color);
       continue;
@@ -1121,6 +1135,7 @@ function setupWorld(state) {
   pile = new Pile(S.seed, S.pile);
   if (S.coreFound) pile.ring.found = true;
   pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
+  env.setTheme(S.deck || 0);
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
   bot.setChassis(S.chassis || 'tracks');
@@ -1189,7 +1204,7 @@ function nextDeck() {
   st.credits = 100 * st.stars;
   startGame(st, false);
   const d = DECKS[st.deck % DECKS.length];
-  setTimeout(() => say(`Willkommen auf ${d.name}: ${d.title}! ⭐ ${st.stars} = +${st.stars * 25} % Fundwert.`, 6), 600);
+  setTimeout(() => say(`Willkommen auf ${d.name}: ${d.title}! ${d.perk}. ⭐ ${st.stars} = +${st.stars * 25} % Fundwert.`, 7), 600);
 }
 
 function showStart() {
@@ -1673,4 +1688,4 @@ showStart();
 animate();
 
 // test hook
-window.__nx = { env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
