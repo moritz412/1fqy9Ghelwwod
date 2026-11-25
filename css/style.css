@@ -412,3 +412,9 @@ h2 { margin: 0 0 10px; font-size: 24px; }
 .site.free { border-style: dashed; border-color: rgba(111,243,240,.5); }
 .site.locked { opacity: .5; }
 .overlay .card .ghost { touch-action: manipulation; }
+#btn-site {
+  position: absolute; right: calc(22px + var(--safe-r)); bottom: calc(170px + var(--safe-b));
+  min-height: 54px; padding: 0 18px; border-radius: 16px; font-weight: 900; letter-spacing: .03em;
+  background: linear-gradient(180deg, #7cf0b0, #2fc9a8); color: #03221c; box-shadow: 0 5px 0 #13705e; animation: pulseBtn 1.2s infinite;
+}
+@media (max-width: 520px) { #btn-site { bottom: calc(146px + var(--safe-b)); } }

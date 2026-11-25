@@ -163,6 +163,7 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | 0.7 ✅  | Nexus-Level (XP), Lager mit „behalten“, Fabrikator mit 5 Verbrauchsgegenständen und Schnellleiste, Aufträge, Kombo-Serie, Ziel-Anzeige, 6 neue Erfolge |
 | 0.8 ✅  | Teilen-Button, Grafik (Detail-Textur, Nebel, Sonne, Staub), Deck-Kulissen (Eiswrack, Goldmine, Alienschrott) mit eigenen Fundboni, sichtbare Atomar-Drohnen (max. 6), Nexus-Link 350.000 ⬡ mit 25 % Gebühr |
 | 0.9 ✅  | Name „NEXUS CORE“, Intro-Film, Shuttle-Zwischensequenz beim Deckwechsel, neues Startmenü mit Deck-Übersicht und Bestwerten, Außenposten auf dem Deck, Werkzeuge (Greifkran, Staubsauger, Bohrer), Quadrokopter-Drohnen |
-| 1.0     | Online-Bestenliste (braucht Server), PC-Modelle, Koop-Versuch           |
+| 1.0 ✅  | Mondlandefähre mit Landeplatz, Intro mit Ton, Bloom und Reflexionen, Bau-System (13 Bauplätze, 8 Anlagen, Strom, Produktionskette, Förderband) |
+| 1.1     | Ereignisse je Deck (Schneesturm, Goldrausch, Alien-Schwarm), Online-Bestenliste (braucht Server), PC-Modelle |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

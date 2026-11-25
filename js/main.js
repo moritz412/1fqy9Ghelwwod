@@ -764,6 +764,7 @@ function openBuild() {
 function closeBuild() { $('build').classList.add('hidden'); buildSel = -1; save(); }
 $('build-close').addEventListener('click', closeBuild);
 $('btn-build').addEventListener('click', () => { initAudio(); openBuild(); });
+$('btn-site').addEventListener('click', () => { initAudio(); buildSel = Number($('btn-site').dataset.site); openBuild(); });
 
 function renderBuild() {
   const st = baseCache;
@@ -2157,6 +2158,19 @@ function animate() {
       updateBot(dt);
       updateCamera(dt);
       $('btn-dock').classList.toggle('hidden', !nearShop() || S.mode === 'pure');
+      // standing on a build site?
+      let nearSite = -1;
+      if (S.mode !== 'pure' && S.level >= BUILD_UNLOCK_LEVEL) {
+        const bp = bot.group.position;
+        for (let i = 0; i < SITE_ANGLES.length; i++) {
+          if (i >= S.sitesUnlocked && !S.sites[i]) continue;
+          const sp = sitePos(i);
+          if (Math.hypot(bp.x - sp.x, bp.z - sp.z) < 2.6) { nearSite = i; break; }
+        }
+      }
+      $('btn-site').classList.toggle('hidden', nearSite < 0);
+      $('btn-site').dataset.site = nearSite;
+      if (nearSite >= 0) setText('btn-site', S.sites[nearSite] ? `🏗️ ${BUILDINGS[S.sites[nearSite].type].name}` : '🏗️ HIER BAUEN');
       const inA = nearDock();
       if (inA && !wasInAblage && S.mode !== 'pure') {
         if (S.cargoCount > 0) {
