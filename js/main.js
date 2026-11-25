@@ -1055,6 +1055,41 @@ function stationChanged(rankBefore, text) {
   renderStation(); updateHud(); save();
 }
 
+// ================================================================ confetti (DOM, light-weight)
+function confetti(n = 60) {
+  const layer = $('confetti');
+  const cols = ['#6ff3f0', '#ffb347', '#ffd34d', '#7cf0b0', '#e58cff', '#ffffff'];
+  for (let k = 0; k < n; k++) {
+    const c = document.createElement('i');
+    c.style.left = `${50 + (Math.random() - 0.5) * 40}%`;
+    c.style.background = cols[k % cols.length];
+    c.style.setProperty('--dx', `${(Math.random() - 0.5) * 120}vw`);
+    c.style.setProperty('--dy', `${40 + Math.random() * 60}vh`);
+    c.style.setProperty('--r', `${Math.random() * 720 - 360}deg`);
+    c.style.animationDuration = `${1.4 + Math.random() * 1.2}s`;
+    c.style.width = `${6 + Math.random() * 6}px`; c.style.height = `${8 + Math.random() * 8}px`;
+    layer.appendChild(c);
+    setTimeout(() => c.remove(), 2800);
+  }
+}
+
+// ================================================================ milestones: every 10 % of a deck
+function checkMilestones() {
+  if (S.mode === 'pure') return;
+  const total = S.total || TOTAL_STONES;
+  const pct = Math.floor(((total - pile.total) / total) * 100);
+  const reached = Math.floor(pct / 10) * 10;
+  S.milestone = S.milestone || 0;
+  if (reached > S.milestone && reached > 0) {
+    S.milestone = reached;
+    const reward = Math.round((300 + reached * 40) * deckValueMult(S.deck || 0) * (1 + (S.level || 1) * 0.1));
+    S.credits += reward;
+    addXp(25 + reached);
+    achvQueue.push({ kicker: 'Meilenstein!', name: `🏁 ${reached} % geschafft`, desc: `Bonus: +${fmt(reward)} ⬡`, reward: 0 });
+    say(pick([`${reached} %! Wir sind ein super Team! 🎉`, `Schon ${reached} % – weiter so! 💪`, `${reached} % sortiert! Ich bin stolz auf uns! 🤖`]), 3);
+  }
+}
+
 // ================================================================ deck stars (3 per deck)
 function totalStars() {
   const ds = records.deckStars || {};
@@ -1106,6 +1141,7 @@ function checkAchievements(dt) {
   if (achvQueue.length && !$('achv').classList.contains('show')) showAchievement(achvQueue.shift());
 }
 function showAchievement(a) {
+  confetti(a.kicker && a.kicker.startsWith('Meilenstein') ? 40 : 70);
   const el = $('achv');
   el.innerHTML = `<small>${a.kicker || 'Erfolg freigeschaltet'}</small><b>${a.kicker ? '' : '🏆 '}${a.name}</b><span>${a.desc}${S.mode !== 'pure' && a.reward ? ` · +${fmt(a.reward)} ⬡` : ''}</span>`;
   el.classList.add('show');
@@ -1240,7 +1276,7 @@ function coreFound(byPlayer) {
          <span>Davon übrig</span><span>${fmt(pile.total)}</span>
          <span>Sterne gesamt</span><span>⭐ ${totalStars()}</span>
        </div>
-       <p class="lead">Weiter aufräumen (fehlende Sterne holen) – oder ab zum nächsten Deck: <b>${deckName((S.deck || 0) + 1)}</b>, ${Math.round((deckTotal((S.deck || 0) + 1) / 1e6) * 10) / 10} Mio. Teile, Funde +${Math.round((deckValueMult((S.deck || 0) + 1) - 1) * 100)} % wert. Level, Werkzeuge und Skins nimmst du mit.</p>`,
+       <p class="lead">Weiter aufräumen (fehlende Sterne holen) – oder ab zum nächsten Deck: <b>${deckName((S.deck || 0) + 1)}</b>, ${Math.round((deckTotal((S.deck || 0) + 1) / 1e6) * 10) / 10} Mio. Teile, Funde +${Math.round((deckValueMult((S.deck || 0) + 1) - 1) * 100)} % wert. Du nimmst <b>alles</b> mit: Credits, Upgrades, Drohnen, Anlagen, Station.</p>`,
       'Weiter aufräumen', () => {},
       S.mode === 'pure' ? 'Neues Spiel' : `Nächstes Deck ▶ ${deckName((S.deck || 0) + 1)}`,
       () => (S.mode === 'pure' ? newGame('pure') : nextDeck()));
@@ -1778,11 +1814,15 @@ function makeDeckState(n, old) {
     chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
+    // nothing is lost when changing decks: upgrades, drones, buildings, vault and credits travel along
+    levels: { ...old.levels }, helpers: { ...old.helpers }, atomarLv: old.atomarLv || 0,
+    sites: (old.sites || []).map((b) => (b ? { ...b } : null)), vault: { ...(old.vault || {}) },
+    skinsOwned: old.skinsOwned, contracts: old.contracts || [],
   });
   st.total = deckTotal(n);
   st.deckBase = { removed: st.stats.removed, found: { ...st.stats.found }, time: st.stats.time, aliens: st.stats.aliens || 0 };
   st.deckStart = st.stats.time;
-  st.credits = 150 * (n + 1) + 50 * st.stars + stationBonus(st.station).start;
+  st.credits = (old.credits || 0) + 150 * (n + 1) + stationBonus(st.station).start;   // keep credits + a welcome bonus
   records.maxDeck = Math.max(records.maxDeck || 0, n);
   saveRecords();
   return st;
@@ -2049,7 +2089,7 @@ function showStart() {
     if (ex && i === deckIdx) { $('btn-start').click(); return; }
     initAudio();
     showMessage(`${deckName(i)} spielen?`,
-      `<p class="lead">${deckDef(i).mech}</p><div class="stats"><span>Schrott</span><span>${fmt(deckTotal(i))}</span><span>Fundwert</span><span>+${Math.round((deckValueMult(i) - 1) * 100)} %</span><span>Ziele</span><span>Kern · ${deckMinutes(i)} min · ${fmt(deckGoalTarget(i))}</span></div><p class="lead small">Level, Werkzeuge, Fahrwerke, Module und Skins bleiben erhalten. Der Fortschritt auf dem aktuellen Deck wird verlassen.</p>`,
+      `<p class="lead">${deckDef(i).mech}</p><div class="stats"><span>Schrott</span><span>${fmt(deckTotal(i))}</span><span>Fundwert</span><span>+${Math.round((deckValueMult(i) - 1) * 100)} %</span><span>Ziele</span><span>Kern · ${deckMinutes(i)} min · ${fmt(deckGoalTarget(i))}</span></div><p class="lead small">Du nimmst alles mit: Credits, Upgrades, Drohnen, Anlagen, Station und Skins. Nur der Schrottberg ist neu.</p>`,
       'Los geht’s ▶', () => { $('overlay-start').classList.add('hidden'); playDeck(i); }, 'Abbrechen', () => {});
   }));
   const r = records;
@@ -2517,7 +2557,7 @@ function animate() {
       updateDockArrow();
       checkAchievements(dt);
       flushFeed(dt);
-      if (achvT > 0.95) checkDeckStars();
+      if (achvT > 0.95) { checkDeckStars(); checkMilestones(); }
       baseTick(dt);
       updateCombo(dt);
       updatePulse(dt, t);
