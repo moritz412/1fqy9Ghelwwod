@@ -32,7 +32,41 @@ export function buildEnvironment(scene, renderer) {
   }
   const sg = new THREE.BufferGeometry();
   sg.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false, fog: false })));
+  const starCol = new Float32Array(2500 * 3);
+  for (let k = 0; k < 2500; k++) {
+    const t = rnd();
+    const c = t < 0.15 ? [0.7, 0.8, 1] : t < 0.25 ? [1, 0.85, 0.7] : [1, 1, 1];
+    const b = 0.5 + rnd() * 0.5;
+    starCol.set([c[0] * b, c[1] * b, c[2] * b], k * 3);
+  }
+  sg.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ vertexColors: true, size: 1.6, sizeAttenuation: false, fog: false })));
+  // a few big bright stars
+  const bigStars = new THREE.BufferGeometry();
+  bigStars.setAttribute('position', new THREE.BufferAttribute(starPos.slice(0, 120 * 3), 3));
+  scene.add(new THREE.Points(bigStars, new THREE.PointsMaterial({ color: 0xdfeaff, size: 3, sizeAttenuation: false, fog: false })));
+
+  // ---- nebula clouds (soft additive sprites far away)
+  const nebTex = softTexture();
+  const nebulae = [
+    [0x6a2c9a, -120, 120, -380, 260], [0x1f5fa0, 160, 90, -360, 220], [0xa03a5a, 300, 160, 100, 240],
+    [0x2a7a8a, -330, 140, 120, 280], [0x5a2a8a, 60, 220, 330, 300],
+  ];
+  for (const [col, x, y, z, size] of nebulae) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebTex, color: col, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    sp.position.set(x, y, z);
+    sp.scale.set(size, size * 0.6, 1);
+    scene.add(sp);
+  }
+  // ---- the sun: glowing disc in the direction of the key light
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebTex, color: 0xfff1d0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  sunGlow.position.set(30, 40, 18).normalize().multiplyScalar(380);
+  sunGlow.scale.set(90, 90, 1);
+  const sunCore = sunGlow.clone();
+  sunCore.material = sunGlow.material.clone();
+  sunCore.material.color.setHex(0xffffff);
+  sunCore.scale.set(24, 24, 1);
+  scene.add(sunGlow, sunCore);
 
   // ---- gas giant
   const planet = new THREE.Mesh(
@@ -40,6 +74,7 @@ export function buildEnvironment(scene, renderer) {
     new THREE.MeshStandardMaterial({ map: planetTexture(), roughness: 1, emissive: 0x2a1030, emissiveIntensity: 0.25 }),
   );
   planet.position.set(-260, 40, -330);
+  planet.material.fog = false;
   planet.rotation.z = 0.35;
   scene.add(planet);
 
@@ -192,6 +227,34 @@ export function buildEnvironment(scene, renderer) {
     g.add(arch);
   });
 
+  // ---- depth fog (deck far edge fades slightly)
+  scene.fog = new THREE.Fog(0x070a14, 45, 140);
+
+  // ---- floating dust motes in the hangar
+  const MOTES = 260;
+  const motePos = new Float32Array(MOTES * 3);
+  const moteSeed = new Float32Array(MOTES);
+  for (let k = 0; k < MOTES; k++) {
+    motePos.set([(rnd() - 0.5) * 56, rnd() * 14, (rnd() - 0.5) * 56], k * 3);
+    moteSeed[k] = rnd() * 100;
+  }
+  const moteGeo = new THREE.BufferGeometry();
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: nebTex, color: 0xcfe9ff, size: 0.18, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+  scene.add(motes);
+
+  // ---- blinking position lights on the dome ring
+  const blinkMat = new THREE.MeshBasicMaterial({ color: 0xff4040 });
+  const blinkGeo = new THREE.SphereGeometry(0.18, 8, 6);
+  const blinkers = [];
+  for (let k = 0; k < 12; k++) {
+    const a2 = (k / 12) * Math.PI * 2;
+    const b = new THREE.Mesh(blinkGeo, k % 2 ? blinkMat : new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
+    b.position.set(Math.cos(a2) * 32.2, 0.35, Math.sin(a2) * 32.2);
+    scene.add(b);
+    blinkers.push(b);
+  }
+
   // freighter that dumped the scrap (decor)
   const ship = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 5), dark);
@@ -214,6 +277,16 @@ export function buildEnvironment(scene, renderer) {
       shopSt.beam.material.opacity = 0.1 + Math.sin(t * 2 + 1) * 0.03;
       ship.position.y = 26 + Math.sin(t * 0.4) * 0.6;
       guide.material.color.setHSL(0.5, 1, 0.45 + Math.sin(t * 2.5) * 0.15);
+      const mp = moteGeo.attributes.position;
+      for (let k = 0; k < MOTES; k++) {
+        const sd = moteSeed[k];
+        mp.setX(k, mp.getX(k) + Math.sin(t * 0.2 + sd) * dt * 0.25);
+        mp.setY(k, (mp.getY(k) + dt * 0.12 * (0.5 + (sd % 1))) % 14);
+        mp.setZ(k, mp.getZ(k) + Math.cos(t * 0.17 + sd) * dt * 0.25);
+      }
+      mp.needsUpdate = true;
+      blinkers.forEach((b, i) => { b.visible = Math.sin(t * 2 + i * 0.9) > 0.2; });
+      sunCore.material.opacity = 0.9 + Math.sin(t * 0.7) * 0.1;
       // keep shadows centred on the action
     },
     sun,
@@ -290,6 +363,22 @@ function labelTexture(a, b, color = 0x66e6ff) {
   g.font = 'bold 34px system-ui, sans-serif';
   g.fillStyle = '#ffffff';
   g.fillText(b, 128, 140);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function softTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  grad.addColorStop(0.6, 'rgba(255,255,255,0.12)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;

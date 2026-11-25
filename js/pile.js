@@ -230,8 +230,10 @@ export class PileView {
     for (let v = 0; v < pos.count; v++) this.tint[v] = 0.85 + rnd() * 0.3;
     this.geo = geo;
 
+    const detail = scrapDetailTexture();
     this.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-      vertexColors: true, roughness: 1, metalness: 0, flatShading: true,
+      vertexColors: true, roughness: 0.92, metalness: 0.08, flatShading: true,
+      map: detail, bumpMap: detail, bumpScale: 1.2,
     }));
     this.mesh.receiveShadow = true;
     this.mesh.castShadow = true;
@@ -249,7 +251,7 @@ export class PileView {
       { geo: new THREE.CylinderGeometry(0.28, 0.28, 2.2, 7), share: 0.2, metal: 0.7 },
     ];
     this.pebMeshes = shapes.map((sh) => {
-      const m = new THREE.InstancedMesh(sh.geo, new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: sh.metal, flatShading: true }), Math.ceil(this.PEB * sh.share) + 10);
+      const m = new THREE.InstancedMesh(sh.geo, new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: sh.metal, flatShading: true }), this.PEB);
       m.receiveShadow = true;
       m.count = 0;
       return m;
@@ -305,7 +307,13 @@ export class PileView {
     const a = this.vmap[v * 2], b = this.vmap[v * 2 + 1];
     const h = this.pile.vertexHeight(a, b);
     this.geo.attributes.position.setY(v, h);
-    const t = this.tint[v];
+    // cavity shading: points lower than their surroundings get darker (fake ambient occlusion)
+    let ao = 1;
+    if (h > 0) {
+      const nb = (this.pile.vertexHeight(a - 1, b) + this.pile.vertexHeight(a + 1, b) + this.pile.vertexHeight(a, b - 1) + this.pile.vertexHeight(a, b + 1)) / 4;
+      ao = Math.max(0.55, Math.min(1.12, 1 + (h - nb) * 0.9));
+    }
+    const t = this.tint[v] * ao;
     const col = this.geo.attributes.color;
     if (h < 0) col.setXYZ(v, 0.45 * t, 0.47 * t, 0.5 * t);           // exposed crater floor
     else {
@@ -410,5 +418,54 @@ export function makeSparkleTexture() {
   g.closePath(); g.fill();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Tileable detail texture for the heap: rubble speckles, plates and scratches (multiplied with vertex colours).
+function scrapDetailTexture() {
+  const S = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const rnd = mulberry32(99);
+  g.fillStyle = '#d8d8d8';
+  g.fillRect(0, 0, S, S);
+  const wrap = (fn) => { for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) fn(dx, dy); };
+  // blotches
+  for (let k = 0; k < 260; k++) {
+    const x = rnd() * S, y = rnd() * S, r = 2 + rnd() * 10, v = 150 + rnd() * 105;
+    g.fillStyle = `rgb(${v},${v},${v})`;
+    wrap((dx, dy) => { g.beginPath(); g.arc(x + dx, y + dy, r, 0, Math.PI * 2); g.fill(); });
+  }
+  // little plates / chunks
+  for (let k = 0; k < 120; k++) {
+    const x = rnd() * S, y = rnd() * S, w = 3 + rnd() * 12, h = 2 + rnd() * 7, a = rnd() * Math.PI, v = 120 + rnd() * 135;
+    wrap((dx, dy) => {
+      g.save(); g.translate(x + dx, y + dy); g.rotate(a);
+      g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(-w / 2, -h / 2, w, h);
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(-w / 2, h / 2 - 1, w, 1);
+      g.restore();
+    });
+  }
+  // scratches
+  g.lineWidth = 1;
+  for (let k = 0; k < 90; k++) {
+    const x = rnd() * S, y = rnd() * S, l = 4 + rnd() * 18, a = rnd() * Math.PI;
+    const v = rnd() < 0.5 ? 90 : 250;
+    g.strokeStyle = `rgba(${v},${v},${v},0.7)`;
+    wrap((dx, dy) => { g.beginPath(); g.moveTo(x + dx, y + dy); g.lineTo(x + dx + Math.cos(a) * l, y + dy + Math.sin(a) * l); g.stroke(); });
+  }
+  // fine grain
+  const img = g.getImageData(0, 0, S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (rnd() - 0.5) * 34;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(14, 14);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
   return t;
 }

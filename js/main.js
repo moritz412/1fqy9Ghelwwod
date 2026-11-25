@@ -1598,6 +1598,8 @@ function updateCamera(dt) {
   const floor = Math.max(0, pile.heightAt(camera.position.x, camera.position.z)) + 0.5;
   if (camera.position.y < floor) camera.position.y = floor;
   camera.lookAt(camTarget);
+  const o = window.__camOverride;
+  if (o) { camera.position.set(...o.pos); camera.lookAt(...o.look); }
 }
 
 function animate() {
@@ -1671,4 +1673,4 @@ showStart();
 animate();
 
 // test hook
-window.__nx = { renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
