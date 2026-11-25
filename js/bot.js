@@ -181,6 +181,43 @@ export class NexusBot {
       head.add(ear);
     }
 
+    // ---- back details (seen most of the time from the follow camera)
+    const seamMat = new THREE.MeshStandardMaterial({ color: 0x8e959c, roughness: 0.7 });
+    const ventMat = new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.8 });
+    // head: vent grille, service hatch, rivets
+    const hatch = new THREE.Mesh(new RoundedBoxGeometry(0.4, 0.26, 0.02, 2, 0.02), seamMat);
+    hatch.position.set(0, 0.0, -0.166); head.add(hatch);
+    const hatchIn = new THREE.Mesh(new RoundedBoxGeometry(0.37, 0.23, 0.02, 2, 0.02), white);
+    hatchIn.position.set(0, 0.0, -0.171); head.add(hatchIn);
+    for (let k = 0; k < 5; k++) {
+      const v = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.014, 0.012), ventMat);
+      v.position.set(0, 0.07 - k * 0.032, -0.18); head.add(v);
+    }
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.01, 8), grey);
+      r.rotation.x = Math.PI / 2; r.position.set(sx * 0.165, sy * 0.095, -0.183); head.add(r);
+    }
+    const label = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 0.006), this.earMat);
+    label.position.set(-0.1, -0.085, -0.182); head.add(label);
+    // head seam line all around
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.665, 0.008, 0.345), seamMat);
+    seam.position.y = 0.14; head.add(seam);
+    // torso: battery hatch with a calm status strip, side seams, tow hook on the base
+    const bat = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.2, 0.05, 2, 0.02), seamMat));
+    bat.position.set(0, 0.2, -0.2); torso.add(bat);
+    const batIn = new THREE.Mesh(new RoundedBoxGeometry(0.31, 0.17, 0.04, 2, 0.02), white);
+    batIn.position.set(0, 0.2, -0.212); torso.add(batIn);
+    for (let k = 0; k < 3; k++) {
+      const cell = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.016, 0.006), k < 2 ? glow : ventMat);
+      cell.position.set(-0.06 + k * 0.06, 0.26, -0.234); torso.add(cell);
+    }
+    for (const sx of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.2, 0.26), seamMat);
+      side.position.set(sx * 0.281, 0.2, 0); torso.add(side);
+    }
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 12), grey);
+    hook.position.set(0, 0.14, -0.27); hook.rotation.x = Math.PI / 2; up.add(hook);
+
     // ---- upgrade attachments
     this.antenna = new THREE.Group();
     const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.18, 6), grey);
