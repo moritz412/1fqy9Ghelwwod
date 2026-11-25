@@ -13,7 +13,7 @@ import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
 import { buildEnvironment } from './scene.js';
-import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings } from './audio.js';
+import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings, setMusicTheme, setMusicIntensity, setAmbience } from './audio.js';
 
 // ================================================================ save state
 const SAVE_KEY = 'nexus-schrottberg.v1';
@@ -117,9 +117,11 @@ const events = new Events(scene, {
     el.classList.remove('hidden');
     sfx.event();
     if (type === 'storm') env.setStorm(true);
+    setMusicIntensity(0.55);
+    setDeckAudio();
     say({ meteor: 'Achtung, Meteoriten! Die sind voller Schätze! ☄️', luck: 'Ich spüre eine Glückswelle! Schnell greifen! ✨', storm: 'Schneesturm! Ich sehe kaum was – aber hier glitzert es! 🌨️', gold: 'GOLDRAUSCH! Jetzt zählt jeder Griff doppelt! 💰', swarm: 'Aliens! Fahr hin und schnapp sie dir! 👽' }[type], 4);
   },
-  onEnd(type) { $('event').classList.add('hidden'); if (type === 'storm') env.setStorm(false); },
+  onEnd(type) { $('event').classList.add('hidden'); if (type === 'storm') env.setStorm(false); setMusicIntensity(0); setDeckAudio(); },
 });
 
 // ================================================================ debris
@@ -752,6 +754,12 @@ let baseCache = baseStats([]);
 let baseFlow = 0;               // sorted parts per second (smoothed, for visuals/HUD)
 let baseIncome = 0;             // credits per second (smoothed)
 const baseAcc = { ex: 0, so: 0, exIdx: 0 };
+const DECK_AUDIO = ['hangar', 'ice', 'gold', 'alien'];
+function setDeckAudio() {
+  const k = DECK_AUDIO[(S.deck || 0) % DECK_AUDIO.length];
+  setMusicTheme(stationMode ? 'station' : k);
+  setAmbience(events.active && events.active.type === 'storm' ? 'storm' : k);
+}
 function refreshBase() {
   baseCache = baseStats(S.sites || []);
   baseCache.supply *= 1 + SB.power;
@@ -927,6 +935,7 @@ function openStation() {
   $('station-panel').classList.remove('hidden');
   stationView.sync(S.station, true, null);
   sfx.event();
+  setMusicTheme('station');
   renderStation();
 }
 function closeStation() {
@@ -934,6 +943,7 @@ function closeStation() {
   $('station-panel').classList.add('hidden');
   hud.classList.remove('hidden');
   stationView.sync(S.station, false, null);
+  setDeckAudio();
   save();
 }
 $('btn-station').addEventListener('click', () => { initAudio(); openStation(); });
@@ -1743,6 +1753,7 @@ function setupWorld(state) {
   if (S.coreFound) pile.ring.found = true;
   pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
   env.setTheme(S.deck || 0);
+  setDeckAudio();
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
   bot.setChassis(S.chassis || 'tracks');
@@ -2188,6 +2199,7 @@ $('btn-share-start').addEventListener('click', shareGame);
 $('btn-intro').addEventListener('click', () => { initAudio(); $('overlay-start').classList.add('hidden'); introCutscene(() => showStart()); });
 
 setInterval(() => { if (playing) save(); }, 10000);
+document.addEventListener('click', (e) => { if (e.target.closest('.tab, .buy, .ghost, .chip-btn, .site, .deck-card, .icon-btn')) sfx.ui(); }, true);
 // iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)
 ['touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) initAudio(); });
@@ -2435,6 +2447,7 @@ const clock = new THREE.Clock();
 const camTarget = new THREE.Vector3();
 const tmpV = new THREE.Vector3();
 let demoT = 0;
+let stepT = 0;
 let autoGrabT = 0;
 let wasInAblage = false;
 
@@ -2477,7 +2490,11 @@ function updateBot(dt) {
   const ground = Math.max(0, pile.heightAt(p.x, p.z));
   p.y += (ground - p.y) * Math.min(1, dt * 12);
   bot.update(dt, moving);
-  setEngine(moving ? mag : 0, S.levels.drive);
+  setEngine(moving && !['feet', 'spider'].includes(S.chassis) ? mag : 0, S.levels.drive);
+  if (moving && (S.chassis === 'feet' || S.chassis === 'spider')) {
+    stepT -= dt;
+    if (stepT <= 0) { stepT = S.chassis === 'feet' ? 0.36 : 0.11; if (S.chassis === 'feet') sfx.step(); else sfx.skitter(); }
+  }
   if (moving && ground > 0.05 && Math.random() < dt * 10) {
     const a = bot.group.rotation.y;
     dust.puff(p.x - Math.sin(a) * 0.4, p.y, p.z - Math.cos(a) * 0.4, 1, 0.6);

@@ -75,6 +75,7 @@ export function initAudio() {
   startAmbience();
   startEngine();
   startMusic();
+  setAmbience(ambKind);
 }
 
 export function setSfx(on) {
@@ -163,19 +164,22 @@ export function setEngine(v, level = 0) {
   engine.f.frequency.setTargetAtTime(220 + v * 500 + level * 120, t, 0.1);
 }
 
-// ---------------------------------------------------------------- generative music
-const CHORDS = [
-  [57, 60, 64, 67, 71],   // Am9
-  [53, 57, 60, 64, 67],   // Fmaj9
-  [48, 55, 59, 62, 64],   // Cmaj9
-  [55, 59, 62, 66, 69],   // G(add)
-];
-const SCALE = [69, 71, 72, 74, 76, 79, 81, 83, 84, 86, 88];
+// ---------------------------------------------------------------- generative music (one mood per deck)
 const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
 let delayIn = null;
+// chords: midi notes; scale: melody notes; bar: seconds per chord; pluck/pad timbres; perc: base drum density
+const THEMES = {
+  hangar:  { chords: [[57, 60, 64, 67, 71], [53, 57, 60, 64, 67], [48, 55, 59, 62, 64], [55, 59, 62, 66, 69]], scale: [69, 71, 72, 74, 76, 79, 81, 83, 84, 86, 88], bar: 8, pad: 'triangle', pluck: 'sine', density: 0.35, perc: 0 },
+  ice:     { chords: [[50, 57, 62, 66, 69], [55, 59, 62, 66, 71], [52, 59, 64, 68, 71], [57, 61, 64, 68, 73]], scale: [74, 76, 78, 81, 83, 86, 88, 90, 93], bar: 9, pad: 'sine', pluck: 'sine', density: 0.28, perc: 0, bell: true },
+  gold:    { chords: [[50, 57, 60, 65, 69], [48, 55, 58, 62, 67], [46, 53, 57, 62, 65], [45, 52, 57, 60, 64]], scale: [62, 64, 65, 67, 69, 72, 74, 76, 77], bar: 6, pad: 'sawtooth', pluck: 'triangle', density: 0.42, perc: 0.6 },
+  alien:   { chords: [[48, 54, 58, 62, 66], [50, 56, 60, 64, 68], [46, 52, 56, 60, 64], [52, 58, 62, 66, 70]], scale: [60, 62, 64, 66, 68, 70, 72, 74, 76, 78], bar: 7, pad: 'square', pluck: 'sine', density: 0.33, perc: 0.25, wobble: true },
+  station: { chords: [[48, 55, 60, 64, 67], [53, 57, 60, 65, 69], [55, 59, 62, 67, 71], [52, 55, 60, 64, 67]], scale: [72, 74, 76, 79, 81, 84, 86, 88], bar: 10, pad: 'triangle', pluck: 'sine', density: 0.2, perc: 0, choir: true },
+};
+let theme = THEMES.hangar, nextTheme = null, intensity = 0;
+export function setMusicTheme(name) { if (THEMES[name] && THEMES[name] !== theme) nextTheme = THEMES[name]; }
+export function setMusicIntensity(v) { intensity = v; }
 
 function startMusic() {
-  // stereo-ish delay for the arpeggios
   const d = ctx.createDelay(1.5); d.delayTime.value = 0.42;
   const fb = ctx.createGain(); fb.gain.value = 0.38;
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2500;
@@ -186,20 +190,22 @@ function startMusic() {
 
   let bar = 0;
   let next = ctx.currentTime + 0.3;
-  const BAR = 8;
   const schedule = () => {
     while (next < ctx.currentTime + 1.5) {
-      const chord = CHORDS[bar % CHORDS.length];
-      pad(chord, next, BAR);
-      // sparse arpeggio
+      if (nextTheme && bar % 2 === 0) { theme = nextTheme; nextTheme = null; }
+      const T = theme, BAR = T.bar;
+      const chord = T.chords[bar % T.chords.length];
+      pad(chord, next, BAR, T);
       const steps = 16;
       for (let s = 0; s < steps; s++) {
-        if (Math.random() < 0.35) {
-          const note = SCALE[Math.floor(Math.random() * SCALE.length)];
-          pluck(midi(note), next + s * (BAR / steps), 0.05 + Math.random() * 0.04);
+        if (Math.random() < T.density * (1 + intensity * 0.6)) {
+          const note = T.scale[Math.floor(Math.random() * T.scale.length)];
+          pluck(midi(note), next + s * (BAR / steps), 0.05 + Math.random() * 0.04, T);
         }
       }
       if (bar % 2 === 0) bass(midi(chord[0] - 12), next, BAR);
+      const perc = Math.min(1, T.perc + intensity);
+      if (perc > 0.05) drums(next, BAR, perc);
       next += BAR;
       bar++;
     }
@@ -208,31 +214,35 @@ function startMusic() {
   musicTimer = setInterval(schedule, 500);
 }
 
-function pad(chord, t, dur) {
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900; f.Q.value = 0.7;
+function pad(chord, t, dur, T) {
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = T.pad === 'sawtooth' ? 700 : T.pad === 'square' ? 600 : 900; f.Q.value = 0.7;
   const g = ctx.createGain();
+  const vol = T.pad === 'triangle' || T.pad === 'sine' ? 0.05 : 0.022;
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.05, t + 2.5);
-  g.gain.linearRampToValueAtTime(0.04, t + dur - 1.5);
+  g.gain.linearRampToValueAtTime(vol, t + 2.5);
+  g.gain.linearRampToValueAtTime(vol * 0.8, t + dur - 1.5);
   g.gain.linearRampToValueAtTime(0.0001, t + dur + 1.5);
   f.connect(g).connect(musicBus);
+  if (T.wobble) { const l = ctx.createOscillator(); l.frequency.value = 0.35; const lg = ctx.createGain(); lg.gain.value = 300; l.connect(lg).connect(f.frequency); l.start(t); l.stop(t + dur + 1.6); }
   for (const m of chord.slice(0, 4)) for (const det of [-6, 6]) {
-    const o = ctx.createOscillator(); o.type = 'triangle';
-    o.frequency.value = midi(m); o.detune.value = det;
+    const o = ctx.createOscillator(); o.type = T.pad;
+    o.frequency.value = midi(T.choir ? m + 12 : m); o.detune.value = det;
     o.connect(f); o.start(t); o.stop(t + dur + 1.6);
   }
 }
-function pluck(freq, t, vol) {
-  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
-  const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq * 2;
+function pluck(freq, t, vol, T) {
+  const o = ctx.createOscillator(); o.type = T.pluck; o.frequency.value = freq;
+  const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq * (T.bell ? 2.76 : 2);
   const g = ctx.createGain();
+  const len = T.bell ? 2.2 : 1.2;
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
-  const g2 = ctx.createGain(); g2.gain.value = 0.15;
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  const g2 = ctx.createGain(); g2.gain.value = T.bell ? 0.35 : 0.15;
   o.connect(g); o2.connect(g2).connect(g);
+  if (T.wobble) { o.frequency.setValueAtTime(freq * 0.97, t); o.frequency.linearRampToValueAtTime(freq, t + 0.15); }
   g.connect(delayIn);
-  o.start(t); o2.start(t); o.stop(t + 1.3); o2.stop(t + 1.3);
+  o.start(t); o2.start(t); o.stop(t + len + 0.1); o2.stop(t + len + 0.1);
 }
 function bass(freq, t, dur) {
   const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
@@ -242,6 +252,60 @@ function bass(freq, t, dur) {
   g.gain.linearRampToValueAtTime(0.0001, t + dur * 2);
   o.connect(g).connect(musicBus);
   o.start(t); o.stop(t + dur * 2 + 0.1);
+}
+// soft drums: kick on beats, hats in between (density 0..1)
+function drums(t0, dur, density) {
+  const beats = Math.round(dur * 2);           // ~120 bpm feel
+  const step = dur / beats;
+  for (let b = 0; b < beats; b++) {
+    const t = t0 + b * step;
+    if (b % 2 === 0 || density > 0.7) {
+      const o = ctx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.18);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12 * density, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.connect(g).connect(musicBus); o.start(t); o.stop(t + 0.32);
+    }
+    if (density > 0.3) {
+      const th = t + step / 2;
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.03 * density, th); g.gain.exponentialRampToValueAtTime(0.0001, th + 0.05);
+      src.connect(f).connect(g).connect(musicBus); src.start(th, Math.random()); src.stop(th + 0.06);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- deck ambience
+let ambKind = 'hangar', ambTimer = null, windGain = null;
+export function setAmbience(kind) {
+  ambKind = kind;
+  if (!ctx) return;
+  if (!windGain) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 500; f.Q.value = 1.5;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.13; const lg = ctx.createGain(); lg.gain.value = 300;
+    lfo.connect(lg).connect(f.frequency);
+    windGain = ctx.createGain(); windGain.gain.value = 0;
+    src.connect(f).connect(windGain).connect(ambBus); src.start(); lfo.start();
+  }
+  windGain.gain.setTargetAtTime(kind === 'ice' ? 0.05 : kind === 'storm' ? 0.16 : 0, ctx.currentTime, 1);
+  if (!ambTimer) ambTimer = setInterval(ambienceTick, 1000);
+}
+function ambienceTick() {
+  if (!ctx || document.hidden) return;
+  const r = Math.random();
+  if (ambKind === 'gold' && r < 0.18) { // distant machinery clank
+    tone(180 + Math.random() * 120, 0.25, 0.03, 'square', 0, null, ambBus);
+    noise(0.15, 1200, 0.04, 'bandpass', ambBus);
+  } else if (ambKind === 'alien' && r < 0.22) { // alien chirps
+    const f = 900 + Math.random() * 900;
+    tone(f, 0.12, 0.025, 'sine', 0, f * 1.6, ambBus);
+    tone(f * 1.3, 0.1, 0.02, 'sine', 0.14, f * 0.8, ambBus);
+  } else if (ambKind === 'ice' && r < 0.12) { // ice creak
+    tone(300 + Math.random() * 200, 0.6, 0.015, 'triangle', 0, 120, ambBus);
+  } else if (ambKind === 'hangar' && r < 0.08) { // station announcement chime
+    tone(660, 0.3, 0.02, 'sine', 0, null, ambBus); tone(880, 0.4, 0.02, 'sine', 0.25, null, ambBus);
+  }
 }
 
 // ---------------------------------------------------------------- effects
@@ -275,6 +339,10 @@ export const sfx = {
   },
   event() { [0, 0.25, 0.5].forEach((d) => { tone(880, 0.15, 0.08, 'square', d); tone(660, 0.15, 0.08, 'square', d + 0.12); }); },
   turbo() { tone(200, 0.5, 0.15, 'sawtooth', 0, 900); noise(0.5, 2000, 0.2, 'bandpass'); },
+  step() { noise(0.06, 500, 0.08, 'lowpass'); tone(70, 0.06, 0.05, 'sine'); },
+  skitter() { tone(2400 + Math.random() * 800, 0.025, 0.02, 'square'); },
+  ui() { tone(900, 0.04, 0.03, 'sine'); },
+  milestone() { [523, 659, 784, 1047].forEach((f, k) => tone(f, 0.25, 0.09, 'triangle', k * 0.08)); },
   click() { tone(1200, 0.03, 0.04, 'square'); },
   beep() { tone(1400, 0.05, 0.04, 'sine'); tone(1800, 0.05, 0.03, 'sine', 0.06); },
 };
