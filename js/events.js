@@ -7,6 +7,8 @@ export const EVENT_TYPES = {
   storm:  { name: '🌨️ Schneesturm',        desc: 'Kaum Sicht – aber seltene Funde 2,5× häufiger!', duration: 28, color: '#bfe6ff' },
   gold:   { name: '💰 Goldrausch',          desc: 'Alle Funde doppelt so viel wert!',       duration: 30, color: '#ffd34d' },
   swarm:  { name: '👽 Alien-Schwarm',       desc: 'Fang die Aliens auf dem Haufen!',         duration: 35, color: '#7cff9a' },
+  eruption: { name: '🌋 Eruption',          desc: 'Glühende Lavabrocken – schnapp sie dir!', duration: 24, color: '#ff6a3a' },
+  resonance: { name: '💎 Resonanz',         desc: 'Der Kern leuchtet durch den ganzen Berg!', duration: 30, color: '#c9a0ff' },
 };
 
 export class Events {
@@ -53,7 +55,9 @@ export class Events {
       const cell = pile.cellAt(x, z);
       if (cell >= 0 && pile.counts[cell] > 50) break;
     }
-    const mesh = new THREE.Mesh(this.rockGeo, this.rockMat);
+    const lava = this.active && this.active.type === 'eruption';
+    if (!this.lavaMat) this.lavaMat = new THREE.MeshStandardMaterial({ color: 0x2a0a04, emissive: 0xff3a0a, emissiveIntensity: 1.6, roughness: 0.7, flatShading: true });
+    const mesh = new THREE.Mesh(this.rockGeo, lava ? this.lavaMat : this.rockMat);
     mesh.castShadow = true;
     const trail = new THREE.Mesh(this.trailGeo, this.trailMat);
     const light = new THREE.PointLight(0xff8a3a, 4, 6);
@@ -77,7 +81,7 @@ export class Events {
       }
     } else {
       this.active.t -= dt;
-      if (this.active.type === 'meteor') {
+      if (this.active.type === 'meteor' || this.active.type === 'eruption') {
         this.spawnT -= dt;
         if (this.spawnT <= 0 && this.active.t > 3) { this.spawnT = 1.6 + Math.random() * 1.6; this.spawnMeteor(pile); }
       }
@@ -180,7 +184,9 @@ export class Events {
       if (m.landed && Math.hypot(m.grp.position.x - x, m.grp.position.z - z) < reach) {
         this.meteors.splice(k, 1);
         this.scene.remove(m.grp);
-        return m.grp.position.clone();
+        const pos = m.grp.position.clone();
+        pos.lava = m.mesh.material === this.lavaMat;
+        return pos;
       }
     }
     return null;

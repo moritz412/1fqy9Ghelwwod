@@ -170,6 +170,8 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | Eiswrack | 🌨️ Schneesturm: kaum Sicht, seltene Funde ×2,5 | 150 Eiskristalle |
 | Goldmine | 💰 Goldrausch: alle Funde doppelt wert | 25 Platin-Nuggets |
 | Alienschrott | 👽 Alien-Schwarm: Aliens fangen gibt Artefakte/Datenkerne | 12 Aliens fangen |
+| Vulkanschmiede | 🌋 Eruption: Lavabrocken mit Platin und Gravitonperlen | 30 Lavabrocken |
+| Kristallgarten | 💎 Resonanz: Kern leuchtet durch den ganzen Berg, Heiß/Kalt für alle | 15 Datenkerne |
 
 ## 6c. Nexus Prime – die eigene Raumstation (Langzeitziel)
 

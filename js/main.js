@@ -119,7 +119,7 @@ const events = new Events(scene, {
     if (type === 'storm') env.setStorm(true);
     setMusicIntensity(0.55);
     setDeckAudio();
-    say({ meteor: 'Achtung, Meteoriten! Die sind voller Schätze! ☄️', luck: 'Ich spüre eine Glückswelle! Schnell greifen! ✨', storm: 'Schneesturm! Ich sehe kaum was – aber hier glitzert es! 🌨️', gold: 'GOLDRAUSCH! Jetzt zählt jeder Griff doppelt! 💰', swarm: 'Aliens! Fahr hin und schnapp sie dir! 👽' }[type], 4);
+    say({ eruption: 'Eruption! Die glühenden Brocken sind voller Platin! 🌋', resonance: 'Hörst du das? Die Kristalle zeigen uns den Kern! 💎', meteor: 'Achtung, Meteoriten! Die sind voller Schätze! ☄️', luck: 'Ich spüre eine Glückswelle! Schnell greifen! ✨', storm: 'Schneesturm! Ich sehe kaum was – aber hier glitzert es! 🌨️', gold: 'GOLDRAUSCH! Jetzt zählt jeder Griff doppelt! 💰', swarm: 'Aliens! Fahr hin und schnapp sie dir! 👽' }[type], 4);
   },
   onEnd(type) { $('event').classList.add('hidden'); if (type === 'storm') env.setStorm(false); setMusicIntensity(0); setDeckAudio(); },
 });
@@ -377,7 +377,7 @@ function updateHud() {
   const amt = lv('hands');
   setText('grab-amt', amt === 1 ? '1 Teil' : `${fmt(amt)} Teile`);
   $('credits-chip').classList.toggle('hidden', S.mode === 'pure');
-  $('scanner').classList.toggle('hidden', S.levels.scanner < 2 || S.coreFound);
+  $('scanner').classList.toggle('hidden', (S.levels.scanner < 2 && !resonance()) || S.coreFound);
 }
 
 // ================================================================ finds & economy
@@ -710,7 +710,9 @@ function capsuleReward() {
   return Math.max(25, Math.round(perSec * 25));
 }
 function openMeteor(pos) {
-  const list = [{ f: FINDS[3], k: 1 + Math.floor(Math.random() * 3), tier: 3 }];
+  if (pos.lava) S.stats.lava = (S.stats.lava || 0) + 1;
+  const list = [{ f: FINDS[3], k: 1 + Math.floor(Math.random() * 3) + (pos.lava ? 1 : 0), tier: 3 }];
+  if (pos.lava && Math.random() < 0.3) list.push({ f: FINDS.find((f) => f.id === 'graviton'), k: 1, tier: 5 });
   if (Math.random() < 0.3) list.push({ f: FINDS[4], k: 1, tier: 4 });
   if (Math.random() < 0.03) list.push({ f: FINDS[5], k: 1, tier: 5 });
   handleFinds(list, true);
@@ -754,7 +756,7 @@ let baseCache = baseStats([]);
 let baseFlow = 0;               // sorted parts per second (smoothed, for visuals/HUD)
 let baseIncome = 0;             // credits per second (smoothed)
 const baseAcc = { ex: 0, so: 0, exIdx: 0 };
-const DECK_AUDIO = ['hangar', 'ice', 'gold', 'alien'];
+const DECK_AUDIO = ['hangar', 'ice', 'gold', 'alien', 'lava', 'crystal'];
 function setDeckAudio() {
   const k = DECK_AUDIO[(S.deck || 0) % DECK_AUDIO.length];
   setMusicTheme(stationMode ? 'station' : k);
@@ -1119,6 +1121,7 @@ function deckGoalProgress(st = S) {
   const g = deckDef(st.deck || 0).goal, b = st.deckBase || { removed: 0, found: {}, aliens: 0 };
   if (g.key === 'removed') return st.stats.removed - (b.removed || 0);
   if (g.key === 'aliens') return (st.stats.aliens || 0) - (b.aliens || 0);
+  if (g.key === 'lava') return (st.stats.lava || 0) - (b.lava || 0);
   return (st.stats.found[g.key] || 0) - ((b.found || {})[g.key] || 0);
 }
 const deckTime = () => (S.coreFound ? S.coreTime : S.stats.time) - ((S.deckBase && S.deckBase.time) || 0);
@@ -1186,8 +1189,9 @@ function scannerHeat() {
   const h = Math.max(0, Math.min(1, 1 - d / 22));
   return h * h * (3 - 2 * h);
 }
+const resonance = () => !!(events.active && events.active.type === 'resonance');
 function updateScannerHud() {
-  if (S.levels.scanner < 2 || S.coreFound) return;
+  if ((S.levels.scanner < 2 && !resonance()) || S.coreFound) return;
   const heat = scannerHeat();
   const fill = $('heat-fill');
   fill.style.width = `${Math.round(heat * 100)}%`;
@@ -1841,7 +1845,7 @@ function makeDeckState(n, old) {
     skinsOwned: old.skinsOwned, contracts: old.contracts || [],
   });
   st.total = deckTotal(n);
-  st.deckBase = { removed: st.stats.removed, found: { ...st.stats.found }, time: st.stats.time, aliens: st.stats.aliens || 0 };
+  st.deckBase = { removed: st.stats.removed, found: { ...st.stats.found }, time: st.stats.time, aliens: st.stats.aliens || 0, lava: st.stats.lava || 0 };
   st.deckStart = st.stats.time;
   st.credits = (old.credits || 0) + 150 * (n + 1) + stationBonus(st.station).start;   // keep credits + a welcome bonus
   records.maxDeck = Math.max(records.maxDeck || 0, n);
@@ -2085,7 +2089,7 @@ function showStart() {
   }
   // decks: unlocked up to the furthest one ever reached
   const maxDeck = Math.max(records.maxDeck || 0, deckIdx);
-  const cols = [['#2a3140', '#4a3a30'], ['#1a3a5a', '#4a7aa0'], ['#4a2a0a', '#a0601a'], ['#2a0a3a', '#1a5a3a']];
+  const cols = [['#2a3140', '#4a3a30'], ['#1a3a5a', '#4a7aa0'], ['#4a2a0a', '#a0601a'], ['#2a0a3a', '#1a5a3a'], ['#3a0a04', '#a0300a'], ['#1a1040', '#5a4aa0']];
   const shown = Math.max(DECKS.length, maxDeck + 2);
   $('deck-list').innerHTML = Array.from({ length: shown }, (_, i) => {
     const dd = DECKS[i % DECKS.length];
@@ -2609,7 +2613,7 @@ function animate() {
     }
     pile.relaxStep();
     pileView.sync();
-    pileView.updateRing(dt, (S && S.levels.scanner >= 1 ? 400 : 25) + SB.glitter * 200);
+    pileView.updateRing(dt, (S && S.levels.scanner >= 1 ? 400 : 25) + SB.glitter * 200 + (events.active && events.active.type === 'resonance' ? 1e7 : 0));
     updateDrones(dt, t);
   }
   if (S) baseView.update(dt, t, baseFlow, baseCache.eff, (S.buffer || 0) / Math.max(1, baseCache.buffer));
@@ -2643,4 +2647,4 @@ $('splash').addEventListener('click', () => {
 });
 
 // test hook
-window.__nx = { freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

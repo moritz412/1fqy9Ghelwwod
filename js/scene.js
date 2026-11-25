@@ -341,6 +341,10 @@ export function buildEnvironment(scene, renderer) {
       neb: [0xa05a1a, 0xc07a2a, 0x8a3a1a, 0xd09a3a, 0x6a2a0a], planet: ['#d9822b', '#f0b050', '#a04a1a', '#ffd080', '#7a3a10', '#c86a20'], sunGlow: 0xffd090, deco: 'rock' },
     { bg: 0x05020a, fog: 0x0f0518, hemi: [0xc0a0ff, 0x0a1a10], sun: 0xe0ffe0, deck: 0xe0d0ff, motes: 0x7cff9a, moteSize: 0.2, moteDir: 0.25,
       neb: [0x2a8a4a, 0x7a2aa0, 0x1a6a5a, 0xa03ac0, 0x3aa06a], planet: ['#3a9a5a', '#8a4ac0', '#5ad08a', '#2a1a4a', '#b07ae0', '#1a6a4a'], sunGlow: 0xd0ffd8, deco: 'alien' },
+    { bg: 0x0a0302, fog: 0x2a0a04, hemi: [0xff9a6a, 0x2a0a04], sun: 0xffa060, deck: 0xd8b8a8, motes: 0xff7a3a, moteSize: 0.16, moteDir: 0.9,
+      neb: [0xa02a0a, 0xc05a1a, 0x6a1a0a, 0xd07a2a, 0x4a0a0a], planet: ['#3a1208', '#c0401a', '#ff7a2a', '#1a0804', '#ffb04a', '#7a200a'], sunGlow: 0xffa070, deco: 'lava' },
+    { bg: 0x04030c, fog: 0x0c0a22, hemi: [0xc9b0ff, 0x101030], sun: 0xe8e0ff, deck: 0xd8d0ff, motes: 0xc9a0ff, moteSize: 0.2, moteDir: 0.15,
+      neb: [0x5a3aa0, 0x2a6ac0, 0x8a4ad0, 0x3a9ad0, 0x6a2a9a], planet: ['#c9b0ff', '#7a5ad0', '#9ae0ff', '#3a2a7a', '#e0d0ff', '#5a8ae0'], sunGlow: 0xe0d0ff, deco: 'crystal' },
   ];
   function buildDeco(kind) {
     const g = new THREE.Group();
@@ -397,6 +401,40 @@ export function buildEnvironment(scene, renderer) {
         plant.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
         plant.userData.sway = rr() * 6;
         g.add(plant);
+      }
+    }
+    if (kind === 'lava') {
+      const rockM = new THREE.MeshStandardMaterial({ color: 0x1a0c08, roughness: 0.95, flatShading: true, emissive: 0x3a0a00, emissiveIntensity: 0.4 });
+      const lavaM = new THREE.MeshBasicMaterial({ color: 0xff5a1a });
+      for (let k = 0; k < 9; k++) {
+        const a = rr() * Math.PI * 2, r = 26 + rr() * 4;
+        const pool = new THREE.Mesh(new THREE.CircleGeometry(0.8 + rr() * 1.4, 18), lavaM);
+        pool.rotation.x = -Math.PI / 2; pool.position.set(Math.cos(a) * r, 0.04, Math.sin(a) * r);
+        pool.userData.glow = rr() * 6;
+        g.add(pool);
+      }
+      for (let k = 0; k < 16; k++) {
+        const a = rr() * Math.PI * 2, r = 26.5 + rr() * 4;
+        const sp = new THREE.Mesh(new THREE.ConeGeometry(0.5 + rr() * 0.9, 2 + rr() * 4, 6), rockM);
+        sp.position.set(Math.cos(a) * r, 1.4, Math.sin(a) * r); sp.rotation.z = (rr() - 0.5) * 0.3; sp.castShadow = true;
+        g.add(sp);
+      }
+    } else if (kind === 'crystal') {
+      const cols = [0xc9a0ff, 0x7ae0ff, 0xff9ae0];
+      for (let k = 0; k < 20; k++) {
+        const a = rr() * Math.PI * 2, r = 25.5 + rr() * 5;
+        const cl = new THREE.Group();
+        const col = cols[k % cols.length];
+        const m = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85, flatShading: true });
+        for (let j = 0; j < 3; j++) {
+          const h = 1.2 + rr() * 3.5;
+          const c = new THREE.Mesh(new THREE.CylinderGeometry(0, 0.25 + rr() * 0.3, h, 6), m);
+          c.position.set((rr() - 0.5) * 0.8, h / 2, (rr() - 0.5) * 0.8); c.rotation.set((rr() - 0.5) * 0.6, 0, (rr() - 0.5) * 0.6);
+          cl.add(c);
+        }
+        cl.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+        cl.userData.pulse = rr() * 6; cl.userData.mat = m;
+        g.add(cl);
       }
     }
     g.userData.kind = kind;
@@ -478,6 +516,8 @@ export function buildEnvironment(scene, renderer) {
         for (const c of currentDeco.children) {
           if (c.userData.spin) c.rotation.y += dt * c.userData.spin;
           if (c.userData.sway !== undefined) c.rotation.z = Math.sin(t * 0.8 + c.userData.sway) * 0.08;
+          if (c.userData.glow !== undefined) c.scale.setScalar(1 + Math.sin(t * 0.7 + c.userData.glow) * 0.06);
+          if (c.userData.pulse !== undefined) c.userData.mat.emissiveIntensity = 0.4 + Math.sin(t * 0.9 + c.userData.pulse) * 0.2;
         }
       }
       // keep shadows centred on the action

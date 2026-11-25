@@ -173,6 +173,8 @@ const THEMES = {
   ice:     { chords: [[50, 57, 62, 66, 69], [55, 59, 62, 66, 71], [52, 59, 64, 68, 71], [57, 61, 64, 68, 73]], scale: [74, 76, 78, 81, 83, 86, 88, 90, 93], bar: 9, pad: 'sine', pluck: 'sine', density: 0.28, perc: 0, bell: true },
   gold:    { chords: [[50, 57, 60, 65, 69], [48, 55, 58, 62, 67], [46, 53, 57, 62, 65], [45, 52, 57, 60, 64]], scale: [62, 64, 65, 67, 69, 72, 74, 76, 77], bar: 6, pad: 'sawtooth', pluck: 'triangle', density: 0.42, perc: 0.6 },
   alien:   { chords: [[48, 54, 58, 62, 66], [50, 56, 60, 64, 68], [46, 52, 56, 60, 64], [52, 58, 62, 66, 70]], scale: [60, 62, 64, 66, 68, 70, 72, 74, 76, 78], bar: 7, pad: 'square', pluck: 'sine', density: 0.33, perc: 0.25, wobble: true },
+  lava:    { chords: [[45, 52, 55, 60, 64], [41, 48, 53, 57, 60], [43, 50, 55, 58, 62], [40, 47, 52, 55, 59]], scale: [57, 59, 60, 62, 64, 67, 69, 72], bar: 6, pad: 'sawtooth', pluck: 'triangle', density: 0.3, perc: 0.5 },
+  crystal: { chords: [[52, 59, 64, 68, 71], [57, 61, 64, 69, 73], [54, 61, 66, 69, 73], [59, 63, 66, 71, 75]], scale: [76, 78, 80, 83, 85, 88, 90, 92, 95], bar: 9, pad: 'sine', pluck: 'sine', density: 0.32, perc: 0, bell: true },
   station: { chords: [[48, 55, 60, 64, 67], [53, 57, 60, 65, 69], [55, 59, 62, 67, 71], [52, 55, 60, 64, 67]], scale: [72, 74, 76, 79, 81, 84, 86, 88], bar: 10, pad: 'triangle', pluck: 'sine', density: 0.2, perc: 0, choir: true },
 };
 let theme = THEMES.hangar, nextTheme = null, intensity = 0;
@@ -301,6 +303,11 @@ function ambienceTick() {
     const f = 900 + Math.random() * 900;
     tone(f, 0.12, 0.025, 'sine', 0, f * 1.6, ambBus);
     tone(f * 1.3, 0.1, 0.02, 'sine', 0.14, f * 0.8, ambBus);
+  } else if (ambKind === 'lava' && r < 0.2) { // bubbling lava
+    noise(0.4, 300, 0.05, 'lowpass', ambBus); tone(60 + Math.random() * 30, 0.4, 0.03, 'sine', 0, 40, ambBus);
+  } else if (ambKind === 'crystal' && r < 0.2) { // singing crystals
+    const f = [1319, 1568, 1760, 2093][Math.floor(Math.random() * 4)];
+    tone(f, 1.6, 0.012, 'sine', 0, null, ambBus); tone(f * 1.5, 1.4, 0.008, 'sine', 0.1, null, ambBus);
   } else if (ambKind === 'ice' && r < 0.12) { // ice creak
     tone(300 + Math.random() * 200, 0.6, 0.015, 'triangle', 0, 120, ambBus);
   } else if (ambKind === 'hangar' && r < 0.08) { // station announcement chime

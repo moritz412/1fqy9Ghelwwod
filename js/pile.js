@@ -10,6 +10,9 @@ const HALF = (N * CELL) / 2;
 export class Pile {
   constructor(seed, saved = null, target = TOTAL_STONES) {
     this.target = target;
+    // bigger decks: each part is 'thinner' so the heap keeps the same shape and size
+    this.hPer = H_PER * TOTAL_STONES / target;
+    this.maxSlope = Math.round(MAX_SLOPE * target / TOTAL_STONES);
     this.counts = new Uint32Array(N * N);
     this.dirty = new Set();     // cells that may need to slide
     this.changed = new Set();   // cells whose visuals need an update
@@ -35,7 +38,7 @@ export class Pile {
     const i = c % N, j = Math.floor(c / N);
     return [-HALF + (i + 0.5) * CELL, -HALF + (j + 0.5) * CELL];
   }
-  cellHeight(c) { return this.counts[c] * H_PER; }
+  cellHeight(c) { return this.counts[c] * this.hPer; }
 
   // Height of a terrain vertex (a, b in 0..N): average of its neighbour cells.
   vertexHeight(a, b) {
@@ -46,7 +49,7 @@ export class Pile {
       const c = this.counts[this.idx(i, j)];
       s += c; n++; if (c > 0) any++;
     }
-    return any ? (s / n) * H_PER : -0.03;
+    return any ? (s / n) * this.hPer : -0.03;
   }
 
   // Surface height at world position (bilinear over vertices, like the mesh).
@@ -98,7 +101,7 @@ export class Pile {
   ringExposed() { return !this.ring.found && this.stonesAboveRing() === 0; }
   ringPosition(out = new THREE.Vector3()) {
     const [x, z] = this.cellCenter(this.ring.c);
-    return out.set(x, this.ring.k * H_PER, z);
+    return out.set(x, this.ring.k * this.hPer, z);
   }
 
   // ---------------------------------------------------------- removal
@@ -185,8 +188,8 @@ export class Pile {
       if (j < N - 1) nb.push(c + N);
       for (const n of nb) {
         const diff = this.counts[c] - this.counts[n];
-        if (diff <= MAX_SLOPE) continue;
-        const m = Math.floor((diff - MAX_SLOPE) / 2) + 1;
+        if (diff <= this.maxSlope) continue;
+        const m = Math.floor((diff - this.maxSlope) / 2) + 1;
         this.counts[c] -= m;
         this.counts[n] += m;
         if (!this.ring.found && c === this.ring.c && this.counts[c] < this.ring.k) this.ring.k = this.counts[c];
