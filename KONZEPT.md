@@ -1,157 +1,149 @@
-# TIEFENZEIT – Die Suche nach dem Zeitkristall
+# STAUBMOND – Ein Ring in fünf Millionen Steinen
 
-*Ein 3D-Grabungsspiel für iPad, Handy und Browser – spielbar direkt über GitHub Pages.*
+*Konzept v1. Ein 3D-Sammel- und Aufräum-Simulator für iPad, Handy und Browser, spielbar über GitHub Pages.*
 
----
-
-## 1. Idee in einem Satz
-
-Du bist Archäolog:in in der Wüste **Ar-Ruhal**. Unter den Dünen liegen die Schichten
-untergegangener Epochen, und irgendwo in jedem Grabungsfeld steckt ein winziger
-**Zeitkristall**. Du hast nur begrenzte Ausdauer. Finde die Nadel im Heuhaufen,
-bevor dir die Kraft ausgeht, und grabe dabei so tief wie möglich.
-
-Das Spiel verbindet drei bekannte Spielgefühle zu einem eigenen Thema:
-
-| Spielgefühl                      | Umsetzung in Tiefenzeit                                   |
-|----------------------------------|-----------------------------------------------------------|
-| Nadel im Heuhaufen               | Ein versteckter Zeitkristall pro Feld, Resonanz-Detektor  |
-| Jedes Sandkorn wegräumen         | Modus „Wüstenwind“: das ganze Feld freilegen              |
-| So tief wie möglich graben       | Tiefenrekord, Epochen-Schichten, immer härteres Gestein   |
+> Die erste Version „Tiefenzeit“ (Graben in Schichten) ist nach `docs/KONZEPT-v0-grabung.md` umgezogen.
+> Dieses Konzept ersetzt sie: Gewünscht ist die Mechanik von Needle-in-a-Haystack-Spielen.
 
 ---
 
-## 2. Thema und Welt
+## 1. Analyse der Vorlage
 
-**Ar-Ruhal** ist eine erfundene Wüste, unter der sich Zivilisationen übereinander
-gestapelt haben. Jede Bodenschicht ist eine Epoche:
+Grundlage ist das, was öffentlich über *Needle In A Haystack Simulator* (Studio Bitdot) bekannt ist.
+Die Steam-Seite selbst war aus der Entwicklungsumgebung nicht erreichbar.
 
-| Tiefe  | Schicht           | Härte | Farbe        | Besonderes                         |
-|--------|-------------------|-------|--------------|------------------------------------|
-| 0–3    | Dünensand         | 1     | Goldgelb     | schnell weg                        |
-| 4–9    | Karawanen-Lehm    | 2     | Ocker        | Münzen der Händler                 |
-| 10–17  | Bronze-Ruinen     | 3     | Terrakotta   | Relikte (Punkte)                   |
-| 18–27  | Urstein           | 4     | Grau-Blau    | Fossilien (geben Ausdauer zurück)  |
-| 28+    | Glutbasalt        | 6     | Dunkelrot    | sehr hart, Kristalle liegen tiefer |
+| Element           | Vorlage (öffentlich beschrieben)                                     |
+|-------------------|----------------------------------------------------------------------|
+| Grundidee         | 1 Nadel in **5.000.000** einzelnen Heuhalmen                         |
+| Perspektive       | Ego-Perspektive, man steht am/im Heuhaufen                           |
+| Kernaktion        | Heu **von Hand** herausziehen                                        |
+| Belohnung         | Im Heu sind **Wertsachen** versteckt                                 |
+| Wirtschaft        | Wertsachen **verkaufen**, dann **Werkzeuge** kaufen, die mehr Heu auf einmal bewegen |
+| Spätes Spiel      | **Automatisierung**: Maschinen verarbeiten den Haufen selbstständig  |
+| Modi              | Modus **ohne Upgrades** (das echte Nadel-Erlebnis), **Mehrspieler**  |
+| Reiz              | Satire auf „granulare“ Simulatoren: absurd große Zahl, befriedigendes Abtragen, Zahl sinkt sichtbar |
 
-Die Grenzen zwischen den Schichten sind wellig (Rauschfunktion), so sieht jedes
-Feld anders aus. Die Seitenwände des Grabungsblocks zeigen die Schichten wie im
-Querschnitt eines Museumsdioramas.
+**Warum das funktioniert (Spielgefühl):**
+1. **Absurdes Ziel mit klarer Zahl:** Der Zähler „4.999.873 übrig“ motiviert ständig.
+2. **Inkrementelle Schleife:** Erst mühsam per Hand, dann schneller, dann automatisch. Jedes Upgrade fühlt sich riesig an.
+3. **Zufallsfunde:** Kleine Glücksmomente zwischendurch halten bei Laune.
+4. **Das große Finale:** Die Nadel kann jederzeit auftauchen, vielleicht beim ersten Griff, vielleicht beim letzten.
 
-**Look:** Low-Poly-Voxel, warme Wüstenfarben, weiches Licht, Staubpartikel beim Graben.
-Später sollen Texturen und 3D-Fundstücke auf dem PC erzeugt werden (siehe Abschnitt 7).
-
----
-
-## 3. Kern-Spielmechanik
-
-1. **Graben:** Tippe auf einen Block, der an Luft grenzt. Jeder Tipp kostet 1 Ausdauer
-   und richtet Schaden in Höhe der Werkzeugstärke an. Harte Blöcke brauchen mehrere Tipps
-   und zeigen dabei Risse (werden dunkler).
-2. **Resonanz-Detektor (der Nadel-Mechanismus):** Nach jedem Schlag misst der Detektor
-   die Entfernung zum Kristall. Die Anzeige geht von *kalt* (blau) bis *glühend* (rot),
-   und ein Ton wird höher, je näher du kommst. Du suchst also nicht blind, sondern
-   kreist den Kristall wie bei „Heiß und Kalt“ ein.
-3. **Funde:** Verborgene Objekte sieht man erst, wenn ein Nachbarblock freigelegt ist.
-   - Münze: +25 Punkte
-   - Relikt: +100 Punkte
-   - Fossil: +8 Ausdauer, +50 Punkte
-   - **Zeitkristall:** Feld geschafft
-4. **Werkzeuge:**
-   - Schaufel (unbegrenzt, Stärke 1)
-   - Spitzhacke (Stärke 3, kostet 2 Ausdauer pro Schlag)
-   - Sprengladung (wenige pro Feld, zerstört eine 3×3×3-Zone, kostet 4 Ausdauer)
-5. **Schnittansicht:** Weil eine tiefe Grube von oben schwer zu sehen ist, blendet das
-   Spiel Schichten oberhalb der aktuellen Arbeitsebene aus (Buttons ▲/▼, folgt automatisch).
-6. **Ende eines Felds:**
-   - Kristall gefunden: Bonus = Restausdauer × 10 + Tiefe × 20, weiter zum nächsten,
-     größeren und tieferen Feld.
-   - Ausdauer leer: Expedition vorbei, Punkte und Tiefenrekord werden gespeichert.
+Für unser Spiel übernehmen wir **die Mechanik** (Genre-Schleife). Name, Grafik, Figuren und Setting sind eigen.
 
 ---
 
-## 4. Spielmodi
+## 2. Unser Setting: der Staubmond
 
-| Modus             | Ziel                                                   | Status      |
-|-------------------|--------------------------------------------------------|-------------|
-| **Expedition**    | Kristall finden, Feld um Feld, immer tiefer            | ✅ Version 0.1 |
-| **Tiefenrekord**  | Endlos-Schacht, so tief wie möglich, Ausdauer-Funde    | geplant     |
-| **Wüstenwind**    | Gegen die Zeit jedes Sandkorn eines Feldes wegräumen   | geplant     |
-| **Tagesgrabung**  | Gleiches Feld (Seed = Datum) für alle, Bestenliste     | geplant     |
+Auf dem kleinen Mond **Kessa-7** hat Astronautin **Juna Vell** bei der Rückkehr zur Basis ihren
+**Verlobungsring** verloren. Er liegt in einem Krater voller Gerölltrümmer: genau **5.000.000 Mondsteine**.
+Du bist die Aufräum-Crew. Räum den Krater leer und finde den Ring.
 
----
+**Was anders und eigen ist:**
+- **Mondschwerkraft:** Weggeworfene Steine fliegen in hohem Bogen und trudeln langsam. Das ist schön anzusehen und fühlt sich anders an als Heu.
+- **Licht:** Schwarzer Sternenhimmel, ein riesiger Gasplanet am Horizont, harte Sonnenschatten. Der Ring glitzert, wenn Licht auf ihn fällt.
+- **Funde passend zum Thema:** Meteoritensplitter, Eiskristalle, Teile alter Sonden, verlorene Werkzeuge, Raumfahrer-Abzeichen, sehr selten Alien-Fossilien.
+- **Händler:** die Basis-KI **„MAUS“** (Mobile Ankaufs- und Umtausch-Station), ein kleiner Roboterwagen am Kraterrand.
 
-## 5. Bedienung (Touch-first)
-
-| Geste                    | Aktion                    |
-|--------------------------|---------------------------|
-| Kurz tippen              | Graben                    |
-| Ein Finger ziehen        | Kamera drehen             |
-| Zwei Finger kneifen      | Zoomen                    |
-| Zwei Finger ziehen       | Kamera verschieben        |
-| Buttons unten            | Werkzeug wählen           |
-| Buttons rechts ▲/▼       | Schnittebene              |
-
-Am PC: Maus (Linksklick graben/drehen, Rad zoomen, Rechtsklick verschieben).
-
-Die Oberfläche ist für Hoch- und Querformat ausgelegt. Buttons sind mindestens 48 px
-groß, die sicheren Bereiche (Notch, Home-Indikator) werden beachtet. Auf dem iPad kann
-das Spiel über „Zum Home-Bildschirm“ als Vollbild-App gestartet werden.
+Alternatives Setting mit identischer Technik: **Strand** (ein Ring in fünf Millionen Muscheln) oder **Wüste** (ein Ring in fünf Millionen Kieseln).
+Es müssen nur Farben, Modelle und Texte getauscht werden.
 
 ---
 
-## 6. Technik
-
-- **Three.js 0.170** (lokal in `vendor/` abgelegt, also kein Build-Schritt und keine Abhängigkeit
-  von einem CDN), reines HTML/CSS/JavaScript-Modul.
-- **Voxel-Welt** als 1D-Array, gerendert mit einem einzigen `InstancedMesh`. Gezeichnet werden nur
-  Blöcke mit freier Seite, also wenige tausend Instanzen. Das läuft flüssig auf iPad und Handy.
-- **Raycasting** auf das InstancedMesh, um den angetippten Block zu finden.
-- **Prozedurale Generierung** mit Seed (Value-Noise) für Schichten und Fundstücke.
-- **WebAudio** synthetisiert die Geräusche (kein Audio-Download nötig), Vibration auf Android.
-- **localStorage** für Highscore und Tiefenrekord.
-- **GitHub Pages** über einen GitHub-Actions-Workflow (`.github/workflows/pages.yml`).
-- **PWA-Manifest** für den Vollbildmodus auf dem iPad.
-
-### Dateistruktur
+## 3. Spielschleife
 
 ```
-index.html            Einstieg, HUD, Menüs
-css/style.css         Layout, Touch-UI
-js/main.js            Spielablauf, Eingabe, Kamera, HUD
-js/world.js           Voxel-Daten, Generierung, Sichtbarkeit
-js/audio.js           Synthetische Sounds
-js/noise.js           Seed-Zufall und Value-Noise
-vendor/               three.module.min.js, OrbitControls.js
-assets/               (später) Texturen und Modelle vom PC
-tools/                Anleitung für die Asset-Erzeugung auf dem PC
+Steine wegräumen ──> Funde einsammeln ──> an MAUS verkaufen ──> Credits
+       ▲                                                          │
+       └──────── stärkere Werkzeuge / Maschinen kaufen <──────────┘
+                                   │
+                    irgendwann: ✨ Ring gefunden ✨
 ```
 
+### 3.1 Wegräumen
+- Der Krater ist ein Haufen aus Zellen (z. B. 64 × 64 Säulen). Jede Säule enthält eine Anzahl Steine, insgesamt 5.000.000.
+- Sichtbar ist nur die **oberste Schicht** als echte 3D-Steine. Darunter steckt nur noch eine Zahl, das hält es aufs iPad-tauglich.
+- **Tippen oder Halten** auf den Haufen greift Steine an dieser Stelle. Die Steine fliegen in Mondphysik davon, die Säule sinkt, der Zähler fällt.
+- Jeder entfernte Stein hat eine kleine Chance, ein **Fund** zu sein, und genau einer ist der **Ring**.
+
+### 3.2 Werkzeuge (aktiv, man bedient sie selbst)
+| # | Werkzeug              | Steine pro Griff | Preis      | Besonderheit                         |
+|---|-----------------------|------------------|------------|--------------------------------------|
+| 1 | Handschuh             | 1                | –          | Start                                |
+| 2 | Kralle                | 5                | 50         |                                      |
+| 3 | Mondschaufel          | 25               | 400        |                                      |
+| 4 | Schubrover            | 120              | 3.000      | Fläche statt Punkt                   |
+| 5 | Schwerkraft-Greifer   | 600              | 25.000     | zieht einen Kegel hoch, sehr spektakulär |
+| 6 | Grav-Bagger           | 3.000            | 200.000    |                                      |
+
+### 3.3 Maschinen (Automatisierung, laufen auch nebenbei)
+| Maschine              | Leistung        | Preis      | Funktion                                          |
+|-----------------------|-----------------|------------|---------------------------------------------------|
+| Staubsauger-Drohne    | 2 Steine/s      | 200        | fliegt über den Haufen, saugt zufällig            |
+| Sieb-Station          | 15 Steine/s     | 2.500      | sammelt Funde automatisch ein                     |
+| Förderband-Rampe      | 80 Steine/s     | 20.000     | schießt Steine ins All                            |
+| Krater-Fräse          | 500 Steine/s    | 150.000    | großer Bohrer, frisst sich durch                  |
+| Orbit-Kran            | 3.000 Steine/s  | 1.000.000  | Riesenkrallen aus dem Orbit                       |
+
+Maschinen kann man mehrfach kaufen und upgraden. **Wichtig:** Den Ring findet nur, wer selbst greift oder eine
+Sieb-Station hat. Sonst sortiert die Maschine ihn mit aus, und er landet in der „Fundkiste“ (Benachrichtigung).
+
+### 3.4 Funde und Verkauf
+| Fund                  | Häufigkeit       | Wert     |
+|-----------------------|------------------|----------|
+| Meteoritensplitter    | 1 : 40           | 2        |
+| Eiskristall           | 1 : 200          | 10       |
+| Sondenteil            | 1 : 1.500        | 60       |
+| Verlorenes Werkzeug   | 1 : 8.000        | 300      |
+| Raumfahrer-Abzeichen  | 1 : 40.000       | 1.500    |
+| Alien-Fossil          | 1 : 400.000      | 20.000   |
+| **Der Ring**          | **1 : 5.000.000**| Ende 🎉  |
+
+Funde landen im Rucksack (begrenzte Plätze, ein Upgrade erweitert ihn). Verkauft wird bei MAUS: Rucksack leeren gibt Credits.
+
+### 3.5 Ring-Hilfen (eigene Idee, optional)
+- **Glitzer:** Liegt der Ring nahe der Oberfläche, blitzt er im Sonnenlicht kurz auf.
+- **Ring-Scanner** (teures Upgrade): halbiert die Suchfläche, also welche Kraterhälfte.
+- Im Hardcore-Modus sind alle Hilfen aus.
+
 ---
 
-## 7. Den PC für Ressourcen nutzen
-
-Der PC (GPU) kann Ressourcen vorberechnen, die das Spiel dann nur noch lädt:
-
-1. **Texturen** (FLUX / Bildmodell): nahtlose 256×256-Kacheln pro Schicht, also Sand, Lehm,
-   Ruine, Stein und Basalt. Danach Export als komprimiertes WebP oder KTX2.
-2. **Fundstücke als 3D-Modelle** (TRELLIS o. ä.): Zeitkristall, Münze, Amphore,
-   Ammonit-Fossil. Danach Dezimierung auf maximal 2.000 Dreiecke und Export als `.glb`.
-3. **Vorberechnete Felder:** große Welten oder Tagesgrabungen als Seeds bzw. komprimierte
-   Arrays erzeugen.
-4. **Icons und Titelbild** für Home-Bildschirm und Startseite.
-
-Details stehen in `tools/ASSETS.md`. Bis die Assets da sind, nutzt das Spiel prozedurale Farben,
-es ist also auch ohne PC sofort spielbar.
+## 4. Modi
+| Modus            | Beschreibung                                                      |
+|------------------|-------------------------------------------------------------------|
+| **Karriere**     | Volle Schleife mit Shop, Maschinen und Funden. Speichert automatisch. |
+| **Pur**          | Keine Upgrades: 5.000.000 Steine, nur Handschuh. Für Wahnsinnige. |
+| **Schnellkrater**| 50.000 Steine, 10 Minuten, Bestenliste lokal.                     |
+| **Koop** (später)| 2–4 Leute im selben Krater (WebRTC, Raum-Code).                   |
 
 ---
 
-## 8. Fahrplan
+## 5. Steuerung
+| Gerät      | Bewegen                     | Umsehen                   | Greifen                      |
+|------------|-----------------------------|---------------------------|------------------------------|
+| iPad/Handy | linker virtueller Stick     | rechts ziehen             | Greif-Button halten oder auf Haufen tippen |
+| PC         | WASD                        | Maus                      | Linksklick halten            |
 
+Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulterkamera, die auf kleinen Handys übersichtlicher ist.
+
+---
+
+## 6. Technik (warum 5 Millionen im Browser gehen)
+- **Daten:** `Uint32Array` mit Stein-Anzahl pro Säule. Der Haufen ist eine Höhenkarte, die mit jedem Griff sinkt.
+- **Grafik:** Nur die obersten Steine werden als `InstancedMesh` gezeichnet (etwa 20.000 Instanzen, 4–6 Steinformen). Die Oberfläche darunter ist ein verformbares Gelände-Mesh mit Steintextur.
+- **Physik:** Nur die gerade geworfenen Steine fliegen, mit einfacher Ballistik und Mondschwerkraft, ohne Physik-Engine.
+- **Funde:** Sie werden beim Entfernen gewürfelt (Seed). Die Ringposition wird beim Start festgelegt (Säule + Tiefe).
+- **Maschinen:** Sie laufen pro Frame als Tick und auch offline (Zeitdifferenz beim Wiederkommen, gedeckelt).
+- **Speichern:** `localStorage`, Autosave alle 10 s.
+- **Ressourcen vom PC:** Steinformen, Fundstücke, Maschinen und MAUS als `.glb` (TRELLIS), Mondtexturen und Himmel (FLUX). Siehe `tools/ASSETS.md`.
+
+---
+
+## 7. Fahrplan
 | Version | Inhalt                                                                  |
 |---------|-------------------------------------------------------------------------|
-| 0.1     | Expedition-Modus, Schichten, Detektor, Werkzeuge, Funde, Highscore      |
-| 0.2     | Texturen vom PC, 3D-Kristall, bessere Partikel, Musik                   |
-| 0.3     | Modus Tiefenrekord (endloser Schacht), nachrutschender Sand             |
-| 0.4     | Modus Wüstenwind, Tagesgrabung mit Seed                                 |
-| 0.5     | Upgrades zwischen Feldern (Ausdauer, Detektor-Reichweite)               |
+| 0.2     | Krater mit 5 Mio. Steinen, Greifen, Mondwurf, Zähler, Ring, Funde       |
+| 0.3     | MAUS-Händler, Shop, Werkzeuge 1–6, Speichern                            |
+| 0.4     | Maschinen und Automatisierung, Offline-Fortschritt                      |
+| 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
+| 0.6     | Koop-Versuch                                                            |
