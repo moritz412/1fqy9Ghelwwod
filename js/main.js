@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
@@ -20,7 +20,7 @@ function freshState(mode = 'career') {
     helpers: {},
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
-    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0,
+    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'],
     level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
@@ -159,33 +159,77 @@ function rebuildDrones() {
     shown += n;
     const look = DRONE_LOOK[h.id];
     for (let k = 0; k < n; k++) {
-      const d = new THREE.Group();
-      // Atomar look: glowing nucleus with three electron orbits
-      const body = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.28, 16, 12), new THREE.MeshStandardMaterial({ color: look.color, emissive: look.color, emissiveIntensity: 0.9, roughness: 0.3 }));
-      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: look.color, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
-      halo.scale.setScalar(look.size * 1.6);
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-      eye.position.set(0, 0, look.size * 0.27);
-      const rotor = new THREE.Group();
-      for (let r = 0; r < 3; r++) {
-        const orbit = new THREE.Mesh(new THREE.TorusGeometry(look.size * 0.55, 0.018 + look.size * 0.015, 6, 32), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
-        orbit.rotation.set(Math.PI / 2 + r * 1.05, r * 0.6, 0);
-        const electron = new THREE.Mesh(new THREE.SphereGeometry(look.size * 0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-        electron.position.x = look.size * 0.55;
-        orbit.add(electron);
-        rotor.add(orbit);
-      }
-      const beam = new THREE.Mesh(new THREE.ConeGeometry(look.size * 0.5, 1, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
-      beam.position.y = -0.5;
-      d.add(body, eye, rotor, beam, halo);
-      d.userData = { phase: idx * 1.7 + k * 2.1 + shown, r: 5 + ((idx * 3 + k * 5) % 9), h: look.h, speed: 0.15 + (k % 3) * 0.05, beam, size: look.size };
-      body.castShadow = true;
-      d.userData.rotor = rotor;
+      const d = makeDrone(look);
+      d.userData = { ...d.userData, phase: idx * 1.7 + k * 2.1 + shown, r: 5 + ((idx * 3 + k * 5) % 9), h: look.h, speed: 0.15 + (k % 3) * 0.05, size: look.size };
       droneGroup.add(d);
     }
     idx++;
   }
 }
+
+// Atomar drone: quadcopter with spinning rotors, skids, camera eye and an atom emblem on top.
+const droneMats = {
+  white: new THREE.MeshStandardMaterial({ color: 0xf3f4f2, roughness: 0.4, metalness: 0.2 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x2c2f35, roughness: 0.5, metalness: 0.4 }),
+  rotor: new THREE.MeshBasicMaterial({ color: 0xcfe9ff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
+  eye: new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }),
+};
+function makeDrone(look) {
+  const s = look.size;
+  const d = new THREE.Group();
+  const accent = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.4, metalness: 0.3, emissive: look.color, emissiveIntensity: 0.25 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(s * 0.5, s * 0.16, s * 0.6), droneMats.white);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(s * 0.36, s * 0.08, s * 0.4), accent);
+  top.position.y = s * 0.11;
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(s * 0.07, 12, 8), droneMats.eye);
+  eye.position.set(0, -s * 0.02, s * 0.31);
+  body.castShadow = true;
+  d.add(body, top, eye);
+  const rotors = [];
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(s * 0.06, s * 0.05, s * 0.55), droneMats.dark);
+    arm.position.set(sx * s * 0.28, 0, sz * s * 0.28);
+    arm.rotation.y = sx * sz > 0 ? -Math.PI / 4 : Math.PI / 4;
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.06, s * 0.07, s * 0.1, 10), accent);
+    motor.position.set(sx * s * 0.45, s * 0.05, sz * s * 0.45);
+    const rotor = new THREE.Group();
+    rotor.position.set(sx * s * 0.45, s * 0.11, sz * s * 0.45);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(s * 0.26, 20), droneMats.rotor);
+    disc.rotation.x = -Math.PI / 2;
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(s * 0.5, s * 0.01, s * 0.05), droneMats.dark);
+    const blade2 = blade.clone(); blade2.rotation.y = Math.PI / 2;
+    rotor.add(disc, blade, blade2);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(s * 0.025, 6, 4), new THREE.MeshBasicMaterial({ color: sz > 0 ? 0xffffff : 0xff4040 }));
+    led.position.set(sx * s * 0.45, -s * 0.02, sz * s * 0.45);
+    d.add(arm, motor, rotor, led);
+    rotors.push(rotor);
+  }
+  for (const sx of [-1, 1]) {
+    const skid = new THREE.Mesh(new THREE.BoxGeometry(s * 0.03, s * 0.03, s * 0.55), droneMats.dark);
+    skid.position.set(sx * s * 0.18, -s * 0.2, 0);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(s * 0.03, s * 0.14, s * 0.03), droneMats.dark);
+    leg.position.set(sx * s * 0.18, -s * 0.13, 0);
+    d.add(skid, leg);
+  }
+  // atom emblem on top (the "Atomar" brand)
+  const atom = new THREE.Group();
+  atom.position.y = s * 0.24;
+  const nucleus = new THREE.Mesh(new THREE.SphereGeometry(s * 0.05, 10, 8), new THREE.MeshBasicMaterial({ color: look.color }));
+  atom.add(nucleus);
+  for (let r = 0; r < 3; r++) {
+    const orbit = new THREE.Mesh(new THREE.TorusGeometry(s * 0.11, s * 0.008 + 0.004, 4, 20), droneMats.eye);
+    orbit.rotation.set(Math.PI / 2 + r * 1.05, r * 0.6, 0);
+    atom.add(orbit);
+  }
+  d.add(atom);
+  // suction beam
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(s * 0.35, 1, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  beam.position.y = -0.5;
+  d.add(beam);
+  d.userData = { beam, rotor: atom, rotors };
+  return d;
+}
+
 function updateDrones(dt, t) {
   for (const d of droneGroup.children) {
     const u = d.userData;
@@ -194,7 +238,9 @@ function updateDrones(dt, t) {
     const ground = Math.max(0, pile.heightAt(x, z));
     d.position.set(x, ground + u.h + Math.sin(t * 2 + u.phase) * 0.2, z);
     d.rotation.y = -a;
-    if (u.rotor) u.rotor.children.forEach((o, i) => { o.rotation.z += dt * (2 + i); });
+    if (u.rotor) u.rotor.children.forEach((o, i) => { if (i) o.rotation.z += dt * (2 + i); });
+    if (u.rotors) u.rotors.forEach((r, i) => { r.rotation.y += dt * (i % 2 ? 38 : -38); });
+    d.rotation.z = Math.sin(t * 1.7 + u.phase) * 0.06;
     const suck = (Math.sin(t * 1.3 + u.phase * 3) + 1) / 2;
     u.beam.material.opacity = suck > 0.55 ? (suck - 0.55) * 0.9 : 0;
     u.beam.scale.y = u.h;
@@ -232,8 +278,9 @@ const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 
 const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult;
 const hasMod = (id) => S.equipped && S.equipped.includes(id);
 const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
-const grabRadius = () => GRAB_RADIUS[S.levels.hands] + (hasMod('reach') ? 1 : 0);
-const reachDist = () => 2.2 + grabRadius() * 0.5 + chassisDef().reach + (hasMod('reach') ? 0.8 : 0);
+const toolDef = () => TOOLS.find((x) => x.id === (S.tool || 'arms')) || TOOLS[0];
+const grabRadius = () => Math.max(0, GRAB_RADIUS[S.levels.hands] + (hasMod('reach') ? 1 : 0) + toolDef().radius);
+const reachDist = () => 2.2 + grabRadius() * 0.5 + chassisDef().reach + (hasMod('reach') ? 0.8 : 0) + toolDef().reach;
 const turboDur = () => TURBO.duration * (hasMod('cooler') ? 1.6 : 1);
 const turboCd = () => TURBO.cooldown * (hasMod('battery') ? 0.6 : 1);
 
@@ -276,6 +323,7 @@ function rollFinds(n, luck = 1) {
     let m = tier < 3 ? luck : 1;
     if (S && hasMod('magnet') && ['copper', 'platinum', 'probe'].includes(f.id)) m *= 1.4;
     if (S && hasMod('sense') && f.value >= 300) m *= 1.5;
+    if (S && f.value >= 300) m *= toolDef().rare;
     if (S) m *= (DECKS[(S.deck || 0) % DECKS.length].boost || {})[f.id] || 1;
     const k = poisson(n * f.rate * m);
     if (k) out.push({ f, k, tier: Math.min(5, tier) });
@@ -535,11 +583,12 @@ function frontPoint() {
 function doGrab(x, z) {
   if (!playing) return;
   initAudio();
-  const amount = lv('hands');
+  const amount = Math.max(1, Math.round(lv('hands') * toolDef().amount));
   const radius = grabRadius();
-  const cap = S.mode !== 'pure' && capsules.take(x, z);
+  const pickR = 2.6 + toolDef().pickup;
+  const cap = S.mode !== 'pure' && capsules.take(x, z, pickR);
   if (cap) openCapsule(cap.position);
-  const met = events.take(x, z);
+  const met = events.take(x, z, pickR);
   if (met) openMeteor(met);
   const res = pile.grab(x, z, amount, Math.max(radius, 0.8));
   bot.grab();
@@ -740,6 +789,9 @@ function coreFound(byPlayer) {
   pile.ring.found = true;
   records.cores = (records.cores || 0) + 1;
   if (!records.fastest || S.stats.time < records.fastest) records.fastest = S.stats.time;
+  records.deckTimes = records.deckTimes || {};
+  const dt0 = S.stats.time - (S.deckStart || 0);
+  if (!records.deckTimes[S.deck || 0] || dt0 < records.deckTimes[S.deck || 0]) records.deckTimes[S.deck || 0] = dt0;
   saveRecords();
   sfx.core();
   vibrate([40, 60, 120]);
@@ -870,6 +922,28 @@ function renderShop() {
           bot.setChassis(c.id);
           say(pick({ wheels: ['Wrrrumm! 🛞', 'Räder! Ab geht’s!'], feet: ['Ich kann laufen! 🦿', 'Schritt für Schritt…'], spider: ['Acht… nein, sechs Beine! 🕷️', 'Jetzt klettere ich überall hoch!'], tracks: ['Gute alte Raupen.'] }[c.id]));
           bought(`Fahrwerk: ${c.name}`);
+        },
+      });
+    }
+  } else if (shopTab === 'tools') {
+    const intro = document.createElement('p');
+    intro.className = 'lead small';
+    intro.textContent = 'Werkzeuge ersetzen oder ergänzen Nexus’ Arme. Einmal kaufen, dann jederzeit wechseln.';
+    list.appendChild(intro);
+    for (const tl of TOOLS) {
+      const owned = S.toolsOwned.includes(tl.id);
+      const active = S.tool === tl.id;
+      const stats = [tl.amount !== 1 ? `Teile ×${tl.amount.toLocaleString('de-DE')}` : '', tl.speed !== 1 ? `Tempo ×${tl.speed.toLocaleString('de-DE')}` : '', tl.rare !== 1 ? `Seltene ×${tl.rare.toLocaleString('de-DE')}` : '', tl.pickup ? `Anziehen +${tl.pickup.toLocaleString('de-DE')} m` : ''].filter(Boolean).join(' · ');
+      shopItem(list, {
+        title: `${tl.icon} ${tl.name}`, desc: `${tl.desc}${stats ? `<br>${stats}` : ''}`,
+        btn: active ? 'AKTIV' : owned ? 'Ausrüsten' : `${fmt(tl.cost)} ⬡`,
+        disabled: active || (!owned && S.credits < tl.cost), cls: active ? 'got' : '',
+        onBuy: () => {
+          if (!owned) { if (!pay(tl.cost)) return; S.toolsOwned.push(tl.id); }
+          S.tool = tl.id;
+          bot.setTool(tl.id);
+          say(pick({ crane: ['Kran ausgefahren! 🏗️'], vacuum: ['Schlürf! 🌀', 'Staubsauger an!'], drill: ['Brrrrr! 🔩', 'Ich bohre mich durch!'], arms: ['Zurück zu den Wurzeln.'] }[tl.id]));
+          bought(`Werkzeug: ${tl.name}`);
         },
       });
     }
@@ -1139,6 +1213,7 @@ function setupWorld(state) {
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
   bot.setChassis(S.chassis || 'tracks');
+  bot.setTool(S.tool || 'arms');
   bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
   bot.group.rotation.y = Math.PI;
   cam.yaw = 0; cam.pitch = 0.42; cam.dist = 7;
@@ -1159,7 +1234,11 @@ function startGame(state, offline) {
   state.level = state.level || 1; state.xp = state.xp || 0; state.vault = state.vault || {}; state.keep = state.keep || [];
   state.items = state.items || {}; state.contracts = state.contracts || []; state.contractsDone = state.contractsDone || 0;
   state.crafted = state.crafted || 0; state.bestCombo = state.bestCombo || 0;
+  state.tool = state.tool || 'arms'; state.toolsOwned = state.toolsOwned || ['arms'];
   setupWorld(state);
+  beginPlay(offline);
+}
+function beginPlay(offline) {
   $('overlay-start').classList.add('hidden');
   hud.classList.remove('hidden');
   playing = true;
@@ -1197,14 +1276,167 @@ function nextDeck() {
   Object.assign(st, {
     deck: (old.deck || 0) + 1, stars: (old.stars || 0) + 1,
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
-    chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
+    tool: old.tool, toolsOwned: old.toolsOwned, chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
   });
   st.credits = 100 * st.stars;
-  startGame(st, false);
+  st.deckStart = st.stats.time;
+  records.maxDeck = Math.max(records.maxDeck || 0, st.deck);
+  saveRecords();
   const d = DECKS[st.deck % DECKS.length];
-  setTimeout(() => say(`Willkommen auf ${d.name}: ${d.title}! ${d.perk}. ⭐ ${st.stars} = +${st.stars * 25} % Fundwert.`, 7), 600);
+  transferCutscene(st, () => {
+    setTimeout(() => say(`Willkommen auf ${d.name}: ${d.title}! ${d.perk}. ⭐ ${st.stars} = +${st.stars * 25} % Fundwert.`, 7), 300);
+  });
+}
+
+// ================================================================ cutscenes
+const cine = { active: false, t: 0, dur: 0, update: null, onEnd: null, subs: [], moving: false };
+const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
+const seg = (t, a, b) => ease((t - a) / (b - a));
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const lerpV = (a, b, k) => a.clone().lerp(b, k);
+const shuttle = env.shuttle;
+const DOCK_V = () => V(WORLD.dock.x, 0, WORLD.dock.z);
+
+function runCutscene({ dur, update, subs = [], onEnd }) {
+  Object.assign(cine, { active: true, t: 0, dur, update, onEnd, subs: subs.slice() });
+  hud.classList.add('hidden');
+  $('cinema').classList.remove('hidden');
+  $('cine-sub').textContent = '';
+  grabState.holding = false;
+  setEngine(0);
+}
+function endCutscene() {
+  if (!cine.active) return;
+  cine.active = false;
+  $('cinema').classList.add('hidden');
+  $('fade').classList.remove('on');
+  shuttle.visible = false;
+  shuttle.userData.thrust = 0;
+  bot.group.visible = true;
+  const cb = cine.onEnd; cine.onEnd = null;
+  if (cb) cb();
+}
+function updateCutscene(dt) {
+  cine.t += dt;
+  cine.update(cine.t, dt);
+  while (cine.subs.length && cine.t >= cine.subs[0][0]) {
+    const el = $('cine-sub');
+    el.classList.remove('show'); void el.offsetWidth;
+    el.textContent = cine.subs.shift()[1];
+    el.classList.add('show');
+  }
+  if (cine.t >= cine.dur) endCutscene();
+}
+$('cine-skip').addEventListener('click', () => { initAudio(); endCutscene(); });
+
+function placeShuttle(pos, lookTo = null, rotY = Math.PI) {
+  shuttle.position.copy(pos);
+  if (lookTo) { const d = lookTo.clone().sub(pos); shuttle.rotation.set(0, Math.atan2(d.x, d.z), 0); }
+  else shuttle.rotation.set(0, rotY, 0);
+}
+
+// Intro when the page opens: fly in from space, the shuttle lands, Nexus rolls out.
+function introCutscene(onDone) {
+  const A = V(-70, 32, -60), B = V(0, 14, WORLD.dock.z), C = DOCK_V();
+  const camA = V(85, 48, 115), camB = V(15, 7, 32), camC = V(5, 2.6, 10);
+  const botFrom = V(0, 0, WORLD.dock.z - 2.2), botTo = V(0, 0, WORLD.dock.z - 5.5);
+  shuttle.visible = true;
+  bot.group.visible = false;
+  sfx.turbo();
+  runCutscene({
+    dur: 13,
+    subs: [[0.3, 'Nexus-Raumstation · Hangardeck 7'], [4, 'Ein Frachter hat 5.000.000 Teile Weltraumschrott abgeladen …'], [8.3, '… und irgendwo darin steckt der Nexus-Kern.'], [11, 'Zeit für Nexus.']],
+    update(t) {
+      if (t < 5) { const p = lerpV(A, B, seg(t, 0, 5)); placeShuttle(p, B.clone().setY(p.y)); shuttle.userData.thrust = 1; }
+      else { placeShuttle(lerpV(B, C, seg(t, 5, 8)), null, Math.PI); shuttle.userData.thrust = Math.max(0.15, 1 - seg(t, 5, 8)); }
+      if (t > 8.2) {
+        bot.group.visible = true;
+        bot.group.position.copy(lerpV(botFrom, botTo, seg(t, 8.5, 11.5)));
+        bot.group.rotation.y = Math.PI;
+        cine.moving = t < 11.5;
+        if (t > 11.6) bot.setMood('happy', 1);
+      }
+      let cp, look;
+      if (t < 8) { cp = lerpV(camA, camB, seg(t, 0, 8)); look = shuttle.position.clone().add(V(0, 1.5, 0)); }
+      else { cp = lerpV(camB, camC, seg(t, 8, 12.5)); look = lerpV(shuttle.position.clone().add(V(0, 1.5, 0)), bot.group.position.clone().add(V(0, 1, 0)), seg(t, 8, 11)); }
+      camera.position.copy(cp); camera.lookAt(look);
+    },
+    onEnd() {
+      bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
+      bot.group.rotation.y = Math.PI;
+      cine.moving = false;
+      try { sessionStorage.setItem('nexus-intro', '1'); } catch (e) { /* ignore */ }
+      onDone && onDone();
+    },
+  });
+}
+
+// Deck change: Nexus boards the shuttle, flies off, lands on the new deck.
+function transferCutscene(newState, onDone) {
+  const C = DOCK_V(), above = V(0, 16, WORLD.dock.z), away = V(90, 55, -170);
+  const botStart = V(0, 0, WORLD.dock.z - 6), botIn = V(0, 0, WORLD.dock.z - 2.2);
+  const nd = DECKS[newState.deck % DECKS.length];
+  let swapped = false;
+  shuttle.visible = true;
+  bot.group.position.copy(botStart);
+  bot.group.rotation.y = 0;
+  playing = false;
+  runCutscene({
+    dur: 15,
+    subs: [[0.3, 'Der Nexus-Kern ist geborgen!'], [3.6, `Nächstes Ziel: ${nd.name} – ${nd.title}`], [9, `${nd.perk}`]],
+    update(t) {
+      // 0-2 shuttle lands, 2-4 Nexus boards, 4.2-7 lift-off and away
+      if (t < 2) { placeShuttle(lerpV(above, C, seg(t, 0, 2)), null, Math.PI); shuttle.userData.thrust = 0.5; }
+      else if (t < 4.2) { placeShuttle(C, null, Math.PI); shuttle.userData.thrust = 0.15; }
+      else if (t < 7.5) {
+        const k = seg(t, 4.2, 7.5);
+        const p = k < 0.35 ? lerpV(C, V(0, 7, WORLD.dock.z), k / 0.35) : lerpV(V(0, 7, WORLD.dock.z), away, (k - 0.35) / 0.65);
+        placeShuttle(p, k < 0.35 ? null : away, Math.PI); shuttle.userData.thrust = 1;
+      }
+      if (t >= 2 && t < 4) { bot.group.position.copy(lerpV(botStart, botIn, seg(t, 2, 4))); cine.moving = true; }
+      if (t >= 4) { bot.group.visible = false; cine.moving = false; }
+      // fade + swap world
+      if (t > 7.2 && t < 8.6) $('fade').classList.add('on');
+      if (t >= 8 && !swapped) {
+        swapped = true;
+        setupWorld(newState);
+        bot.group.visible = false;
+        shuttle.visible = true;
+      }
+      if (t >= 8.6) $('fade').classList.remove('on');
+      // 8.6-11.5 landing on the new deck, 11.8-14 Nexus rolls out
+      if (t >= 8.6) {
+        if (t < 11.5) { placeShuttle(lerpV(V(-60, 40, -80), C, seg(t, 8.6, 11.5)), t < 10.5 ? C : null, Math.PI); shuttle.userData.thrust = 1 - seg(t, 10.5, 11.5) * 0.85; }
+        else placeShuttle(C, null, Math.PI);
+        if (t > 11.6) {
+          bot.group.visible = true;
+          bot.group.position.copy(lerpV(V(0, 0, WORLD.dock.z - 2.2), V(0, 0, WORLD.dock.z - 5.5), seg(t, 11.8, 14)));
+          bot.group.rotation.y = Math.PI;
+          cine.moving = t < 14;
+        }
+      }
+      // camera
+      let cp, look;
+      if (t < 8) {
+        cp = t < 4.2 ? V(14, 6, 30) : lerpV(V(14, 6, 30), V(10, 12, 40), seg(t, 4.2, 7.5));
+        look = t < 4.2 ? V(0, 1.2, WORLD.dock.z - 2) : shuttle.position.clone();
+      } else {
+        cp = lerpV(V(22, 14, 40), V(6, 3, 9), seg(t, 9, 14.5));
+        look = t < 11.6 ? shuttle.position.clone() : bot.group.position.clone().add(V(0, 1, 0));
+      }
+      camera.position.copy(cp); camera.lookAt(look);
+    },
+    onEnd() {
+      if (!swapped) setupWorld(newState);
+      bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 5.5);
+      bot.group.rotation.y = Math.PI;
+      cine.moving = false;
+      beginPlay(false);
+      onDone && onDone();
+    },
+  });
 }
 
 function showStart() {
@@ -1212,13 +1444,55 @@ function showStart() {
   playing = false;
   hud.classList.add('hidden');
   $('shop').classList.add('hidden');
-  const existing = loadState();
-  $('btn-start').textContent = existing ? 'Weiter sortieren' : 'Spiel starten';
-  $('btn-new').classList.toggle('hidden', !existing);
-  const r = [];
-  if (existing) r.push(`Fortschritt: <b>${(((TOTAL_STONES - existing.pile.counts.reduce((a, b) => a + b, 0)) / TOTAL_STONES) * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %</b> sortiert`);
-  if (records.cores) r.push(`Kerne gefunden: <b>${records.cores}</b> · schnellste Suche: <b>${formatTime(records.fastest)}</b>`);
-  $('records').innerHTML = r.join('<br>');
+  $('archive').classList.add('hidden');
+  const ex = loadState();
+  $('btn-start').textContent = ex ? 'Weiterspielen ▶' : 'Spiel starten ▶';
+  $('btn-new').classList.toggle('hidden', !ex);
+  const deckIdx = ex ? (ex.deck || 0) : 0;
+  const d = DECKS[deckIdx % DECKS.length];
+  if (ex) {
+    const left = ex.pile.counts.reduce((a, b) => a + b, 0);
+    const pct = ((TOTAL_STONES - left) / TOTAL_STONES) * 100;
+    $('cont-kicker').textContent = ex.mode === 'pure' ? 'Modus Pur' : 'Dein Spielstand';
+    $('cont-title').textContent = `${d.name} · ${d.title}`;
+    $('cont-level').innerHTML = ex.mode === 'pure' ? '' : `Lv ${ex.level || 1}${ex.stars ? `<br>⭐ ${ex.stars}` : ''}`;
+    $('cont-fill').style.width = `${Math.max(1, pct)}%`;
+    $('cont-meta').textContent = `${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} % sortiert · ${fmt(ex.credits)} ⬡ · ${ex.coreFound ? 'Kern gefunden ✔' : 'Kern verschollen'}`;
+  } else {
+    $('cont-kicker').textContent = 'Neues Abenteuer';
+    $('cont-title').textContent = `${d.name} · ${d.title}`;
+    $('cont-level').innerHTML = '';
+    $('cont-fill').style.width = '0%';
+    $('cont-meta').textContent = 'Finde den Nexus-Kern in 5.000.000 Schrottteilen.';
+  }
+  // decks: unlocked up to the furthest one ever reached
+  const maxDeck = Math.max(records.maxDeck || 0, deckIdx);
+  const cols = [['#2a3140', '#4a3a30'], ['#1a3a5a', '#4a7aa0'], ['#4a2a0a', '#a0601a'], ['#2a0a3a', '#1a5a3a']];
+  const shown = Math.max(DECKS.length, maxDeck + 2);
+  $('deck-list').innerHTML = Array.from({ length: shown }, (_, i) => {
+    const dd = DECKS[i % DECKS.length];
+    const round = Math.floor(i / DECKS.length);
+    const unlocked = i <= maxDeck;
+    const cur = ex && i === deckIdx;
+    const best = (records.deckTimes || {})[i];
+    const c = cols[i % cols.length];
+    return `<div class="deck-card ${cur ? 'current' : ''} ${unlocked ? '' : 'locked'}" style="--c1:${c[0]};--c2:${c[1]}">
+      <span class="st">${cur ? '▶' : unlocked ? '✓' : '🔒'}</span>
+      <b>${dd.title}${round ? ' ' + 'I'.repeat(round + 1) : ''}</b>
+      <small>${dd.name}</small>
+      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : dd.perk) : 'Noch gesperrt'}</small>
+    </div>`;
+  }).join('');
+  const r = records;
+  const best = [
+    ['💠', r.cores || 0, 'Kerne gefunden'],
+    ['⏱', r.fastest ? formatTime(r.fastest) : '–', 'schnellster Kern'],
+    ['⭐', ex ? ex.stars || 0 : 0, 'Sterne'],
+    ['🔥', ex ? fmt(ex.bestCombo || 0) : 0, 'beste Kombo'],
+    ['🏆', ex ? `${(ex.achievements || []).length}/${ACHIEVEMENTS.length}` : `0/${ACHIEVEMENTS.length}`, 'Erfolge'],
+    ['♻️', ex ? fmt(ex.stats.removed) : 0, 'Teile sortiert'],
+  ];
+  $('records').innerHTML = best.map(([i, v, l]) => `<div class="best"><b>${i} ${v}</b><small>${l}</small></div>`).join('');
   $('overlay-start').classList.remove('hidden');
 }
 
@@ -1272,12 +1546,12 @@ $('btn-menu').addEventListener('click', () => {
 const GAME_URL = location.origin + location.pathname.replace(/index\.html$/, '');
 async function shareGame() {
   initAudio();
-  let text = 'Hilf dem Nexus-Bot, den Nexus-Kern in 5.000.000 Schrottteilen zu finden! 🤖';
+  let text = 'NEXUS CORE: Hilf dem Nexus-Bot, den Nexus-Kern in 5.000.000 Schrottteilen zu finden! 🤖';
   if (S && S.stats && S.stats.removed > 0 && S.mode !== 'pure') {
     const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
     text = `Ich bin Nexus Level ${S.level} und habe schon ${fmt(S.stats.removed)} Schrottteile sortiert (${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} %). Schaffst du mehr? 🤖`;
   }
-  const data = { title: 'Nexus Schrottberg', text, url: GAME_URL };
+  const data = { title: 'NEXUS CORE', text, url: GAME_URL };
   try {
     if (navigator.share) { await navigator.share(data); return; }
   } catch (e) {
@@ -1292,6 +1566,7 @@ async function shareGame() {
   }
 }
 $('btn-share-start').addEventListener('click', shareGame);
+$('btn-intro').addEventListener('click', () => { initAudio(); $('overlay-start').classList.add('hidden'); introCutscene(() => showStart()); });
 
 setInterval(() => { if (playing) save(); }, 10000);
 // iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)
@@ -1594,7 +1869,7 @@ function updateBot(dt) {
   if (grabState.holding && playing) {
     grabState.timer -= dt;
     if (grabState.timer <= 0) {
-      grabState.timer = 1 / (lv('speed') * (turbo.t > 0 ? TURBO.factor : 1));
+      grabState.timer = 1 / (lv('speed') * toolDef().speed * (turbo.t > 0 ? TURBO.factor : 1));
       const [x, z] = frontPoint();
       doGrab(x, z);
     }
@@ -1622,7 +1897,13 @@ function animate() {
   const t = clock.elapsedTime;
   env.update(dt, t);
 
-  if (pile) {
+  if (pile && cine.active) {
+    updateCutscene(dt);
+    bot.update(dt, cine.moving);
+    pile.relaxStep();
+    pileView.sync();
+    updateDrones(dt, t);
+  } else if (pile) {
     if (playing) {
       S.stats.time += dt;
       fullWarnT -= dt;
@@ -1684,8 +1965,10 @@ function animate() {
 // ---- boot: show the title over the saved (or a demo) heap
 const boot = loadState();
 setupWorld(boot || freshState());
-showStart();
 animate();
+let introSeen = false;
+try { introSeen = sessionStorage.getItem('nexus-intro') === '1'; } catch (e) { /* ignore */ }
+if (introSeen) showStart(); else introCutscene(() => showStart());
 
 // test hook
 window.__nx = { rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

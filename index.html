@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Nexus Schrottberg</title>
+  <title>NEXUS CORE</title>
   <meta name="description" content="Der Nexus-Bot sucht den verlorenen Nexus-Kern in 5.000.000 Schrottteilen auf der Nexus-Raumstation.">
   <meta name="theme-color" content="#05070c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Nexus">
+  <meta name="apple-mobile-web-app-title" content="Nexus Core">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="icon-180.png">
@@ -73,6 +73,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="bot">Nexus-Bot</button>
         <button class="tab" data-tab="chassis">Fahrwerk</button>
+        <button class="tab" data-tab="tools">Werkzeug</button>
         <button class="tab" data-tab="modules">Module</button>
         <button class="tab" data-tab="helpers">Atomar</button>
         <button class="tab" data-tab="craft">Fabrikator</button>
@@ -103,27 +104,63 @@
     </div>
   </div>
 
-  <div id="overlay-start" class="overlay">
-    <div class="card">
-      <img src="assets/bot-portrait.png" alt="" class="portrait" onerror="this.remove()">
-      <div class="kicker">Nexus-Raumstation · Hangardeck 7</div>
-      <h1>SCHROTTBERG</h1>
-      <p class="lead"><b>5.000.000 Teile Weltraumschrott</b> liegen auf dem Hangardeck. Irgendwo darin steckt der <b>Nexus-Kern</b>, das Herz der Station. Finde ihn mit deinem Nexus-Bot!</p>
-      <ul class="howto">
-        <li>🕹 <b>Stick:</b> fahren · <b>Ziehen:</b> Kamera · <b>Kneifen:</b> Zoom</li>
-        <li>✋ <b>GREIFEN halten</b> oder auf den Haufen tippen</li>
-        <li>⬡ Funde an der <b>Ablage</b> verkaufen, im <b>Shop</b> aufrüsten</li>
-        <li>💠 <b>Türkises Aufblitzen</b> = der Kern ist nah</li>
-      </ul>
-      <button class="big" id="btn-start">Weiter sortieren</button>
-      <div class="row">
-        <button class="ghost" id="btn-new">Neues Spiel</button>
-        <button class="ghost" id="btn-share-start">🔗 Spiel teilen</button>
-        <button class="ghost" id="btn-pure">Modus „Pur“ (ohne Upgrades)</button>
+  <div id="overlay-start" class="overlay start-screen hidden">
+    <div class="start-wrap">
+      <div class="hero">
+        <img src="assets/bot-portrait.png" alt="" class="portrait" onerror="this.remove()">
+        <div>
+          <div class="kicker">Die Jagd nach dem Kern</div>
+          <h1>NEXUS CORE</h1>
+          <p class="tagline">5.000.000 Teile Schrott. Ein Nexus-Kern. Ein kleiner Bot.</p>
+        </div>
       </div>
-      <div class="records" id="records"></div>
+
+      <div class="glass continue" id="continue-card">
+        <div class="cont-top">
+          <div>
+            <small id="cont-kicker">Neues Abenteuer</small>
+            <b id="cont-title">Hangardeck 7 · Schrotthalde</b>
+          </div>
+          <div class="cont-level" id="cont-level"></div>
+        </div>
+        <div class="bar cont-bar"><div class="fill" id="cont-fill"></div></div>
+        <div class="cont-meta" id="cont-meta"></div>
+        <button class="big" id="btn-start">Spiel starten</button>
+      </div>
+
+      <div class="section-title">Decks</div>
+      <div class="deck-list" id="deck-list"></div>
+
+      <div class="section-title">Deine Bestwerte</div>
+      <div class="best-grid" id="records"></div>
+
+      <details class="glass howto-box">
+        <summary>So wird gespielt</summary>
+        <ul class="howto">
+          <li>🕹 <b>Stick:</b> fahren · <b>Ziehen:</b> Kamera · <b>Kneifen:</b> Zoom</li>
+          <li>✋ <b>GREIFEN halten</b> oder auf den Haufen tippen</li>
+          <li>⬡ Funde an der <b>Ablage</b> verkaufen, im <b>Shop</b> aufrüsten</li>
+          <li>💠 <b>Türkises Aufblitzen</b> = der Kern ist nah</li>
+        </ul>
+      </details>
+
+      <div class="start-actions">
+        <button class="chip-btn" id="btn-share-start">🔗 Teilen</button>
+        <button class="chip-btn" id="btn-intro">🎬 Intro</button>
+        <button class="chip-btn" id="btn-pure">🧘 Modus Pur</button>
+        <button class="chip-btn danger" id="btn-new">↺ Neues Spiel</button>
+      </div>
     </div>
   </div>
+
+  <!-- cutscene layer -->
+  <div id="cinema" class="hidden">
+    <div class="cine-bar top"></div>
+    <div class="cine-bar bottom"></div>
+    <div id="cine-sub"></div>
+    <button id="cine-skip">Überspringen ⏭</button>
+  </div>
+  <div id="fade"></div>
 
   <div id="overlay-msg" class="overlay hidden">
     <div class="card">

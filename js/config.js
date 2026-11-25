@@ -147,6 +147,7 @@ export const ACHIEVEMENTS = [
   { id: 'core',     name: 'Herz der Station',    desc: 'Finde den Nexus-Kern.',                    check: (s) => s.coreFound,                 reward: 20000 },
   { id: 'wheels',   name: 'Fahrgestell-Fan',     desc: 'Kaufe ein zweites Fahrwerk.',              check: (s) => (s.chassisOwned || []).length >= 2, reward: 100 },
   { id: 'spider',   name: 'Spinnenbot',          desc: 'Kaufe die Spinnenbeine.',                  check: (s) => (s.chassisOwned || []).includes('spider'), reward: 6000 },
+  { id: 'toolbox',  name: 'Werkzeugkasten',      desc: 'Kaufe alle drei Werkzeuge.',               check: (s) => (s.toolsOwned || []).length >= 4, reward: 5000 },
   { id: 'tinker',   name: 'Bastler',             desc: 'Besitze 3 Module.',                        check: (s) => (s.modules || []).length >= 3, reward: 1500 },
   { id: 'fusion',   name: 'Kernfusion',          desc: 'Rüste den Atomar-Kern auf Stufe III.',     check: (s) => (s.atomarLv || 0) >= 2, reward: 4000 },
   { id: 'meteor',   name: 'Sternschnuppen-Fänger', desc: 'Sammle 10 Meteoriten.',                 check: (s) => (s.stats.meteors || 0) >= 10, reward: 2500 },
@@ -163,7 +164,7 @@ export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };
 // Decks (prestige): after finding the core you can move on to the next deck.
 // Each star = +25 % find value and +10 % helper speed, permanently.
 export const DECKS = [
-  { name: 'Hangardeck 7',  title: 'Schrottberg',     boost: {}, perk: 'Normaler Schrott',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
+  { name: 'Hangardeck 7',  title: 'Schrotthalde',    boost: {}, perk: 'Normaler Schrott',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
   { name: 'Kühldeck 3',    title: 'Eiswrack',        boost: { ice: 3, datacore: 1.5 }, perk: '3× Eiskristalle, mehr Datenkerne',        base: [0.3, 0.36, 0.43],  pebbles: [[1.6, 2.1, 2.6], [2.2, 2.4, 2.6], [1.2, 1.5, 2.0], [1.4, 1.6, 1.8]] },
   { name: 'Frachtdeck 12', title: 'Goldmine',        boost: { platinum: 2.5, copper: 1.5, graviton: 2 }, perk: '2,5× Platin, doppelte Gravitonperlen',        base: [0.33, 0.26, 0.16], pebbles: [[2.6, 2.0, 0.7], [2.2, 1.4, 0.5], [1.6, 1.4, 1.2], [1.2, 0.9, 0.6]] },
   { name: 'Labordeck X',   title: 'Alienschrott',    boost: { artifact: 4, badge: 1.5 }, perk: '4× Alien-Artefakte, mehr Abzeichen',    base: [0.2, 0.17, 0.26],  pebbles: [[1.4, 0.8, 2.4], [0.7, 2.2, 1.3], [1.9, 1.0, 1.9], [1.0, 1.0, 1.2]] },
@@ -195,4 +196,13 @@ export const MODULE_SLOTS = [
   { slots: 2, cost: 2500 },
   { slots: 3, cost: 30000 },
   { slots: 4, cost: 400000 },
+];
+
+// Tool heads for the Nexus-Bot (bought once, switch freely).
+// amount: x parts per grab, speed: x grabs per second, radius/reach: added metres, rare: x chance for rare finds, pickup: extra reach for capsules/meteors
+export const TOOLS = [
+  { id: 'arms',   icon: '🦾', name: 'Greifarme',   cost: 0,     amount: 1,    speed: 1,    radius: 0,    reach: 0,   rare: 1,    pickup: 0,   desc: 'Die guten alten Arme.' },
+  { id: 'crane',  icon: '🏗️', name: 'Greifkran',   cost: 800,   amount: 1.6,  speed: 0.85, radius: 0.4,  reach: 1.2, rare: 1,    pickup: 0,   desc: 'Ausleger mit Greifklaue: mehr Teile pro Griff, etwas langsamer, mehr Reichweite.' },
+  { id: 'vacuum', icon: '🌀', name: 'Staubsauger', cost: 3000,  amount: 0.8,  speed: 1.7,  radius: 0.6,  reach: 0.5, rare: 1,    pickup: 2.5, desc: 'Saugt viel schneller und zieht Kapseln und Meteoriten von weiter weg an.' },
+  { id: 'drill',  icon: '🔩', name: 'Bohrer',      cost: 12000, amount: 1.35, speed: 1,    radius: -0.4, reach: 0,   rare: 1.35, pickup: 0,   desc: 'Bohrt tief in den Haufen: mehr Teile und 35 % mehr seltene Funde.' },
 ];

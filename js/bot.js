@@ -201,6 +201,67 @@ export class NexusBot {
     this.hover.visible = false;
     g.add(this.hover);
 
+    // ---- tool heads
+    this.tools = {};
+    const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.7, roughness: 0.3 });
+    const orange = new THREE.MeshStandardMaterial({ color: 0xffb347, metalness: 0.3, roughness: 0.45 });
+    // crane: post on the back, boom over the head, claw hanging in front
+    {
+      const c = this.tools.crane = new THREE.Group();
+      const post = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.75, 0.07), orange)); post.position.set(0.2, 0.55, -0.24);
+      const boom = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.9), orange)); boom.position.set(0.2, 0.93, 0.18);
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1, 4), dark); cable.position.set(0.2, 0.93, 0.6);
+      const claw = new THREE.Group(); claw.position.set(0.2, 0.35, 0.6);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 10), metal);
+      claw.add(hub);
+      const fingers = [];
+      for (let k = 0; k < 3; k++) {
+        const f = new THREE.Group(); f.rotation.y = (k / 3) * Math.PI * 2;
+        const seg = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.14, 0.025), metal); seg.position.set(0, -0.07, 0.05);
+        f.add(seg); claw.add(f); fingers.push(seg);
+      }
+      c.add(post, boom, cable, claw);
+      c.userData = { claw, cable, fingers };
+      torso.add(c);
+    }
+    // vacuum: tank on the back, hose to a nozzle at the front
+    {
+      const v = this.tools.vacuum = new THREE.Group();
+      const tank = shadow(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.42, 16), orange)); tank.position.set(0, 0.2, -0.32);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.04, 16), metal); cap.position.set(0, 0.42, -0.32);
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.12, 0.1, -0.32), new THREE.Vector3(0.36, 0.08, -0.12), new THREE.Vector3(0.38, -0.08, 0.25), new THREE.Vector3(0.16, -0.22, 0.5),
+      ]);
+      const hose = shadow(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.035, 8, false), dark));
+      const nozzle = new THREE.Group(); nozzle.position.set(0.14, -0.24, 0.52);
+      const cone = shadow(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.11, 0.16, 14, 1, true), metal)); cone.rotation.x = 0.9;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.015, 6, 20), glow); ring.position.set(0, -0.05, 0.06); ring.rotation.x = 0.9 + Math.PI / 2;
+      nozzle.add(cone, ring);
+      v.add(tank, cap, hose, nozzle);
+      v.userData = { nozzle, ring };
+      torso.add(v);
+    }
+    // drill: replaces the right hand
+    {
+      const d = this.tools.drill = new THREE.Group();
+      const bit = new THREE.Group();
+      const cone = shadow(new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.5, 14), metal)); cone.rotation.x = Math.PI; cone.position.y = -0.28;
+      for (let k = 0; k < 4; k++) {
+        const r = new THREE.Mesh(new THREE.TorusGeometry(0.1 - k * 0.02, 0.016, 6, 16), orange);
+        r.rotation.x = Math.PI / 2; r.position.y = -0.08 - k * 0.1;
+        bit.add(r);
+      }
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.1, 12), orange);
+      bit.add(cone);
+      d.add(collar, bit);
+      d.position.y = -0.18;
+      d.userData = { bit };
+      this.arms[1].elbow.add(d);
+    }
+    for (const t of Object.values(this.tools)) t.visible = false;
+    this.toolId = 'arms';
+    this.toolT = 0;
+
     g.scale.setScalar(1.25);
 
     // ---- animation state
@@ -228,6 +289,12 @@ export class NexusBot {
     this.dish.visible = lv.scanner >= 3;
     this.linkGlow = !!lv.link;
     this.glowMat.color.setHex(lv.link ? 0xb48cff : (this.skinGlow || CYAN));
+  }
+
+  setTool(id) {
+    for (const [k, t] of Object.entries(this.tools)) t.visible = k === id;
+    this.toolId = id;
+    this.arms[1].hand.visible = id !== 'drill';
   }
 
   setChassis(id) {
@@ -306,7 +373,7 @@ export class NexusBot {
   }
 
   // Trigger a grab animation.
-  grab() { this.grabT = 0.28; }
+  grab() { this.grabT = 0.28; this.toolT = 0.35; }
 
   update(dt, moving) {
     this.time += dt;
@@ -329,8 +396,30 @@ export class NexusBot {
       a.shoulder.rotation.x = -g * 1.6 + idle;
       a.elbow.rotation.x = -g * 0.9 - 0.25;
       a.shoulder.rotation.z = a.side * (0.12 + g * 0.1);
+      if (this.toolId === 'drill' && a === this.arms[1]) {
+        a.shoulder.rotation.x = -1.25 - g * 0.35 + idle * 0.2;   // hold the drill forward
+        a.elbow.rotation.x = -0.15;
+      }
     }
     for (const tr of this.tracks) tr.position.y = 0.13 + (moving ? Math.abs(Math.sin(t * 20)) * 0.006 : 0);
+    // tool animations
+    this.toolT = Math.max(0, this.toolT - dt);
+    const tk = this.toolT > 0 ? Math.sin((this.toolT / 0.35) * Math.PI) : 0;
+    if (this.toolId === 'crane') {
+      const u = this.tools.crane.userData;
+      const drop = 0.35 - tk * 0.45;
+      u.claw.position.y = drop;
+      u.cable.scale.y = 0.93 - drop;
+      u.cable.position.y = (0.93 + drop) / 2;
+      u.fingers.forEach((f) => { f.rotation.x = -0.4 + tk * 0.7; });
+      u.claw.rotation.y += dt * 0.5;
+    } else if (this.toolId === 'vacuum') {
+      const u = this.tools.vacuum.userData;
+      u.nozzle.position.x = 0.14 + Math.sin(t * 40) * 0.004 * (tk * 4 + 0.3);
+      u.ring.scale.setScalar(1 + tk * 0.5);
+    } else if (this.toolId === 'drill') {
+      this.tools.drill.userData.bit.rotation.y += dt * (4 + tk * 60);
+    }
     if (moving) this.walk += dt * (this.chassisId === 'spider' ? 14 : this.chassisId === 'feet' ? 9 : 12);
     const w = this.walk;
     if (this.chassisId === 'wheels') for (const wh of this.wheels) wh.rotation.x = w * 1.4;

@@ -1,4 +1,4 @@
-# Nexus Schrottberg
+# NEXUS CORE – Die Jagd nach dem Kern
 
 Ein 3D-Sammel- und Aufräumspiel im Browser für iPad, Handy und PC. Auf dem Hangardeck der **Nexus-Raumstation**
 liegen 5.000.000 Teile Weltraumschrott, und darin steckt der verlorene **Nexus-Kern**. Du steuerst den **Nexus-Bot**,
