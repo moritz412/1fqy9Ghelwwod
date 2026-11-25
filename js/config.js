@@ -105,3 +105,35 @@ export function helperCost(h, owned) {
 export const LUCK = { grabs: 60, factor: 3 };
 
 export const fmt = (n) => Math.floor(n).toLocaleString('de-DE');
+
+// Cosmetic skins for the Nexus-Bot.
+export const SKINS = [
+  { id: 'classic',  name: 'Klassik',      cost: 0,      body: 0xf3f4f2, ear: 0x2fc9a8, glow: 0x6ff3f0 },
+  { id: 'night',    name: 'Mitternacht',  cost: 400,    body: 0x2b2f3a, ear: 0x6ff3f0, glow: 0x6ff3f0 },
+  { id: 'coral',    name: 'Koralle',      cost: 1500,   body: 0xffd9cf, ear: 0xff6f61, glow: 0xffb3a7 },
+  { id: 'mint',     name: 'Minze',        cost: 6000,   body: 0xd8fff0, ear: 0x1f9e86, glow: 0x7cf0b0 },
+  { id: 'gold',     name: 'Sonnengold',   cost: 40000,  body: 0xffd36a, ear: 0xb8860b, glow: 0xfff2b0, metal: true },
+  { id: 'holo',     name: 'Hologramm',    cost: 250000, body: 0x9ff8ff, ear: 0xb48cff, glow: 0xe58cff, holo: true },
+];
+
+// Achievements: checked regularly; reward in credits.
+export const ACHIEVEMENTS = [
+  { id: 'first',    name: 'Erster Griff',        desc: 'Sortiere dein erstes Schrottteil.',        check: (s) => s.stats.removed >= 1,        reward: 5 },
+  { id: 'k1',       name: 'Tausendsassa',        desc: 'Sortiere 1.000 Teile.',                    check: (s) => s.stats.removed >= 1e3,      reward: 50 },
+  { id: 'k10',      name: 'Schrottprofi',        desc: 'Sortiere 10.000 Teile.',                   check: (s) => s.stats.removed >= 1e4,      reward: 300 },
+  { id: 'k100',     name: 'Aufräum-Maschine',    desc: 'Sortiere 100.000 Teile.',                  check: (s) => s.stats.removed >= 1e5,      reward: 3000 },
+  { id: 'm1',       name: 'Millionär',           desc: 'Sortiere 1.000.000 Teile.',                check: (s) => s.stats.removed >= 1e6,      reward: 40000 },
+  { id: 'clean',    name: 'Blitzblankes Deck',   desc: 'Räume alle 5.000.000 Teile weg.',          check: (s) => s.stats.removed >= 5e6,      reward: 500000 },
+  { id: 'sell',     name: 'Erste Lieferung',     desc: 'Verkaufe Funde am Nexus-Markt.',           check: (s) => s.stats.earned >= 1,         reward: 10 },
+  { id: 'rich',     name: 'Credit-Sammler',      desc: 'Verdiene insgesamt 10.000 ⬡.',             check: (s) => s.stats.earned >= 1e4,       reward: 1000 },
+  { id: 'badge',    name: 'Abzeichen-Jäger',     desc: 'Finde ein Pilotenabzeichen.',              check: (s) => (s.stats.found.badge || 0) >= 1, reward: 500 },
+  { id: 'artifact', name: 'Erstkontakt',         desc: 'Finde ein Alien-Artefakt.',                check: (s) => (s.stats.found.artifact || 0) >= 1, reward: 5000 },
+  { id: 'capsule',  name: 'Kapselknacker',       desc: 'Öffne 10 Frachtkapseln.',                  check: (s) => (s.stats.capsules || 0) >= 10, reward: 800 },
+  { id: 'helper',   name: 'Teamwork',            desc: 'Kaufe deinen ersten Helfer.',              check: (s) => Object.values(s.helpers).some((n) => n > 0), reward: 40 },
+  { id: 'army',     name: 'Helfer-Armee',        desc: 'Besitze 25 Helfer.',                       check: (s) => Object.values(s.helpers).reduce((a, b) => a + b, 0) >= 25, reward: 8000 },
+  { id: 'maxhands', name: 'Nexus-Kran',          desc: 'Rüste die Greifhände voll aus.',           check: (s) => s.levels.hands >= 5,         reward: 50000 },
+  { id: 'style',    name: 'Stilbewusst',         desc: 'Kaufe einen neuen Skin.',                  check: (s) => (s.skins || []).length > 1,  reward: 100 },
+  { id: 'core',     name: 'Herz der Station',    desc: 'Finde den Nexus-Kern.',                    check: (s) => s.coreFound,                 reward: 20000 },
+];
+
+export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };

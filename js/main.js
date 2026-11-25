@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS } from './config.js';
+import { Capsules, Dust, floatLabel } from './extras.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
 import { buildEnvironment } from './scene.js';
-import { initAudio, sfx, vibrate, setMuted, muted } from './audio.js';
+import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings } from './audio.js';
 
 // ================================================================ save state
 const SAVE_KEY = 'nexus-schrottberg.v1';
@@ -15,7 +16,8 @@ function freshState(mode = 'career') {
     credits: 0, cargo: {}, cargoCount: 0,
     levels: { hands: 0, speed: 0, drive: 0, cargo: 0, scanner: 0, link: 0 },
     helpers: {},
-    stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0 },
+    stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
+    skins: ['classic'], skin: 'classic', achievements: [],
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
 }
@@ -50,6 +52,8 @@ const env = buildEnvironment(scene, renderer);
 let pile = null, pileView = null;
 const bot = new NexusBot();
 scene.add(bot.group);
+const capsules = new Capsules(scene);
+const dust = new Dust(scene);
 
 // ================================================================ debris
 const DMAX = 400;
@@ -279,8 +283,11 @@ function doGrab(x, z) {
   initAudio();
   const amount = lv('hands');
   const radius = GRAB_RADIUS[S.levels.hands];
+  const cap = S.mode !== 'pure' && capsules.take(x, z);
+  if (cap) openCapsule(cap.position);
   const res = pile.grab(x, z, amount, Math.max(radius, 0.8));
   bot.grab();
+  if (cap && !res.removed) return;
   S.stats.grabs++;
   if (!res.removed && !res.ring) {
     sfx.empty();
@@ -294,16 +301,68 @@ function doGrab(x, z) {
   const h = Math.max(0, pile.heightAt(x, z));
   const a = bot.group.rotation.y;
   spawnDebris(x, h, z, Math.min(2 + size * 3, Math.max(1, Math.round(res.removed / 3))), -Math.sin(a) * 0.4, -Math.cos(a) * 0.4, 1 + size * 0.15);
+  dust.puff(x, h, z, 1 + Math.min(4, size), 0.8 + size * 0.25);
   const lucky = S.stats.grabs <= LUCK.grabs ? LUCK.factor : 1;
   const finds = rollFinds(res.removed, lucky);
   // guaranteed early highlights
   if (S.stats.grabs === 3) finds.push({ f: FINDS[1], k: 1, tier: 1 });
   if (S.stats.grabs === 25) finds.push({ f: FINDS[2], k: 1, tier: 2 });
   handleFinds(finds, true);
+  const worth = finds.reduce((a, q) => a + q.f.value * q.k, 0);
+  if (worth && S.mode !== 'pure') {
+    const best = finds.reduce((a, q) => (q.tier > a.tier ? q : a), finds[0]);
+    floatLabel(camera, tmpV2.set(x, h + 0.8, z), `+${fmt(worth)} ⬡`, best.f.color, worth >= 60);
+  }
   if (S.stats.grabs === 3) say('Ein Eiskristall – gleich beim dritten Griff! ❄️');
   if (S.stats.grabs === 25) say('Ein Sondenteil! Das bringt 60 Credits!');
   if (res.ring) coreFound(true);
   scannerPing();
+}
+
+const tmpV2 = new THREE.Vector3();
+function capsuleReward() {
+  const perSec = lv('hands') * lv('speed') * 0.37 + helperRate() * 0.37;
+  return Math.max(25, Math.round(perSec * 25));
+}
+function openCapsule(pos) {
+  const reward = capsuleReward();
+  S.credits += reward; S.stats.earned += reward;
+  S.stats.capsules++;
+  sfx.capsule();
+  vibrate(25);
+  bot.setMood('happy', 2);
+  say(pick(['Eine Frachtkapsel! 🎁', 'Bonus-Credits!', 'Kapsel geknackt!']));
+  floatLabel(camera, tmpV2.copy(pos).setY(pos.y + 1), `+${fmt(reward)} ⬡`, '#ffb347', true);
+  spawnDebris(pos.x, pos.y, pos.z, 12, 0, 0, 0.6);
+  dust.puff(pos.x, pos.y, pos.z, 6, 1.4, 0xffc070);
+  updateHud();
+}
+
+// ================================================================ achievements
+let achvT = 1;
+const achvQueue = [];
+function checkAchievements(dt) {
+  achvT -= dt;
+  if (achvT > 0) return;
+  achvT = 1;
+  for (const a of ACHIEVEMENTS) {
+    if (S.achievements.includes(a.id) || !a.check(S)) continue;
+    S.achievements.push(a.id);
+    if (S.mode !== 'pure') { S.credits += a.reward; }
+    achvQueue.push(a);
+  }
+  if (achvQueue.length && !$('achv').classList.contains('show')) showAchievement(achvQueue.shift());
+}
+function showAchievement(a) {
+  const el = $('achv');
+  el.innerHTML = `<small>Erfolg freigeschaltet</small><b>🏆 ${a.name}</b><span>${a.desc}${S.mode !== 'pure' ? ` · +${fmt(a.reward)} ⬡` : ''}</span>`;
+  el.classList.add('show');
+  sfx.achievement();
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => { if (achvQueue.length) showAchievement(achvQueue.shift()); }, 400);
+  }, 3200);
+  save();
 }
 
 function scannerPing() {
@@ -499,6 +558,43 @@ function renderShop() {
     info.style.fontSize = '13px';
     info.textContent = 'Helfer arbeiten auch, wenn das Spiel geschlossen ist (bis zu 2 Stunden). Ihre Funde werden direkt verkauft.';
     list.appendChild(info);
+  } else if (shopTab === 'skins') {
+    for (const sk of SKINS) {
+      const owned = S.skins.includes(sk.id);
+      const el = document.createElement('div');
+      el.className = 'item';
+      const sw = (c) => `<i class="sw" style="background:#${c.toString(16).padStart(6, '0')}"></i>`;
+      el.innerHTML = `<div class="t">${sw(sk.body)}${sw(sk.ear)} ${sk.name}</div><div class="d">${S.skin === sk.id ? 'Aktiv' : owned ? 'Gekauft – tippen zum Anziehen' : 'Neuer Look für deinen Nexus-Bot'}</div>`;
+      const b = document.createElement('button');
+      b.className = 'buy' + (S.skin === sk.id ? ' max' : '');
+      if (S.skin === sk.id) { b.textContent = 'AKTIV'; b.disabled = true; }
+      else if (owned) { b.textContent = 'Anziehen'; }
+      else { b.textContent = `${fmt(sk.cost)} ⬡`; b.disabled = S.credits < sk.cost; }
+      b.onclick = () => {
+        if (!owned) { if (S.credits < sk.cost) return; S.credits -= sk.cost; S.skins.push(sk.id); sfx.upgrade(); }
+        else sfx.click();
+        S.skin = sk.id;
+        bot.setSkin(sk);
+        bot.setMood('happy', 2);
+        say(pick(['Steht mir gut, oder?', 'Neuer Look! ✨', 'Ich fühle mich schick!']));
+        renderShop(); updateHud(); save();
+      };
+      el.appendChild(b);
+      list.appendChild(el);
+    }
+  } else if (shopTab === 'achv') {
+    const done = S.achievements.length;
+    const head = document.createElement('p');
+    head.className = 'lead';
+    head.textContent = `${done} von ${ACHIEVEMENTS.length} Erfolgen freigeschaltet`;
+    list.appendChild(head);
+    for (const a of ACHIEVEMENTS) {
+      const got = S.achievements.includes(a.id);
+      const el = document.createElement('div');
+      el.className = 'item' + (got ? ' got' : ' locked');
+      el.innerHTML = `<div class="t">${got ? '🏆' : '🔒'} ${a.name}</div><div class="d">${a.desc}</div><div class="reward">+${fmt(a.reward)} ⬡</div>`;
+      list.appendChild(el);
+    }
   } else {
     const el = document.createElement('div');
     el.className = 'stats';
@@ -507,6 +603,7 @@ function renderShop() {
        <span>Griffe</span><span>${fmt(S.stats.grabs)}</span>
        <span>Verdient gesamt</span><span>${fmt(S.stats.earned)} ⬡</span>
        <span>Spielzeit</span><span>${formatTime(S.stats.time)}</span>
+       <span>Frachtkapseln</span><span>${fmt(S.stats.capsules)}</span>
        <span>Nexus-Kern</span><span>${S.coreFound ? '✔ gefunden' : 'verschollen'}</span>`;
     list.appendChild(el);
   }
@@ -533,13 +630,12 @@ function save() {
 
 function setupWorld(state) {
   S = state;
-  if (pileView) {
-    scene.remove(pileView.mesh, pileView.pebbles, pileView.ringMesh, pileView.glitter);
-    pileView.mesh.geometry.dispose();
-  }
+  if (pileView) pileView.dispose(scene);
+  capsules.clear();
   pile = new Pile(S.seed, S.pile);
   if (S.coreFound) pile.ring.found = true;
   pileView = new PileView(pile, scene);
+  bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
   bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
   bot.group.rotation.y = Math.PI;
@@ -550,6 +646,10 @@ function setupWorld(state) {
 
 function startGame(state, offline) {
   if (state.tutorial === undefined) state.tutorial = state.stats.grabs > 30 ? 99 : 0;
+  state.skins = state.skins || ['classic'];
+  state.skin = state.skin || 'classic';
+  state.achievements = state.achievements || [];
+  state.stats.capsules = state.stats.capsules || 0;
   setupWorld(state);
   $('overlay-start').classList.add('hidden');
   hud.classList.remove('hidden');
@@ -596,10 +696,15 @@ $('btn-pure').addEventListener('click', () => {
 $('btn-menu').addEventListener('click', () => {
   save();
   showMessage('Pause',
-    `<p class="lead">Dein Fortschritt wird automatisch gespeichert.</p>`,
+    `<p class="lead">Dein Fortschritt wird automatisch gespeichert.</p>
+     <div class="toggles">
+       <button class="toggle ${settings.music ? 'on' : ''}" id="tg-music">🎵 Musik</button>
+       <button class="toggle ${settings.sfx ? 'on' : ''}" id="tg-sfx">🔊 Effekte</button>
+     </div>`,
     'Weiter', () => {},
-    muted ? 'Ton einschalten' : 'Ton ausschalten', () => { setMuted(!muted); },
   );
+  $('tg-music').onclick = (e) => { initAudio(); setMusic(!settings.music); e.currentTarget.classList.toggle('on', settings.music); };
+  $('tg-sfx').onclick = (e) => { initAudio(); setSfx(!settings.sfx); e.currentTarget.classList.toggle('on', settings.sfx); sfx.click(); };
   const extra = document.createElement('button');
   extra.className = 'ghost';
   extra.textContent = 'Hauptmenü';
@@ -856,6 +961,11 @@ function updateBot(dt) {
   const ground = Math.max(0, pile.heightAt(p.x, p.z));
   p.y += (ground - p.y) * Math.min(1, dt * 12);
   bot.update(dt, moving);
+  setEngine(moving ? mag : 0, S.levels.drive);
+  if (moving && ground > 0.05 && Math.random() < dt * 10) {
+    const a = bot.group.rotation.y;
+    dust.puff(p.x - Math.sin(a) * 0.4, p.y, p.z - Math.cos(a) * 0.4, 1, 0.6);
+  }
 
   // hold-to-grab
   if (grabState.holding && playing) {
@@ -899,9 +1009,12 @@ function animate() {
       updateScannerHud();
       updateBubble(dt);
       updateDockArrow();
+      checkAchievements(dt);
+      if (S.mode !== 'pure') capsules.update(dt, t, pile);
       adaptQuality(dt);
     } else {
       bubbleEl.classList.add('hidden');
+      setEngine(0);
       // title screen: slow orbit
       demoT += dt;
       bot.update(dt, false);
@@ -914,6 +1027,7 @@ function animate() {
     updateDrones(dt, t);
   }
   updateDebris(dt);
+  dust.update(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -925,4 +1039,4 @@ showStart();
 animate();
 
 // test hook
-window.__nx = { get S() { return S; }, get pile() { return pile; }, doGrab, coreFound, openShop, sellCargo, bot };
+window.__nx = { get S() { return S; }, get pile() { return pile; }, doGrab, coreFound, openShop, sellCargo, bot, capsules };

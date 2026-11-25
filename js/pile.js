@@ -241,9 +241,19 @@ export class PileView {
 
     // Pebbles for surface detail
     this.PEB = 7000;
-    const pg = new THREE.IcosahedronGeometry(1, 0);
-    this.pebbles = new THREE.InstancedMesh(pg, new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.35, flatShading: true }), this.PEB);
-    this.pebbles.receiveShadow = true;
+    // three kinds of scrap: rock chunks, bent plates, pipes
+    const shapes = [
+      { geo: new THREE.IcosahedronGeometry(1, 0), share: 0.55, metal: 0.25 },
+      { geo: new THREE.BoxGeometry(1.6, 0.18, 1.1), share: 0.25, metal: 0.6 },
+      { geo: new THREE.CylinderGeometry(0.28, 0.28, 2.2, 7), share: 0.2, metal: 0.7 },
+    ];
+    this.pebMeshes = shapes.map((sh) => {
+      const m = new THREE.InstancedMesh(sh.geo, new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: sh.metal, flatShading: true }), Math.ceil(this.PEB * sh.share) + 10);
+      m.receiveShadow = true;
+      m.count = 0;
+      return m;
+    });
+    this.pebbles = this.pebMeshes[0];
     this.pebData = [];
     this.pebByCell = new Map();
     const col = new THREE.Color();
@@ -254,8 +264,11 @@ export class PileView {
         c = pile.cellAt(x, z);
         if (c >= 0 && pile.counts[c] > 0) break;
       }
-      const s = 0.05 + rnd() * rnd() * 0.2;
-      const d = { x, z, c, s, rx: rnd() * 6, ry: rnd() * 6 };
+      const r = rnd();
+      const type = r < 0.55 ? 0 : r < 0.8 ? 1 : 2;
+      const mesh = this.pebMeshes[type];
+      const s = (0.05 + rnd() * rnd() * 0.2) * (type ? 0.8 : 1);
+      const d = { x, z, c, s, rx: type ? (rnd() - 0.5) * 0.8 : rnd() * 6, ry: rnd() * 6, rz: type === 2 ? Math.PI / 2 + (rnd() - 0.5) * 0.6 : (rnd() - 0.5) * 0.6, type, i: mesh.count++ };
       this.pebData.push(d);
       if (!this.pebByCell.has(c)) this.pebByCell.set(c, []);
       this.pebByCell.get(c).push(k);
@@ -265,10 +278,10 @@ export class PileView {
       else if (kind < 0.3) col.setRGB(g * 1.6, g * 1.1, g * 0.6);    // copper
       else if (kind < 0.45) col.setRGB(g * 1.4, g * 1.5, g * 1.65);  // steel
       else col.setRGB(g * 1.05, g, g * 0.95);                         // rock
-      this.pebbles.setColorAt(k, col);
+      mesh.setColorAt(d.i, col);
       this.updatePebble(k);
     }
-    scene.add(this.pebbles);
+    this.pebMeshes.forEach((m) => scene.add(m));
 
     // The Nexus core (only visible when exposed) + glitter sprite
     this.ringMesh = new THREE.Group();
@@ -309,11 +322,11 @@ export class PileView {
       m.makeScale(0, 0, 0);
     } else {
       const y = this.pile.heightAt(d.x, d.z);
-      m.makeRotationFromEuler(new THREE.Euler(d.rx, d.ry, 0));
-      m.scale(new THREE.Vector3(d.s, d.s * 0.7, d.s));
+      m.makeRotationFromEuler(new THREE.Euler(d.rx, d.ry, d.rz));
+      m.scale(new THREE.Vector3(d.s, d.type ? d.s : d.s * 0.7, d.s));
       m.setPosition(d.x, y + d.s * 0.3, d.z);
     }
-    this.pebbles.setMatrixAt(k, m);
+    this.pebMeshes[d.type].setMatrixAt(d.i, m);
   }
 
   // Apply visual changes for cells touched since the last frame.
@@ -343,7 +356,12 @@ export class PileView {
       const list = this.pebByCell.get(c);
       if (list) list.forEach((k) => this.updatePebble(k));
     }
-    this.pebbles.instanceMatrix.needsUpdate = true;
+    this.pebMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; });
+  }
+
+  dispose(scene) {
+    scene.remove(this.mesh, this.ringMesh, this.glitter, ...this.pebMeshes);
+    this.mesh.geometry.dispose();
   }
 
   updateRing(dt, glitterDepth) {

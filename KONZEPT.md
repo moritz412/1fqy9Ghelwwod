@@ -156,7 +156,8 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | Version | Inhalt                                                                  |
 |---------|-------------------------------------------------------------------------|
 | 0.2 ✅  | Hangardeck, 5 Mio. Teile, Nexus-Bot, Greifen, Funde, Markt, Upgrades, Helfer, Speichern, Modus Pur |
-| 0.3     | Balancing am echten iPad, Musik, Tutorial-Sprechblasen des Bots         |
-| 0.4     | Nexus-Bot-Skins, weitere Decks (andere Schrottarten), Erfolge           |
+| 0.3 ✅  | Einführung in Sprechblasen, schnellerer Start, Zoom-Schutz für iOS       |
+| 0.4 ✅  | Schrottformen, Staub, Credit-Anzeigen, Frachtkapseln, 16 Erfolge, 6 Bot-Skins, Musik/Motor/Stationsbrummen |
+| 0.5     | Weitere Decks (andere Schrottarten), Ereignisse (Meteoritenschauer), PC-Modelle |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

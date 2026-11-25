@@ -130,6 +130,37 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 #bubble.tut { background: #e9fffb; }
 #bubble .step { display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #1f9e86; margin-bottom: 2px; }
 
+.float-label {
+  position: absolute; transform: translate(-50%, -50%); font-weight: 900; font-size: 18px;
+  text-shadow: 0 2px 8px rgba(0,0,0,.9); animation: floatUp 1.3s ease-out forwards; white-space: nowrap;
+}
+.float-label.big { font-size: 28px; }
+@keyframes floatUp { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 15% { opacity: 1; transform: translate(-50%, -60%) scale(1.1); } 100% { opacity: 0; transform: translate(-50%, -260%) scale(1); } }
+
+#achv {
+  position: absolute; left: 50%; top: calc(110px + var(--safe-t)); transform: translate(-50%, -30px);
+  background: linear-gradient(180deg, #2a2210, #191308); border: 2px solid #ffb347; border-radius: 16px;
+  padding: 10px 16px; text-align: center; min-width: 240px; max-width: 86vw;
+  opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 30px rgba(255,179,71,.25);
+}
+#achv.show { opacity: 1; transform: translate(-50%, 0); }
+#achv small { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #ffb347; }
+#achv b { display: block; font-size: 18px; margin: 2px 0; }
+#achv span { font-size: 12px; color: #e8d9bd; }
+
+.toggles { display: flex; gap: 8px; margin: 4px 0 4px; }
+.toggle { flex: 1; min-height: 48px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--muted); font-weight: 800; }
+.toggle.on { background: rgba(111,243,240,.18); border-color: var(--accent); color: var(--text); }
+.toggle:not(.on) { text-decoration: line-through; }
+
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 3px; vertical-align: -2px; border: 1px solid rgba(255,255,255,.3); }
+.item.locked { opacity: .55; }
+.item.got { border-color: rgba(255,179,71,.4); }
+.item .reward { grid-column: 2; grid-row: 1 / span 2; font-weight: 800; color: #ffb347; font-size: 13px; }
+.tabs { flex-wrap: wrap; }
+.tab { min-width: 30%; }
+
 /* ---------- Overlays ---------- */
 .overlay {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;

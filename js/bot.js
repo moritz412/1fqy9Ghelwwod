@@ -8,7 +8,8 @@ const WHITE = 0xf3f4f2, TEAL = 0x2fc9a8, GREY = 0x5d6168, DARK = 0x2c2f35, CYAN 
 export class NexusBot {
   constructor() {
     const g = this.group = new THREE.Group();
-    const white = new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.55, metalness: 0.05 });
+    const white = this.bodyMat = new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.55, metalness: 0.05 });
+    this.earMat = new THREE.MeshStandardMaterial({ color: TEAL, roughness: 0.5 });
     const teal = this.tealMat = new THREE.MeshStandardMaterial({ color: TEAL, roughness: 0.5 });
     const grey = this.greyMat = new THREE.MeshStandardMaterial({ color: GREY, roughness: 0.8 });
     const dark = new THREE.MeshStandardMaterial({ color: DARK, roughness: 0.6 });
@@ -96,7 +97,7 @@ export class NexusBot {
     led.position.set(0.05, 0.185, 0.172);
     head.add(led);
     for (const s of [-1, 1]) {
-      const ear = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.2, 0.12, 3, 0.02), teal));
+      const ear = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.2, 0.12, 3, 0.02), this.earMat));
       ear.position.set(s * 0.345, 0, 0);
       head.add(ear);
     }
@@ -148,7 +149,6 @@ export class NexusBot {
     const handScale = [1, 1.25, 1.5, 1.8, 2.1, 2.5][lv.hands] || 1;
     const handColor = [TEAL, 0x2fc9a8, 0x34b3e0, 0xffb347, 0xb48cff, 0x66e6ff][lv.hands] || TEAL;
     this.arms.forEach((a) => { a.hand.scale.setScalar(handScale); a.hand.material.color.setHex(handColor); });
-    this.tealMat.color.setHex(handColor);
     const trackColor = [GREY, 0x3e4a5a, 0x2a6f8a, 0x1fb3c9][lv.drive] || GREY;
     this.greyMat.color.setHex(trackColor);
     this.hover.visible = lv.drive >= 2;
@@ -156,7 +156,23 @@ export class NexusBot {
     this.pack.scale.setScalar(1 + lv.cargo * 0.18);
     this.antenna.visible = lv.scanner >= 1;
     this.dish.visible = lv.scanner >= 3;
-    this.glowMat.color.setHex(lv.link ? 0xb48cff : CYAN);
+    this.linkGlow = !!lv.link;
+    this.glowMat.color.setHex(lv.link ? 0xb48cff : (this.skinGlow || CYAN));
+  }
+
+  setSkin(sk) {
+    this.bodyMat.color.setHex(sk.body);
+    this.bodyMat.metalness = sk.metal ? 0.8 : 0.05;
+    this.bodyMat.roughness = sk.metal ? 0.25 : 0.55;
+    this.bodyMat.emissive.setHex(sk.holo ? 0x2a8a9a : 0x000000);
+    this.bodyMat.transparent = !!sk.holo;
+    this.bodyMat.opacity = sk.holo ? 0.75 : 1;
+    this.bodyMat.needsUpdate = true;
+    this.earMat.color.setHex(sk.ear);
+    this.skinGlow = sk.glow;
+    this.eyeColor = '#' + new THREE.Color(sk.glow).getHexString();
+    if (!this.linkGlow) this.glowMat.color.setHex(sk.glow);
+    this.drawFace();
   }
 
   setMood(m, duration = 1.5) {
@@ -169,8 +185,8 @@ export class NexusBot {
     const W = 256, H = 176;
     c.fillStyle = '#05070a';
     c.fillRect(0, 0, W, H);
-    c.fillStyle = '#6ff3f0';
-    c.strokeStyle = '#6ff3f0';
+    c.fillStyle = this.eyeColor || '#6ff3f0';
+    c.strokeStyle = this.eyeColor || '#6ff3f0';
     c.lineCap = 'round';
     const lx = 88 + this.lookX * 14, rx = 168 + this.lookX * 14, ey = 92;
     const eye = (x, h) => {

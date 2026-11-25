@@ -76,6 +76,29 @@ export function buildEnvironment(scene, renderer) {
   rail.rotation.x = Math.PI / 2; rail.position.y = 1.4;
   scene.add(rail);
 
+  // hangar lamp posts with glowing heads
+  const lampPost = new THREE.CylinderGeometry(0.12, 0.16, 4, 8);
+  const lampHead = new THREE.BoxGeometry(0.9, 0.25, 0.5);
+  const lampGlow = new THREE.MeshBasicMaterial({ color: 0xfff1d6 });
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
+    const post = new THREE.Mesh(lampPost, postMat);
+    post.position.set(Math.cos(a) * 28, 2, Math.sin(a) * 28);
+    post.castShadow = true;
+    const head = new THREE.Mesh(lampHead, lampGlow);
+    head.position.set(Math.cos(a) * 27.6, 4, Math.sin(a) * 27.6);
+    head.lookAt(0, 4, 0);
+    scene.add(post, head);
+  }
+  // floor guide lights leading to the market
+  const guide = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.04, 0.18), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }), 10);
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    m.makeRotationY(a).setPosition(Math.cos(a) * 23.5, 0.03, Math.sin(a) * 23.5);
+    guide.setMatrixAt(k, m);
+  }
+  scene.add(guide);
+
   // dome ribs (glass dome suggested by thin arcs)
   const ribMat = new THREE.MeshStandardMaterial({ color: 0xcfe9ff, metalness: 0.5, roughness: 0.3, transparent: true, opacity: 0.35 });
   for (let k = 0; k < 8; k++) {
@@ -165,6 +188,7 @@ export function buildEnvironment(scene, renderer) {
       padRing.material.color.setHSL(0.52, 1, 0.55 + Math.sin(t * 3) * 0.1);
       beam.material.opacity = 0.1 + Math.sin(t * 2) * 0.03;
       ship.position.y = 26 + Math.sin(t * 0.4) * 0.6;
+      guide.material.color.setHSL(0.5, 1, 0.45 + Math.sin(t * 2.5) * 0.15);
       // keep shadows centred on the action
     },
     sun,
