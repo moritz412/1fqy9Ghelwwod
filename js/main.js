@@ -3,6 +3,7 @@ import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUC
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
+import { BaseView, BUILDINGS, baseStats, buildCost, SITE_COSTS, SITE_ANGLES, MAX_BLD_LEVEL, BUILD_UNLOCK_LEVEL, sitePos, bldValue } from './buildings.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
@@ -25,7 +26,7 @@ function freshState(mode = 'career') {
     helpers: {},
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
-    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'],
+    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0,
     level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
@@ -82,6 +83,7 @@ let pile = null, pileView = null;
 const bot = new NexusBot();
 scene.add(bot.group);
 const capsules = new Capsules(scene);
+const baseView = new BaseView(scene);
 const dust = new Dust(scene);
 let shake = 0;
 const events = new Events(scene, {
@@ -300,7 +302,7 @@ function hint(text, color = '#fff') {
 const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
 const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
 const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS));
-const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult;
+const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult * (1 + (S.sites ? baseStats(S.sites).hangar : 0) / 100);
 const hasMod = (id) => S.equipped && S.equipped.includes(id);
 const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
 const toolDef = () => TOOLS.find((x) => x.id === (S.tool || 'arms')) || TOOLS[0];
@@ -323,6 +325,11 @@ function updateHud() {
   $('level-chip').classList.toggle('hidden', S.mode === 'pure');
   const ready = S.level >= UNLOCKS.contracts ? contractsReady() : 0;
   $('btn-archive').classList.toggle('badge', ready > 0);
+  $('btn-build').classList.toggle('hidden', S.mode === 'pure' || S.level < BUILD_UNLOCK_LEVEL);
+  const anyB = S.sites && S.sites.some(Boolean);
+  $('base-chip').classList.toggle('hidden', !anyB);
+  if (anyB) setText('base-inc', `${fmt(baseIncome)}/s${baseCache.eff < 1 ? ' ⚡!' : ''}`);
+  if (!$('build').classList.contains('hidden') && Math.random() < 0.05) renderBuild();
   const cap = lv('cargo');
   setText('cargo', S.levels.link ? 'Nexus-Link' : `${fmt(S.cargoCount)}/${fmt(cap)}`);
   $('cargo-chip').classList.toggle('full', !S.levels.link && S.cargoCount >= cap);
@@ -428,7 +435,7 @@ function addXp(n) {
     S.xp -= need;
     S.level++;
     need = xpForLevel(S.level);
-    const unlock = S.level === UNLOCKS.crafting ? ' · Fabrikator im Shop freigeschaltet!' : S.level === UNLOCKS.contracts ? ' · Aufträge im Archiv freigeschaltet!' : '';
+    const unlock = S.level === UNLOCKS.crafting ? ' · Fabrikator im Shop freigeschaltet!' : S.level === UNLOCKS.contracts ? ' · Aufträge im Archiv freigeschaltet!' : S.level === BUILD_UNLOCK_LEVEL ? ' · 🏗️ Bauen freigeschaltet!' : '';
     achvQueue.push({ kicker: 'Level-Up!', name: `⭐ Nexus Level ${S.level}`, desc: `+${Math.round(LEVEL_BONUS * 100)} % Fundwert${unlock}`, reward: 0 });
     bot.setMood('love', 3);
     say(pick(['Level-Up! Ich werde immer besser! 🚀', 'Neues Level! 💪', `Level ${S.level}! Weiter so!`]), 3);
@@ -685,6 +692,169 @@ function openCapsule(pos) {
   updateHud();
 }
 
+// ================================================================ base building: production chain
+let baseCache = baseStats([]);
+let baseFlow = 0;               // sorted parts per second (smoothed, for visuals/HUD)
+let baseIncome = 0;             // credits per second (smoothed)
+const baseAcc = { ex: 0, so: 0, exIdx: 0 };
+function refreshBase() { baseCache = baseStats(S.sites || []); baseView.sync(S); }
+function baseTick(dt) {
+  if (!S.sites || S.mode === 'pure') return;
+  const st = baseCache;
+  if (!st.extract && !st.sort && !st.fabTime) { baseFlow = 0; return; }
+  // 1) extract raw scrap from the heap into the buffer
+  const space = Math.max(0, st.buffer - S.buffer);
+  baseAcc.ex += Math.min(st.extract * st.eff * dt, space);
+  if (baseAcc.ex >= 1 && pile.total > 0) {
+    const want = Math.floor(baseAcc.ex);
+    baseAcc.ex -= want;
+    const exSites = S.sites.map((b, i) => (b && b.type === 'extractor' ? i : -1)).filter((i) => i >= 0);
+    const i = exSites[baseAcc.exIdx++ % exSites.length];
+    const p = sitePos(i, 14.5);
+    let r = pile.grab(p.x, p.z, want, 3);
+    let got = r.removed, ring = r.ring;
+    if (got < want) { const r2 = pile.removeRandom(want - got); got += r2.removed; ring = ring || r2.ring; }
+    S.buffer += got;
+    S.stats.removed += got;
+    if (ring) coreFound(false);
+  }
+  // 2) sort the buffer into finds
+  baseAcc.so += Math.min(st.sort * st.eff * dt, S.buffer);
+  let earned = 0;
+  if (baseAcc.so >= 1) {
+    const n = Math.floor(baseAcc.so);
+    baseAcc.so -= n;
+    S.buffer -= n;
+    const labMult = 1 + st.lab / 100;
+    for (const { f, k, tier } of rollFinds(n, events.luckFactor)) {
+      S.stats.found[f.id] = (S.stats.found[f.id] || 0) + k;
+      if (S.keep.includes(f.id)) S.vault[f.id] = (S.vault[f.id] || 0) + k;
+      else { const v = Math.round(valueOf(f) * k * labMult); S.credits += v; S.stats.earned += v; earned += v; }
+      if (tier >= 4) feed(`Sortieranlage: ${f.name}!`, f.color);
+    }
+    baseFlow = baseFlow * 0.9 + (n / Math.max(dt, 0.016)) * 0.1;
+  } else baseFlow *= 0.98;
+  baseIncome = baseIncome * 0.95 + (earned / Math.max(dt, 0.016)) * 0.05;
+  // 3) auto-fabricator
+  if (st.fabTime) {
+    S.fabT += dt * st.eff;
+    if (S.fabT >= st.fabTime) {
+      S.fabT = 0;
+      const r = RECIPES.find((rc) => S.credits >= rc.credits && Object.entries(rc.need).every(([id, n]) => (S.vault[id] || 0) >= n));
+      if (r) {
+        S.credits -= r.credits;
+        for (const [id, n] of Object.entries(r.need)) S.vault[id] -= n;
+        giveItem(r.out, r.n);
+        S.crafted++;
+        const c = CONSUMABLES.find((x) => x.id === r.out);
+        feed(`Auto-Fabrikator: ${c.icon} ${c.name}`, '#ffb347');
+      }
+    }
+  }
+}
+
+let buildSel = -1;
+function openBuild() {
+  if (S.mode === 'pure') { hint('Im Modus „Pur“ wird nicht gebaut'); return; }
+  if (S.level < BUILD_UNLOCK_LEVEL) { hint(`Bauen ab Nexus Level ${BUILD_UNLOCK_LEVEL}`); return; }
+  $('build').classList.remove('hidden');
+  grabState.holding = false;
+  renderBuild();
+}
+function closeBuild() { $('build').classList.add('hidden'); buildSel = -1; save(); }
+$('build-close').addEventListener('click', closeBuild);
+$('btn-build').addEventListener('click', () => { initAudio(); openBuild(); });
+
+function renderBuild() {
+  const st = baseCache;
+  $('build-credits').textContent = fmt(S.credits);
+  const pw = $('build-power');
+  pw.innerHTML = `
+    <div class="bstat ${st.eff < 1 ? 'warn' : ''}"><small>⚡ Strom</small><b>${fmt(st.supply)} / ${fmt(st.demand)}</b><span>${st.eff < 1 ? `nur ${Math.round(st.eff * 100)} % Leistung!` : 'ausreichend'}</span></div>
+    <div class="bstat"><small>🌀 Absaugen</small><b>${fmt(st.extract * st.eff)}/s</b><span>Teile aus dem Berg</span></div>
+    <div class="bstat"><small>⚙️ Sortieren</small><b>${fmt(st.sort * st.eff)}/s</b><span>${st.lab ? `+${st.lab} % Wert (Labor)` : 'Teile zu Funden'}</span></div>
+    <div class="bstat"><small>🛢️ Rohschrott</small><b>${fmt(S.buffer)} / ${fmt(st.buffer)}</b><span>${fmt(baseIncome)} ⬡/s Ertrag</span></div>`;
+  const list = $('build-list');
+  list.innerHTML = '';
+  if (buildSel >= 0) {
+    const i = buildSel;
+    const b = S.sites[i];
+    const back = document.createElement('button');
+    back.className = 'ghost'; back.textContent = '← Alle Bauplätze';
+    back.onclick = () => { buildSel = -1; renderBuild(); };
+    list.appendChild(back);
+    if (!b) {
+      const h = document.createElement('p'); h.className = 'lead small'; h.textContent = `Bauplatz ${i + 1}: Was soll hier entstehen?`; list.appendChild(h);
+      for (const [type, d] of Object.entries(BUILDINGS)) {
+        const cost = buildCost(type, 0);
+        shopItem(list, {
+          title: `${d.icon} ${d.name}`, desc: `${d.desc}<br>Stufe 1: ${fmt(d.values[0])} ${d.stat}${d.power ? ` · ⚡ ${d.power}` : ''}`,
+          btn: `${fmt(cost)} ⬡`, disabled: S.credits < cost,
+          onBuy: () => {
+            if (!pay(cost)) return;
+            S.sites[i] = { type, lvl: 1 };
+            refreshBase();
+            sfx.upgrade(); vibrate(30);
+            say(pick([`${d.name} gebaut! 🏗️`, 'Die Station wächst!', 'Neue Anlage online!']));
+            feed(`Gebaut: ${d.icon} ${d.name}`, '#ffb347');
+            buildSel = -1; renderBuild(); updateHud(); save();
+          },
+        });
+      }
+    } else {
+      const d = BUILDINGS[b.type];
+      const next = b.lvl < MAX_BLD_LEVEL ? buildCost(b.type, b.lvl) : 0;
+      shopItem(list, {
+        title: `${d.icon} ${d.name} · Stufe ${b.lvl}`,
+        desc: `${d.desc}<br>${fmt(bldValue(b))} ${d.stat}${next ? ` → <b>${fmt(d.values[b.lvl])} ${d.stat}</b>` : ''}${d.power ? ` · ⚡ ${d.power * b.lvl}${next ? ` → ${d.power * (b.lvl + 1)}` : ''}` : ''}`,
+        levels: dots(MAX_BLD_LEVEL, b.lvl),
+        btn: next ? `${fmt(next)} ⬡` : 'MAX', disabled: !next || S.credits < next,
+        onBuy: () => {
+          if (!next || !pay(next)) return;
+          b.lvl++;
+          refreshBase();
+          sfx.upgrade(); vibrate(30);
+          feed(`${d.name} → Stufe ${b.lvl}`, '#ffb347');
+          renderBuild(); updateHud(); save();
+        },
+      });
+      const refund = Math.round(Array.from({ length: b.lvl }, (_, k) => buildCost(b.type, k)).reduce((a, c) => a + c, 0) * 0.5);
+      const del = document.createElement('button');
+      del.className = 'ghost'; del.style.color = '#ff9a8a';
+      del.textContent = `Abreißen (+${fmt(refund)} ⬡)`;
+      del.onclick = () => { S.sites[i] = null; S.credits += refund; refreshBase(); sfx.click(); buildSel = -1; renderBuild(); updateHud(); save(); };
+      list.appendChild(del);
+    }
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className = 'site-grid';
+  for (let i = 0; i < SITE_ANGLES.length; i++) {
+    const b = S.sites[i];
+    const unlocked = i < S.sitesUnlocked;
+    const el = document.createElement('button');
+    el.className = 'site' + (b ? ' built' : unlocked ? ' free' : ' locked');
+    if (b) { const d = BUILDINGS[b.type]; el.innerHTML = `<span class="ico">${d.icon}</span><b>${d.name}</b><small>Stufe ${b.lvl}</small>`; }
+    else if (unlocked) el.innerHTML = '<span class="ico">➕</span><b>Bauplatz frei</b><small>tippen zum Bauen</small>';
+    else if (i === S.sitesUnlocked) el.innerHTML = `<span class="ico">🔒</span><b>Bauplatz kaufen</b><small>${fmt(SITE_COSTS[i])} ⬡</small>`;
+    else el.innerHTML = '<span class="ico">🔒</span><b>gesperrt</b><small>&nbsp;</small>';
+    el.onclick = () => {
+      if (b || unlocked) { buildSel = i; sfx.click(); renderBuild(); return; }
+      if (i !== S.sitesUnlocked) return;
+      if (!pay(SITE_COSTS[i])) return;
+      S.sitesUnlocked++;
+      refreshBase(); sfx.upgrade(); feed('Neuer Bauplatz frei!', '#6ff3f0');
+      renderBuild(); updateHud(); save();
+    };
+    grid.appendChild(el);
+  }
+  list.appendChild(grid);
+  const tip = document.createElement('p');
+  tip.className = 'lead small';
+  tip.innerHTML = 'Kette: <b>Schrottsauger</b> holt Rohschrott → <b>Silo</b> puffert → <b>Sortieranlage</b> macht Funde und Credits. Alle Anlagen brauchen <b>Strom</b> vom <b>Reaktor</b>. Die Anlage arbeitet auch, wenn du offline bist (bis 2 h).';
+  list.appendChild(tip);
+}
+
 // ================================================================ achievements
 let achvT = 1;
 const achvQueue = [];
@@ -782,7 +952,9 @@ function automationTick(dt) {
 }
 
 function offlineProgress() {
-  const rate = helperRate();
+  baseCache = baseStats(S.sites || []);
+  const baseRate = S.mode === 'pure' ? 0 : Math.min(baseCache.extract, baseCache.sort) * baseCache.eff;
+  const rate = helperRate() + baseRate;
   if (!rate || !S.lastSave) return;
   const secs = Math.min((Date.now() - S.lastSave) / 1000, 2 * 3600);
   if (secs < 30) return;
@@ -1239,6 +1411,8 @@ function setupWorld(state) {
   bot.applyUpgrades(S.levels);
   bot.setChassis(S.chassis || 'tracks');
   bot.setTool(S.tool || 'arms');
+  if (!S.sites) S.sites = Array(13).fill(null);
+  refreshBase();
   { const sp = spawnPos(), d = PAD_DIR(); bot.group.position.copy(sp); bot.group.rotation.y = Math.atan2(d.x, d.z); }
   cam.yaw = Math.atan2(-PAD_DIR().x, -PAD_DIR().z); cam.pitch = 0.42; cam.dist = 7;
   rebuildDrones();
@@ -1259,6 +1433,7 @@ function startGame(state, offline) {
   state.items = state.items || {}; state.contracts = state.contracts || []; state.contractsDone = state.contractsDone || 0;
   state.crafted = state.crafted || 0; state.bestCombo = state.bestCombo || 0;
   state.tool = state.tool || 'arms'; state.toolsOwned = state.toolsOwned || ['arms'];
+  state.sites = state.sites || Array(13).fill(null); state.sitesUnlocked = state.sitesUnlocked || 3; state.buffer = state.buffer || 0; state.fabT = state.fabT || 0;
   setupWorld(state);
   beginPlay(offline);
 }
@@ -1300,7 +1475,7 @@ function nextDeck() {
   Object.assign(st, {
     deck: (old.deck || 0) + 1, stars: (old.stars || 0) + 1,
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
-    tool: old.tool, toolsOwned: old.toolsOwned, chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
+    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
   });
@@ -1506,6 +1681,141 @@ function transferCutscene(newState, onDone) {
     },
   });
 }
+
+function showStart() {
+  save();
+  playing = false;
+  hud.classList.add('hidden');
+  $('shop').classList.add('hidden');
+  $('archive').classList.add('hidden');
+  const ex = loadState();
+  $('btn-start').textContent = ex ? 'Weiterspielen ▶' : 'Spiel starten ▶';
+  $('btn-new').classList.toggle('hidden', !ex);
+  const deckIdx = ex ? (ex.deck || 0) : 0;
+  const d = DECKS[deckIdx % DECKS.length];
+  if (ex) {
+    const left = ex.pile.counts.reduce((a, b) => a + b, 0);
+    const pct = ((TOTAL_STONES - left) / TOTAL_STONES) * 100;
+    $('cont-kicker').textContent = ex.mode === 'pure' ? 'Modus Pur' : 'Dein Spielstand';
+    $('cont-title').textContent = `${d.name} · ${d.title}`;
+    $('cont-level').innerHTML = ex.mode === 'pure' ? '' : `Lv ${ex.level || 1}${ex.stars ? `<br>⭐ ${ex.stars}` : ''}`;
+    $('cont-fill').style.width = `${Math.max(1, pct)}%`;
+    $('cont-meta').textContent = `${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} % sortiert · ${fmt(ex.credits)} ⬡ · ${ex.coreFound ? 'Kern gefunden ✔' : 'Kern verschollen'}`;
+  } else {
+    $('cont-kicker').textContent = 'Neues Abenteuer';
+    $('cont-title').textContent = `${d.name} · ${d.title}`;
+    $('cont-level').innerHTML = '';
+    $('cont-fill').style.width = '0%';
+    $('cont-meta').textContent = 'Finde den Nexus-Kern in 5.000.000 Schrottteilen.';
+  }
+  // decks: unlocked up to the furthest one ever reached
+  const maxDeck = Math.max(records.maxDeck || 0, deckIdx);
+  const cols = [['#2a3140', '#4a3a30'], ['#1a3a5a', '#4a7aa0'], ['#4a2a0a', '#a0601a'], ['#2a0a3a', '#1a5a3a']];
+  const shown = Math.max(DECKS.length, maxDeck + 2);
+  $('deck-list').innerHTML = Array.from({ length: shown }, (_, i) => {
+    const dd = DECKS[i % DECKS.length];
+    const round = Math.floor(i / DECKS.length);
+    const unlocked = i <= maxDeck;
+    const cur = ex && i === deckIdx;
+    const best = (records.deckTimes || {})[i];
+    const c = cols[i % cols.length];
+    return `<div class="deck-card ${cur ? 'current' : ''} ${unlocked ? '' : 'locked'}" style="--c1:${c[0]};--c2:${c[1]}">
+      <span class="st">${cur ? '▶' : unlocked ? '✓' : '🔒'}</span>
+      <b>${dd.title}${round ? ' ' + 'I'.repeat(round + 1) : ''}</b>
+      <small>${dd.name}</small>
+      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : dd.perk) : 'Noch gesperrt'}</small>
+    </div>`;
+  }).join('');
+  const r = records;
+  const best = [
+    ['💠', r.cores || 0, 'Kerne gefunden'],
+    ['⏱', r.fastest ? formatTime(r.fastest) : '–', 'schnellster Kern'],
+    ['⭐', ex ? ex.stars || 0 : 0, 'Sterne'],
+    ['🔥', ex ? fmt(ex.bestCombo || 0) : 0, 'beste Kombo'],
+    ['🏆', ex ? `${(ex.achievements || []).length}/${ACHIEVEMENTS.length}` : `0/${ACHIEVEMENTS.length}`, 'Erfolge'],
+    ['♻️', ex ? fmt(ex.stats.removed) : 0, 'Teile sortiert'],
+  ];
+  $('records').innerHTML = best.map(([i, v, l]) => `<div class="best"><b>${i} ${v}</b><small>${l}</small></div>`).join('');
+  $('overlay-start').classList.remove('hidden');
+}
+
+$('btn-start').addEventListener('click', () => {
+  initAudio();
+  const existing = loadState();
+  if (existing) startGame(existing, true); else newGame('career');
+});
+$('btn-new').addEventListener('click', () => {
+  initAudio();
+  showMessage('Neues Spiel?', '<p class="lead">Dein aktueller Fortschritt wird überschrieben.</p>', 'Ja, neu starten', () => newGame('career'), 'Abbrechen', () => {});
+});
+$('btn-pure').addEventListener('click', () => {
+  initAudio();
+  showMessage('Modus „Pur“', '<p class="lead">Keine Upgrades, kein Markt, keine Helfer. 5.000.000 Teile, ein Bot, ein Kern. Ein vorhandener Spielstand wird überschrieben.</p>', 'Los geht’s', () => newGame('pure'), 'Abbrechen', () => {});
+});
+$('btn-menu').addEventListener('click', () => {
+  save();
+  showMessage('Pause',
+    `<p class="lead">Dein Fortschritt wird automatisch gespeichert.</p>
+     <div class="toggles">
+       <button class="toggle ${settings.music ? 'on' : ''}" id="tg-music">🎵 Musik</button>
+       <button class="toggle ${settings.sfx ? 'on' : ''}" id="tg-sfx">🔊 Effekte</button>
+     </div>`,
+    'Weiter', () => {},
+  );
+  $('tg-music').onclick = (e) => { initAudio(); setMusic(!settings.music); e.currentTarget.classList.toggle('on', settings.music); };
+  $('tg-sfx').onclick = (e) => { initAudio(); setSfx(!settings.sfx); e.currentTarget.classList.toggle('on', settings.sfx); sfx.click(); };
+  const share = document.createElement('button');
+  share.className = 'big share-btn';
+  share.textContent = '🔗 Spiel teilen';
+  share.onclick = shareGame;
+  $('msg-body').appendChild(share);
+  const test = document.createElement('button');
+  test.className = 'ghost';
+  test.textContent = '🔈 Ton testen';
+  test.onclick = () => { initAudio(); setTimeout(() => sfx.upgrade(), 50); };
+  $('msg-body').appendChild(test);
+  const tip = document.createElement('p');
+  tip.className = 'lead'; tip.style.fontSize = '12px'; tip.style.margin = '8px 0 0';
+  tip.textContent = 'Kein Ton? iPhone-Lautstärke hochdrehen. Ab iOS 17 klappt es auch im Lautlos-Modus, bei älteren iOS-Versionen den Lautlos-Schalter ausschalten.';
+  $('msg-body').appendChild(tip);
+  const extra = document.createElement('button');
+  extra.className = 'ghost';
+  extra.textContent = 'Hauptmenü';
+  extra.onclick = () => { $('overlay-msg').classList.add('hidden'); showStart(); };
+  $('msg-body').appendChild(extra);
+});
+
+// ---- share link (iOS/Android share sheet, otherwise copy to clipboard)
+const GAME_URL = location.origin + location.pathname.replace(/index\.html$/, '');
+async function shareGame() {
+  initAudio();
+  let text = 'NEXUS CORE: Hilf dem Nexus-Bot, den Nexus-Kern in 5.000.000 Schrottteilen zu finden! 🤖';
+  if (S && S.stats && S.stats.removed > 0 && S.mode !== 'pure') {
+    const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
+    text = `Ich bin Nexus Level ${S.level} und habe schon ${fmt(S.stats.removed)} Schrottteile sortiert (${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} %). Schaffst du mehr? 🤖`;
+  }
+  const data = { title: 'NEXUS CORE', text, url: GAME_URL };
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // user closed the share sheet
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${GAME_URL}`);
+    hint('Link kopiert! 📋', '#6ff3f0');
+    feed('Link in die Zwischenablage kopiert', '#6ff3f0');
+  } catch (e) {
+    showMessage('Spiel teilen', `<p class="lead">Kopiere diesen Link:</p><p class="share-url">${GAME_URL}</p>`, 'OK', () => {});
+  }
+}
+$('btn-share-start').addEventListener('click', shareGame);
+$('btn-intro').addEventListener('click', () => { initAudio(); $('overlay-start').classList.add('hidden'); introCutscene(() => showStart()); });
+
+setInterval(() => { if (playing) save(); }, 10000);
+// iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)
+['touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) initAudio(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && playing) save(); });
 
 // ================================================================ input
 const input = { jx: 0, jy: 0, keys: new Set() };
@@ -1861,10 +2171,11 @@ function animate() {
       updateBubble(dt);
       updateDockArrow();
       checkAchievements(dt);
+      baseTick(dt);
       updateCombo(dt);
       updatePulse(dt, t);
       updateGoal();
-      capsules.speed = hasMod('radar') ? 2 : 1;
+      capsules.speed = (hasMod('radar') ? 2 : 1) * (1 + baseCache.beacon / 100);
       events.speed = hasMod('lure') ? 1.8 : 1;
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
       events.update(dt, t, pile, camera);
@@ -1885,6 +2196,7 @@ function animate() {
     pileView.updateRing(dt, S && S.levels.scanner >= 1 ? 400 : 25);
     updateDrones(dt, t);
   }
+  if (S) baseView.update(dt, t, baseFlow, baseCache.eff, (S.buffer || 0) / Math.max(1, baseCache.buffer));
   updateDebris(dt);
   dust.update(dt);
   let shaken = false;

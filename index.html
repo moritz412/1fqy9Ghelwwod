@@ -33,10 +33,12 @@
       <div class="chip" id="credits-chip">⬡ <span id="credits">0</span></div>
       <div class="chip" id="cargo-chip">▣ <span id="cargo">0/20</span></div>
       <div class="chip hidden" id="dock-chip"><span id="dock-arrow">➤</span> <span id="dock-label">Ablage</span> <span id="dock-dist">0</span> m</div>
+      <div class="chip hidden" id="base-chip">🏭 <span id="base-inc">0</span></div>
       <div class="chip hidden" id="rate-chip">⚙ <span id="rate">0</span>/s</div>
     </div>
     <button class="icon-btn" id="btn-menu" aria-label="Menü">☰</button>
     <button class="icon-btn" id="btn-archive" aria-label="Archiv">📖</button>
+    <button class="icon-btn hidden" id="btn-build" aria-label="Bauen">🏗️</button>
 
     <div id="scanner" class="hidden">
       <span class="label">Kern-Resonanz</span>
@@ -80,6 +82,21 @@
         <button class="tab" data-tab="skins">Skins</button>
       </div>
       <div id="shop-list"></div>
+    </div>
+  </div>
+
+  <!-- Base building -->
+  <div id="build" class="overlay hidden">
+    <div class="card wide">
+      <div class="shop-head">
+        <div>
+          <div class="kicker">Nexus-Basis · Bauen</div>
+          <h2>⬡ <span id="build-credits">0</span></h2>
+        </div>
+        <button class="icon-btn" id="build-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="bstats" id="build-power"></div>
+      <div id="build-list"></div>
     </div>
   </div>
 
