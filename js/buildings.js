@@ -1,5 +1,6 @@
 // Base building: build sites around the heap, production chain (extract -> buffer -> sort), power grid.
 import * as THREE from 'three';
+import { texMat, hazardTexture } from './textures.js';
 
 export const SITE_ANGLES = [15, 32, 72, 112, 135, 158, 202, 225, 248, 275, 300, 325, 345].map((d) => (d * Math.PI) / 180);
 export const SITE_R = 21;
@@ -49,10 +50,10 @@ export function baseStats(sites) {
 
 // ------------------------------------------------------------------ 3D
 const M = {
-  white: new THREE.MeshStandardMaterial({ color: 0xeef1f5, metalness: 0.25, roughness: 0.4 }),
-  grey: new THREE.MeshStandardMaterial({ color: 0x7a808a, metalness: 0.6, roughness: 0.35 }),
+  white: texMat('hull', 0xeef1f5),
+  grey: texMat('metal', 0x9aa0a8),
   dark: new THREE.MeshStandardMaterial({ color: 0x2c2f35, metalness: 0.6, roughness: 0.35 }),
-  orange: new THREE.MeshStandardMaterial({ color: 0xffb347, metalness: 0.3, roughness: 0.45 }),
+  orange: texMat('metal', 0xffb347, { metalness: 0.35 }),
   teal: new THREE.MeshStandardMaterial({ color: 0x2fc9a8, metalness: 0.3, roughness: 0.45 }),
   glow: new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }),
   hot: new THREE.MeshBasicMaterial({ color: 0x7cff9a }),
@@ -160,7 +161,10 @@ export class BaseView {
       padMesh.position.y = 0.06; padMesh.receiveShadow = true;
       const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.04, 4, 6), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
       ring.rotation.x = Math.PI / 2; ring.position.y = 0.14;
-      site.add(padMesh, ring);
+      const hz = hazardTexture().clone(); hz.needsUpdate = true; hz.repeat.set(12, 1);
+      const hazard = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.1, 0.1, 6, 1, true), new THREE.MeshStandardMaterial({ map: hz, roughness: 0.7 }));
+      hazard.position.y = 0.05;
+      site.add(padMesh, ring, hazard);
       this.group.add(site);
       this.sites.push({ site, ring, building: null, key: '' });
     }

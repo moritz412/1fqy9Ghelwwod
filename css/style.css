@@ -422,3 +422,18 @@ h2 { margin: 0 0 10px; font-size: 24px; }
 .deck-card { text-align: left; color: var(--text); font: inherit; cursor: pointer; display: block; width: 100%; }
 .deck-card .stars { display: block; color: #ffd34d; font-size: 16px; letter-spacing: 2px; margin-top: 2px; }
 .deck-card:active { transform: scale(.97); }
+
+/* ---------- Nexus Prime station ---------- */
+#btn-station { position: absolute; top: calc(178px + var(--safe-t)); right: calc(10px + var(--safe-r)); }
+#btn-station.badge::after, #btn-build.badge::after { content: '!'; position: absolute; top: -4px; right: -4px; width: 20px; height: 20px; border-radius: 50%; background: #6ff3f0; color: #032; font-size: 13px; font-weight: 900; display: grid; place-items: center; }
+#station-panel {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; max-height: 52vh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  background: rgba(10,16,26,.9); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0;
+  padding: 12px 14px calc(14px + var(--safe-b)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+#station-panel * { touch-action: pan-y; }
+#station-panel button { touch-action: manipulation; }
+.st-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+.st-head b { font-size: 18px; }
+#st-res { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+#st-res b { color: var(--text); }

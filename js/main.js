@@ -3,6 +3,7 @@ import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUC
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
+import { StationView, MODULES_ST, RANKS, stationRank, moduleCost, stationBonus, freeCells, STATION_POS, TONS_PER_PART } from './station.js';
 import { BaseView, BUILDINGS, baseStats, buildCost, SITE_COSTS, SITE_ANGLES, MAX_BLD_LEVEL, BUILD_UNLOCK_LEVEL, sitePos, bldValue } from './buildings.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
@@ -27,7 +28,7 @@ function freshState(mode = 'career') {
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0, aliens: 0 },
     total: TOTAL_STONES, deckBase: { removed: 0, found: {}, time: 0, aliens: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
-    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0,
+    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0, station: [], tonsSpent: 0,
     level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
@@ -85,6 +86,7 @@ const bot = new NexusBot();
 scene.add(bot.group);
 const capsules = new Capsules(scene);
 const baseView = new BaseView(scene);
+const stationView = new StationView(scene);
 const dust = new Dust(scene);
 let shake = 0;
 const events = new Events(scene, {
@@ -318,9 +320,13 @@ function hint(text, color = '#fff') {
 }
 
 const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
+let SB = stationBonus([]);
+const refreshStationBonus = () => { SB = stationBonus(S.station || []); };
+const cargoCap = () => Math.round(lv('cargo') * (1 + SB.cargo));
+const tonsAvail = () => Math.max(0, S.stats.removed * TONS_PER_PART - (S.tonsSpent || 0));
 const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
-const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS) * deckValueMult(S.deck || 0) * events.valueFactor);
-const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult * (1 + (S.sites ? baseStats(S.sites).hangar : 0) / 100);
+const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS) * deckValueMult(S.deck || 0) * events.valueFactor * (1 + SB.value + SB.all));
+const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult * (1 + (S.sites ? baseStats(S.sites).hangar : 0) / 100) * (1 + SB.drones + SB.all);
 const hasMod = (id) => S.equipped && S.equipped.includes(id);
 const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
 const toolDef = () => TOOLS.find((x) => x.id === (S.tool || 'arms')) || TOOLS[0];
@@ -344,11 +350,13 @@ function updateHud() {
   const ready = S.level >= UNLOCKS.contracts ? contractsReady() : 0;
   $('btn-archive').classList.toggle('badge', ready > 0);
   $('btn-build').classList.toggle('hidden', S.mode === 'pure' || S.level < BUILD_UNLOCK_LEVEL);
+  $('btn-station').classList.toggle('hidden', S.mode === 'pure');
+  $('btn-station').classList.toggle('badge', tonsAvail() >= 8 && S.station.length === 0);
   const anyB = S.sites && S.sites.some(Boolean);
   $('base-chip').classList.toggle('hidden', !anyB);
   if (anyB) setText('base-inc', `${fmt(baseIncome)}/s${baseCache.eff < 1 ? ' ⚡!' : ''}`);
   if (!$('build').classList.contains('hidden') && Math.random() < 0.05) renderBuild();
-  const cap = lv('cargo');
+  const cap = cargoCap();
   setText('cargo', S.levels.link ? 'Nexus-Link' : `${fmt(S.cargoCount)}/${fmt(cap)}`);
   $('cargo-chip').classList.toggle('full', !S.levels.link && S.cargoCount >= cap);
   const rate = helperRate();
@@ -373,7 +381,7 @@ function rollFinds(n, luck = 1) {
     let m = tier < 3 ? luck : 1;
     if (S && hasMod('magnet') && ['copper', 'platinum', 'probe'].includes(f.id)) m *= 1.4;
     if (S && hasMod('sense') && f.value >= 300) m *= 1.5;
-    if (S && f.value >= 300) m *= toolDef().rare * events.rareFactor;
+    if (S && f.value >= 300) m *= toolDef().rare * events.rareFactor * (1 + SB.rare);
     if (S) m *= (DECKS[(S.deck || 0) % DECKS.length].boost || {})[f.id] || 1;
     const k = poisson(n * f.rate * m);
     if (k) out.push({ f, k, tier: Math.min(5, tier) });
@@ -395,7 +403,7 @@ function handleFinds(list, byPlayer) {
       else if (tier >= 3) feed(`Helfer: ${f.name}!`, f.color);
       continue;
     }
-    const cap = lv('cargo');
+    const cap = cargoCap();
     const space = Math.max(0, cap - S.cargoCount);
     const take = Math.min(space, k);
     if (take > 0) {
@@ -447,7 +455,7 @@ function sellCargo() {
 // ================================================================ XP / level
 function addXp(n) {
   if (!n || S.mode === 'pure') return;
-  S.xp += n;
+  S.xp += n * (1 + SB.xp + SB.all);
   let need = xpForLevel(S.level);
   while (S.xp >= need) {
     S.xp -= need;
@@ -731,7 +739,12 @@ let baseCache = baseStats([]);
 let baseFlow = 0;               // sorted parts per second (smoothed, for visuals/HUD)
 let baseIncome = 0;             // credits per second (smoothed)
 const baseAcc = { ex: 0, so: 0, exIdx: 0 };
-function refreshBase() { baseCache = baseStats(S.sites || []); baseView.sync(S); }
+function refreshBase() {
+  baseCache = baseStats(S.sites || []);
+  baseCache.supply *= 1 + SB.power;
+  baseCache.eff = baseCache.demand ? Math.min(1, baseCache.supply / baseCache.demand) : 1;
+  baseView.sync(S);
+}
 function baseTick(dt) {
   if (!S.sites || S.mode === 'pure') return;
   const st = baseCache;
@@ -888,6 +901,146 @@ function renderBuild() {
   tip.className = 'lead small';
   tip.innerHTML = 'Kette: <b>Schrottsauger</b> holt Rohschrott → <b>Silo</b> puffert → <b>Sortieranlage</b> macht Funde und Credits. Alle Anlagen brauchen <b>Strom</b> vom <b>Reaktor</b>. Die Anlage arbeitet auch, wenn du offline bist (bis 2 h).';
   list.appendChild(tip);
+}
+
+// ================================================================ Nexus Prime: modular space station (meta progression)
+let stationMode = false, stSel = null, teleT = 45;
+const stCam = { yaw: 0.7, pitch: 0.35, dist: 52 };
+function openStation() {
+  if (S.mode === 'pure') { hint('Im Modus „Pur“ gibt es keine Station'); return; }
+  stationMode = true; stSel = null;
+  grabState.holding = false;
+  hud.classList.add('hidden');
+  $('station-panel').classList.remove('hidden');
+  stationView.sync(S.station, true, null);
+  sfx.event();
+  renderStation();
+}
+function closeStation() {
+  stationMode = false; stSel = null;
+  $('station-panel').classList.add('hidden');
+  hud.classList.remove('hidden');
+  stationView.sync(S.station, false, null);
+  save();
+}
+$('btn-station').addEventListener('click', () => { initAudio(); openStation(); });
+$('station-close').addEventListener('click', closeStation);
+function stationCamera(dt) {
+  const c = stationView.root.position;
+  const cp = Math.cos(stCam.pitch);
+  tmpV.set(c.x + Math.sin(stCam.yaw) * cp * stCam.dist, c.y + Math.sin(stCam.pitch) * stCam.dist, c.z + Math.cos(stCam.yaw) * cp * stCam.dist);
+  camera.position.lerp(tmpV, Math.min(1, dt * 3));
+  camera.lookAt(c.x, c.y - stCam.dist * 0.28, c.z);   // keep the station in the upper half, above the panel
+}
+function stationTap(cx, cy) {
+  ndc.set((cx / window.innerWidth) * 2 - 1, -(cy / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects([...stationView.markers.children, ...stationView.modules.children], true);
+  for (const h of hits) {
+    let o = h.object;
+    while (o && !o.userData.free && !o.userData.cell && o.parent) o = o.parent;
+    if (o && o.userData.free) { stSel = { free: o.userData.free }; break; }
+    if (o && o.userData.cell) { stSel = { mod: o.userData.cell }; break; }
+  }
+  sfx.click();
+  stationView.sync(S.station, true, stSel && stSel.free);
+  renderStation();
+}
+function stationTick(dt) {
+  if (SB.teleport && S.cargoCount > 0 && !S.levels.link) {
+    teleT -= dt;
+    if (teleT <= 0) { teleT = 45; const v = sellCargo(); feed(`🌀 Teleport-Relais: +${fmt(v)} ⬡`, '#b48cff'); }
+  }
+}
+function canPayModule(type, lvl) {
+  const [tons, cr] = moduleCost(type, lvl);
+  const rare = lvl === 0 ? (MODULES_ST[type].rare || {}) : {};
+  const rareOk = Object.entries(rare).every(([id, n]) => (S.vault[id] || 0) >= n);
+  return { tons, cr, rare, ok: tonsAvail() >= tons && S.credits >= cr && rareOk };
+}
+function rareText(rare) {
+  return Object.entries(rare).map(([id, n]) => `${n}× ${FINDS.find((f) => f.id === id).name} (Lager ${S.vault[id] || 0})`).join(', ');
+}
+function renderStation() {
+  const mods = S.station;
+  const rank = stationRank(mods);
+  const next = RANKS[rank + 1];
+  $('st-title').textContent = `Nexus Prime · ${RANKS[rank].name}`;
+  $('st-res').innerHTML = `🧱 <b>${fmt(tonsAvail())} t</b> Schrott · ⬡ <b>${fmt(S.credits)}</b> · ${mods.length} Module${next ? ` · nächster Rang ab ${next.modules}` : ''}`;
+  const list = $('st-list');
+  list.innerHTML = '';
+  if (!stSel) {
+    const b = SB;
+    const parts = [];
+    if (b.value || b.all) parts.push(`+${Math.round((b.value + b.all) * 100)} % Fundwert`);
+    if (b.xp) parts.push(`+${Math.round(b.xp * 100)} % XP`);
+    if (b.power) parts.push(`+${Math.round(b.power * 100)} % Strom`);
+    if (b.cargo) parts.push(`+${Math.round(b.cargo * 100)} % Laderaum`);
+    if (b.drones) parts.push(`+${Math.round(b.drones * 100)} % Drohnen`);
+    if (b.events) parts.push(`+${Math.round(b.events * 100)} % Ereignisse`);
+    if (b.rare) parts.push(`+${Math.round(b.rare * 100)} % seltene Funde`);
+    if (b.teleport) parts.push('Teleport-Relais aktiv');
+    list.innerHTML = `<p class="lead small">Tippe eine <b style="color:#6ff3f0">leuchtende Anbauposition</b> an, um ein Modul zu bauen, oder ein Modul, um es auszubauen. Ziehen dreht die Ansicht. Baumaterial: 1 t Schrott je 1.000 weggeräumte Teile.</p>
+      <p class="lead small"><b>Stations-Boni (dauerhaft, alle Decks):</b><br>${parts.length ? parts.join(' · ') : 'noch keine – bau dein erstes Modul!'}</p>`;
+    return;
+  }
+  if (stSel.free) {
+    const c = stSel.free;
+    const h = document.createElement('p'); h.className = 'lead small'; h.textContent = `Anbauposition (${c.x}, ${c.y}, ${c.z}): Welches Modul?`; list.appendChild(h);
+    for (const [type, d] of Object.entries(MODULES_ST)) {
+      const built = mods.filter((m) => m.type === type).length;
+      if (d.max === 1 && type !== 'corridor' && built >= 1) continue;
+      const pay = canPayModule(type, 0);
+      const locked = rank < d.rank;
+      shopItem(list, {
+        title: `${d.icon} ${d.name}${built ? ` <span style="color:var(--muted)">× ${built}</span>` : ''}`,
+        desc: `${d.desc}<br>🧱 ${fmt(pay.tons)} t · ⬡ ${fmt(pay.cr)}${Object.keys(pay.rare).length ? ` · ${rareText(pay.rare)}` : ''}`,
+        btn: locked ? `🔒 ${RANKS[d.rank].name}` : 'Bauen', disabled: locked || !pay.ok, cls: locked ? 'locked' : '',
+        onBuy: () => {
+          const p2 = canPayModule(type, 0);
+          if (locked || !p2.ok) return;
+          const rankBefore = stationRank(S.station);
+          S.tonsSpent += p2.tons; S.credits -= p2.cr;
+          for (const [id, n] of Object.entries(p2.rare)) S.vault[id] -= n;
+          S.station.push({ type, x: c.x, y: c.y, z: c.z, lvl: 1 });
+          stationChanged(rankBefore, `${d.icon} ${d.name} angebaut!`);
+        },
+      });
+    }
+  } else if (stSel.mod) {
+    const m = stSel.mod;
+    const d = MODULES_ST[m.type];
+    const can = (m.lvl || 1) < d.max;
+    const pay = can ? canPayModule(m.type, m.lvl) : null;
+    shopItem(list, {
+      title: `${d.icon} ${d.name} · Stufe ${m.lvl || 1}`,
+      desc: `${d.desc}${can ? `<br>Ausbau: 🧱 ${fmt(pay.tons)} t · ⬡ ${fmt(pay.cr)}` : ''}`,
+      levels: dots(d.max, m.lvl || 1),
+      btn: can ? 'Ausbauen' : 'MAX', disabled: !can || !pay.ok,
+      onBuy: () => {
+        const p2 = canPayModule(m.type, m.lvl);
+        if (!p2.ok) return;
+        S.tonsSpent += p2.tons; S.credits -= p2.cr;
+        m.lvl = (m.lvl || 1) + 1;
+        stationChanged(stationRank(S.station), `${d.icon} ${d.name} → Stufe ${m.lvl}`);
+      },
+    });
+  }
+  const back = document.createElement('button');
+  back.className = 'ghost'; back.textContent = '← Übersicht';
+  back.onclick = () => { stSel = null; stationView.sync(S.station, true, null); renderStation(); };
+  list.appendChild(back);
+}
+function stationChanged(rankBefore, text) {
+  refreshStationBonus();
+  refreshBase();
+  stSel = null;
+  stationView.sync(S.station, true, null);
+  sfx.upgrade(); vibrate(30);
+  feed(text, '#6ff3f0');
+  const r = stationRank(S.station);
+  if (r > rankBefore) achvQueue.push({ kicker: 'Stationsrang!', name: `🛰️ ${RANKS[r].name}`, desc: 'Neue Module freigeschaltet!', reward: 0 });
+  renderStation(); updateHud(); save();
 }
 
 // ================================================================ deck stars (3 per deck)
@@ -1334,7 +1487,7 @@ function renderArchive() {
   const list = $('archive-list');
   list.innerHTML = '';
   if (archTab === 'cargo') {
-    const cap = lv('cargo');
+    const cap = cargoCap();
     const head = document.createElement('p');
     head.className = 'lead';
     head.innerHTML = S.levels.link ? 'Nexus-Link aktiv: alle Funde gehen direkt zur Station.' : `Laderaum: <b>${fmt(S.cargoCount)} / ${fmt(cap)}</b> Funde · Wert <b>${fmt(cargoValue())} ⬡</b>`;
@@ -1510,7 +1663,9 @@ function setupWorld(state) {
   bot.setChassis(S.chassis || 'tracks');
   bot.setTool(S.tool || 'arms');
   if (!S.sites) S.sites = Array(13).fill(null);
+  refreshStationBonus();
   refreshBase();
+  stationView.sync(S.station || [], false, null);
   { const sp = spawnPos(), d = PAD_DIR(); bot.group.position.copy(sp); bot.group.rotation.y = Math.atan2(d.x, d.z); }
   cam.yaw = Math.atan2(-PAD_DIR().x, -PAD_DIR().z); cam.pitch = 0.42; cam.dist = 7;
   rebuildDrones();
@@ -1532,6 +1687,7 @@ function startGame(state, offline) {
   state.crafted = state.crafted || 0; state.bestCombo = state.bestCombo || 0;
   state.tool = state.tool || 'arms'; state.toolsOwned = state.toolsOwned || ['arms'];
   state.total = state.total || TOTAL_STONES;
+  state.station = state.station || []; state.tonsSpent = state.tonsSpent || 0;
   state.deckBase = state.deckBase || { removed: 0, found: {}, time: 0, aliens: 0 };
   state.stats.aliens = state.stats.aliens || 0;
   records.deckStars = records.deckStars || {};
@@ -1578,7 +1734,7 @@ function makeDeckState(n, old) {
   Object.assign(st, {
     deck: n, stars: totalStars(),
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
-    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked,
+    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, station: old.station || [], tonsSpent: old.tonsSpent || 0,
     chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
@@ -1586,7 +1742,7 @@ function makeDeckState(n, old) {
   st.total = deckTotal(n);
   st.deckBase = { removed: st.stats.removed, found: { ...st.stats.found }, time: st.stats.time, aliens: st.stats.aliens || 0 };
   st.deckStart = st.stats.time;
-  st.credits = 150 * (n + 1) + 50 * st.stars;
+  st.credits = 150 * (n + 1) + 50 * st.stars + stationBonus(st.station).start;
   records.maxDeck = Math.max(records.maxDeck || 0, n);
   saveRecords();
   return st;
@@ -2000,7 +2156,11 @@ canvas.addEventListener('pointermove', (e) => {
   if (!p) return;
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   p.x = e.clientX; p.y = e.clientY;
-  if (ptrs.size === 1) {
+  if (ptrs.size === 1 && stationMode) {
+    stCam.yaw -= dx * 0.006;
+    stCam.pitch = Math.max(-0.6, Math.min(1.3, stCam.pitch + dy * 0.005));
+    if (tapInfo && Math.hypot(e.clientX - tapInfo.x, e.clientY - tapInfo.y) > 10) tapInfo.moved = true;
+  } else if (ptrs.size === 1) {
     lastCamDrag = performance.now();
     cam.yaw -= dx * 0.006;
     cam.pitch = Math.max(0.08, Math.min(1.35, cam.pitch + dy * 0.005));
@@ -2008,7 +2168,8 @@ canvas.addEventListener('pointermove', (e) => {
   } else if (ptrs.size === 2) {
     const [a, b] = [...ptrs.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchDist) cam.dist = Math.max(3, Math.min(30, cam.dist * (pinchDist / d)));
+    if (pinchDist && stationMode) stCam.dist = Math.max(18, Math.min(110, stCam.dist * (pinchDist / d)));
+    else if (pinchDist) cam.dist = Math.max(3, Math.min(30, cam.dist * (pinchDist / d)));
     pinchDist = d;
   }
 });
@@ -2021,12 +2182,13 @@ function ptrEnd(e) {
 }
 canvas.addEventListener('pointerup', ptrEnd);
 canvas.addEventListener('pointercancel', ptrEnd);
-canvas.addEventListener('wheel', (e) => { cam.dist = Math.max(3, Math.min(30, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
+canvas.addEventListener('wheel', (e) => { if (stationMode) { stCam.dist = Math.max(18, Math.min(110, stCam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); return; } cam.dist = Math.max(3, Math.min(30, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); }, { passive: false });
 
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 function tapGrab(cx, cy) {
   if (!playing) return;
+  if (stationMode) { stationTap(cx, cy); return; }
   ndc.set((cx / window.innerWidth) * 2 - 1, -(cy / window.innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   const targets = [pileView.mesh];
@@ -2089,7 +2251,7 @@ function say(text, dur = 2.6) { chatter = { text, t: dur }; idleChat = 30 + Math
 
 function updateDockArrow() {
   let target = null, label = '';
-  const full = !S.levels.link && S.cargoCount >= lv('cargo');
+  const full = !S.levels.link && S.cargoCount >= cargoCap();
   if (S.mode !== 'pure') {
     if ((S.tutorial === 3 || full) && !nearDock()) { target = WORLD.dock; label = 'Ablage'; }
     else if (S.tutorial === 4 && !nearShop()) { target = WORLD.shop; label = 'Shop'; }
@@ -2284,8 +2446,8 @@ function animate() {
       S.stats.time += dt;
       fullWarnT -= dt;
       automationTick(dt);
-      updateBot(dt);
-      updateCamera(dt);
+      if (stationMode) stationCamera(dt); else { updateBot(dt); updateCamera(dt); }
+      stationTick(dt);
       $('btn-dock').classList.toggle('hidden', !nearShop() || S.mode === 'pure');
       // standing on a build site?
       let nearSite = -1;
@@ -2321,7 +2483,7 @@ function animate() {
       updatePulse(dt, t);
       updateGoal();
       capsules.speed = (hasMod('radar') ? 2 : 1) * (1 + baseCache.beacon / 100);
-      events.speed = (hasMod('lure') ? 1.8 : 1) * deckEventSpeed(S.deck || 0);
+      events.speed = (hasMod('lure') ? 1.8 : 1) * deckEventSpeed(S.deck || 0) * (1 + SB.events);
       events.special = deckDef(S.deck || 0).special;
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
       events.update(dt, t, pile, camera);
@@ -2339,10 +2501,11 @@ function animate() {
     }
     pile.relaxStep();
     pileView.sync();
-    pileView.updateRing(dt, S && S.levels.scanner >= 1 ? 400 : 25);
+    pileView.updateRing(dt, (S && S.levels.scanner >= 1 ? 400 : 25) + SB.glitter * 200);
     updateDrones(dt, t);
   }
   if (S) baseView.update(dt, t, baseFlow, baseCache.eff, (S.buffer || 0) / Math.max(1, baseCache.buffer));
+  stationView.update(dt, t);
   updateDebris(dt);
   dust.update(dt);
   let shaken = false;
@@ -2371,4 +2534,4 @@ $('splash').addEventListener('click', () => {
 });
 
 // test hook
-window.__nx = { checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

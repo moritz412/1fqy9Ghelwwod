@@ -171,6 +171,21 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | Goldmine | 💰 Goldrausch: alle Funde doppelt wert | 25 Platin-Nuggets |
 | Alienschrott | 👽 Alien-Schwarm: Aliens fangen gibt Artefakte/Datenkerne | 12 Aliens fangen |
 
+## 6c. Nexus Prime – die eigene Raumstation (Langzeitziel)
+
+Aller weggeräumte Schrott wird zu **Baumaterial** (1 t je 1.000 Teile). Damit baust du über dem Hangar deine eigene Station
+**Nexus Prime** – Modul für Modul, sichtbar am Himmel. Module geben **dauerhafte Boni über alle Decks** und ersetzen einen
+klassischen Forschungsbaum: Bauen *ist* Forschen/Freischalten.
+
+| Rang | ab Modulen | schaltet frei |
+|---|---|---|
+| Außenposten | 0 | Verbindungsgang, Raffinerie, Wohnring, Solarflügel |
+| Station | 5 | Frachtdock, Drohnenwerft, Observatorium |
+| Zitadelle | 11 | Forschungsdeck, Teleport-Relais |
+| Megastation | 18 | Gravitationskern |
+
+Module haben bis zu 3 Stufen; seltene Module brauchen zusätzlich seltene Funde aus dem Lager.
+
 ## 7. Fahrplan
 | Version | Inhalt                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -184,6 +199,7 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | 0.9 ✅  | Name „NEXUS CORE“, Intro-Film, Shuttle-Zwischensequenz beim Deckwechsel, neues Startmenü mit Deck-Übersicht und Bestwerten, Außenposten auf dem Deck, Werkzeuge (Greifkran, Staubsauger, Bohrer), Quadrokopter-Drohnen |
 | 1.0 ✅  | Mondlandefähre mit Landeplatz, Intro mit Ton, Bloom und Reflexionen, Bau-System (13 Bauplätze, 8 Anlagen, Strom, Produktionskette, Förderband) |
 | 1.1 ✅  | Ruhigeres Bild, Deck-Mechaniken (Schneesturm, Goldrausch, Alien-Schwarm), 3 Sterne je Deck, Decks erneut spielen, Deck-Skalierung, Endlos-Decks |
-| 1.2     | Online-Bestenliste (braucht Server), PC-Modelle, Bosse/Spezial-Decks |
+| 1.2 ✅  | Nexus Prime (modulare eigene Raumstation, Ränge, Meta-Boni), Detail-Texturen (Panele, Nieten, Warnstreifen) |
+| 1.3     | Nexus-Evolution Mk I–V (sichtbare Bot-Stufen), Bosse/Spezial-Decks, Online-Bestenliste |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

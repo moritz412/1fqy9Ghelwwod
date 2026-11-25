@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { WORLD } from './config.js';
 import { mulberry32 } from './noise.js';
+import { texMat } from './textures.js';
 
 export function buildEnvironment(scene, renderer) {
   scene.background = new THREE.Color(0x02030a);
@@ -178,6 +179,7 @@ export function buildEnvironment(scene, renderer) {
     station.add(mast);
   }
   station.position.set(0, 70, -40);
+  station.visible = false;   // replaced by the player-built Nexus Prime (station.js)
   station.rotation.x = 0.35;
   scene.add(station);
 
@@ -542,10 +544,10 @@ function softTexture() {
 // ------------------------------------------------------------------ outposts
 function buildOutposts(scene, m) {
   const anim = [];
-  const tankMat = new THREE.MeshStandardMaterial({ color: 0xd8dde4, metalness: 0.5, roughness: 0.35 });
+  const tankMat = texMat('hull', 0xd8dde4, { metalness: 0.45 });
   const orange = new THREE.MeshStandardMaterial({ color: 0xff8a3a, metalness: 0.3, roughness: 0.5 });
   const teal = new THREE.MeshStandardMaterial({ color: 0x2fc9a8, metalness: 0.3, roughness: 0.45 });
-  const cont = [0x2f6fa0, 0xb04a3a, 0xd0a030, 0x3a8a5a, 0x6a6f7a].map((c) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.4, roughness: 0.6 }));
+  const cont = [0x2f6fa0, 0xb04a3a, 0xd0a030, 0x3a8a5a, 0x6a6f7a].map((c) => texMat('metal', c, { metalness: 0.35, roughness: 0.6 }));
   const place = (g, angle, r) => { g.position.set(Math.cos(angle) * r, 0, Math.sin(angle) * r); g.rotation.y = -angle + Math.PI / 2; scene.add(g); return g; };
   const shadowAll = (g) => g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
@@ -661,7 +663,7 @@ export function makeShuttle() {
   const g = new THREE.Group();
   const gold = new THREE.MeshStandardMaterial({ color: 0xd8a040, metalness: 0.9, roughness: 0.35, emissive: 0x2a1800 });
   const foil = new THREE.MeshStandardMaterial({ color: 0xb08030, metalness: 1, roughness: 0.55 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xe8eaee, metalness: 0.3, roughness: 0.45, flatShading: true });
+  const white = texMat('hull', 0xe8eaee, { flatShading: true });
   const grey = new THREE.MeshStandardMaterial({ color: 0x8a909a, metalness: 0.6, roughness: 0.4 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x23262d, metalness: 0.7, roughness: 0.3 });
   const glass = new THREE.MeshStandardMaterial({ color: 0x0a2a3a, metalness: 0.9, roughness: 0.05, emissive: 0x0a4a5a, emissiveIntensity: 0.6 });

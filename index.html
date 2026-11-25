@@ -39,6 +39,7 @@
     <button class="icon-btn" id="btn-menu" aria-label="Menü">☰</button>
     <button class="icon-btn" id="btn-archive" aria-label="Archiv">📖</button>
     <button class="icon-btn hidden" id="btn-build" aria-label="Bauen">🏗️</button>
+    <button class="icon-btn hidden" id="btn-station" aria-label="Station">🛰️</button>
 
     <div id="scanner" class="hidden">
       <span class="label">Kern-Resonanz</span>
@@ -84,6 +85,15 @@
       </div>
       <div id="shop-list"></div>
     </div>
+  </div>
+
+  <!-- Nexus Prime station panel (bottom sheet, 3D stays visible) -->
+  <div id="station-panel" class="hidden">
+    <div class="st-head">
+      <div><div class="kicker">Deine Raumstation</div><b id="st-title">Nexus Prime</b><div id="st-res"></div></div>
+      <button class="icon-btn" id="station-close" aria-label="Zurück">✕</button>
+    </div>
+    <div id="st-list"></div>
   </div>
 
   <!-- Base building -->
