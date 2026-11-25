@@ -1232,6 +1232,11 @@ $('btn-menu').addEventListener('click', () => {
   );
   $('tg-music').onclick = (e) => { initAudio(); setMusic(!settings.music); e.currentTarget.classList.toggle('on', settings.music); };
   $('tg-sfx').onclick = (e) => { initAudio(); setSfx(!settings.sfx); e.currentTarget.classList.toggle('on', settings.sfx); sfx.click(); };
+  const share = document.createElement('button');
+  share.className = 'big share-btn';
+  share.textContent = '🔗 Spiel teilen';
+  share.onclick = shareGame;
+  $('msg-body').appendChild(share);
   const test = document.createElement('button');
   test.className = 'ghost';
   test.textContent = '🔈 Ton testen';
@@ -1247,6 +1252,31 @@ $('btn-menu').addEventListener('click', () => {
   extra.onclick = () => { $('overlay-msg').classList.add('hidden'); showStart(); };
   $('msg-body').appendChild(extra);
 });
+
+// ---- share link (iOS/Android share sheet, otherwise copy to clipboard)
+const GAME_URL = location.origin + location.pathname.replace(/index\.html$/, '');
+async function shareGame() {
+  initAudio();
+  let text = 'Hilf dem Nexus-Bot, den Nexus-Kern in 5.000.000 Schrottteilen zu finden! 🤖';
+  if (S && S.stats && S.stats.removed > 0 && S.mode !== 'pure') {
+    const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
+    text = `Ich bin Nexus Level ${S.level} und habe schon ${fmt(S.stats.removed)} Schrottteile sortiert (${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} %). Schaffst du mehr? 🤖`;
+  }
+  const data = { title: 'Nexus Schrottberg', text, url: GAME_URL };
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // user closed the share sheet
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${GAME_URL}`);
+    hint('Link kopiert! 📋', '#6ff3f0');
+    feed('Link in die Zwischenablage kopiert', '#6ff3f0');
+  } catch (e) {
+    showMessage('Spiel teilen', `<p class="lead">Kopiere diesen Link:</p><p class="share-url">${GAME_URL}</p>`, 'OK', () => {});
+  }
+}
+$('btn-share-start').addEventListener('click', shareGame);
 
 setInterval(() => { if (playing) save(); }, 10000);
 // iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)

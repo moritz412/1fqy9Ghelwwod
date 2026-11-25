@@ -246,6 +246,9 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .pbar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #2fc9a8, #7cf0b0); }
 .pbar span { position: absolute; left: 8px; top: 0; font-size: 11px; font-weight: 800; line-height: 16px; }
 
+.share-btn { margin-top: 12px; background: linear-gradient(180deg, #ffd08a, #ffb347); color: #3a2208; box-shadow: 0 6px 0 #8a5312; min-height: 50px; font-size: 16px; }
+.share-url { user-select: all; -webkit-user-select: all; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 10px; padding: 10px; word-break: break-all; font-weight: 700; color: var(--accent); }
+
 /* ---------- Overlays ---------- */
 .overlay {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
