@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS, deckDef, deckName, deckTotal, deckValueMult, deckEventSpeed, deckGoalTarget, deckMinutes, EVOLUTION } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS, deckDef, deckName, deckTotal, deckValueMult, deckEventSpeed, deckGoalTarget, deckMinutes, EVOLUTION, deckTwist } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
@@ -15,7 +15,7 @@ import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
 import { buildEnvironment } from './scene.js';
-import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings, setMusicTheme, setMusicIntensity, setAmbience } from './audio.js';
+import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings, setMusicTheme, pauseAudio, setMusicIntensity, setAmbience } from './audio.js';
 
 // ================================================================ save state
 const SAVE_KEY = 'nexus-schrottberg.v1';
@@ -345,6 +345,7 @@ const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 
 const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult * (1 + (S.sites ? baseStats(S.sites).hangar : 0) / 100) * (1 + SB.drones + SB.all);
 const hasMod = (id) => S.equipped && S.equipped.includes(id);
 const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
+const twist = (id) => { const tw = S && deckTwist(S.deck || 0); return !!tw && tw.id === id; };
 const toolDef = () => TOOLS.find((x) => x.id === (S.tool || 'arms')) || TOOLS[0];
 const grabRadius = () => Math.max(0, GRAB_RADIUS[S.levels.hands] + (hasMod('reach') ? 1 : 0) + toolDef().radius);
 const reachDist = () => 2.2 + grabRadius() * 0.5 + chassisDef().reach + (hasMod('reach') ? 0.8 : 0) + toolDef().reach;
@@ -358,7 +359,7 @@ function updateHud() {
   setText('remaining', fmt(pile.total));
   const pct = (((S.total || TOTAL_STONES) - pile.total) / (S.total || TOTAL_STONES)) * 100;
   setText('progress', `${pct.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} %`);
-  setText('deck-line', `${deckDef(S.deck || 0).name} · ${deckName(S.deck || 0)}${S.stars ? ` · ⭐ ${S.stars}` : ''}`);
+  setText('deck-line', `${deckDef(S.deck || 0).name} · ${deckName(S.deck || 0)}${deckTwist(S.deck || 0) ? ' · ' + deckTwist(S.deck || 0).name : ''}${S.stars ? ` · ⭐ ${S.stars}` : ''}`);
   setText('credits', fmt(S.credits));
   setText('level', `${S.level}`);
   $('xp-fill').style.width = `${Math.min(100, (S.xp / xpForLevel(S.level)) * 100)}%`;
@@ -397,7 +398,7 @@ function rollFinds(n, luck = 1) {
     let m = tier < 3 ? luck : 1;
     if (S && hasMod('magnet') && ['copper', 'platinum', 'probe'].includes(f.id)) m *= 1.4;
     if (S && hasMod('sense') && f.value >= 300) m *= 1.5;
-    if (S && f.value >= 300) m *= toolDef().rare * events.rareFactor * (1 + SB.rare);
+    if (S && f.value >= 300) m *= toolDef().rare * events.rareFactor * (1 + SB.rare) * (twist('dark') ? 2 : 1);
     if (S) m *= (DECKS[(S.deck || 0) % DECKS.length].boost || {})[f.id] || 1;
     const k = poisson(n * f.rate * m);
     if (k) out.push({ f, k, tier: Math.min(5, tier) });
@@ -658,7 +659,7 @@ function doGrab(x, z) {
   initAudio();
   const evoMul = 1 + ((S.evo || 1) >= 2 ? 0.15 : 0);
   const dbl = (S.evo || 1) >= 5 && Math.random() < 0.25;
-  const amount = Math.max(1, Math.round(lv('hands') * toolDef().amount * evoMul * (dbl ? 2 : 1)));
+  const amount = Math.max(1, Math.round(lv('hands') * toolDef().amount * evoMul * (dbl ? 2 : 1) * (twist('heavy') ? 1.5 : 1)));
   if (dbl && Math.random() < 0.15) say('Doppelgriff! 🙌', 1);
   const radius = grabRadius();
   const pickR = 2.6 + toolDef().pickup;
@@ -674,6 +675,7 @@ function doGrab(x, z) {
     if (down) golemDefeated();
   }
   const res = pile.grab(x, z, amount, Math.max(radius, 0.8));
+  if (S.cleared && !res.removed && performance.now() - clearedAskT > 20000) showCleared(0, 0);
   bot.grab();
   if ((cap || met || al) && !res.removed) return;
   S.stats.grabs++;
@@ -733,7 +735,7 @@ function openMeteor(pos) {
   bot.setMood('love', 1.5);
 }
 function golemDefeated() {
-  S.golemDone = true;
+  S.golemN = (S.golemN || 0) + 1;
   S.stats.golems = (S.stats.golems || 0) + 1;
   const cr = Math.round(2500 * ((S.deck || 0) + 1) * deckValueMult(S.deck || 0));
   S.credits += cr; S.stats.earned += cr;
@@ -1228,13 +1230,49 @@ function confetti(n = 60) {
 }
 
 // ================================================================ milestones: every 10 % of a deck
+function deckCleared() {
+  S.cleared = true;
+  if (!S.coreFound) { coreFound(true); }
+  const n = S.deck || 0;
+  const credits = Math.round(5000 * (n + 1) * deckValueMult(n));
+  const tons = 40 + n * 15;
+  if (S.mode !== 'pure') { S.credits += credits; S.stats.earned += credits; S.tonsBonus = (S.tonsBonus || 0) + tons; addXp(300 + n * 50); }
+  records.cleared = records.cleared || {};
+  records.cleared[n] = true;
+  saveRecords();
+  sfx.milestone(); confetti(35);
+  bot.setMood('love', 8);
+  save();
+  setTimeout(() => showCleared(credits, tons), S.coreFound ? 600 : 3500);
+}
+let clearedAskT = 0;
+function showCleared(credits, tons) {
+  const n = S.deck || 0;
+  clearedAskT = performance.now();
+  {
+    showMessage('Deck blitzblank!',
+      `<p class="lead">Kein einziges Schrottteil mehr auf <b>${deckName(n)}</b>. Die Crew ist sprachlos – so sauber war dieses Deck noch nie.</p>
+       <div class="stats">
+         ${credits ? `<span>Abschlussprämie</span><span>+${fmt(credits)} ⬡</span><span>Für Nexus Prime</span><span>+${fmt(tons)} t</span>` : ''}
+         <span>Zeit auf diesem Deck</span><span>${formatTime(deckTime())}</span>
+       </div>
+       <p class="lead">Auf zum nächsten Deck: <b>${deckName(n + 1)}</b>${deckTwist(n + 1) ? ` mit der Regel „${deckTwist(n + 1).name}“` : ''}. Du nimmst alles mit.</p>`,
+      S.mode === 'pure' ? 'Neues Spiel' : `Nächstes Deck ▶ ${deckName(n + 1)}`,
+      () => (S.mode === 'pure' ? newGame('pure') : nextDeck()),
+      'Noch umsehen', () => {});
+  }
+}
+
 function checkMilestones() {
-  if (S.mode === 'pure') return;
   const total = S.total || TOTAL_STONES;
+  if (!S.cleared && pile.total <= Math.max(50, total * 0.0002)) { deckCleared(); return; }
+  if (S.mode === 'pure') return;
   const pct = Math.floor(((total - pile.total) / total) * 100);
   const reached = Math.floor(pct / 10) * 10;
   S.milestone = S.milestone || 0;
-  if (reached >= 50 && !(S.golemDone) && !golem.active) {
+  const gAt = twist('nest') ? [25, 75] : [50];
+  if (S.golemDone && !S.golemN) S.golemN = 1;
+  if (!golem.active && (S.golemN || 0) < gAt.length && pct >= gAt[S.golemN || 0]) {
     golem.spawn(pile, 25 + (S.deck || 0) * 10);
     sfx.meteor(0.8); shake = 0.6;
     say('Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!', 5);
@@ -1430,6 +1468,7 @@ function coreFound(byPlayer) {
   for (let k = 0; k < 4; k++) setTimeout(() => spawnDebris(p.x, p.y + 1, p.z, 25, 0, 0, 0.6), k * 200);
   save();
   setTimeout(() => {
+    if (S.cleared) return;
     showMessage('💠 Nexus-Kern gefunden!',
       `<p class="lead">${byPlayer ? 'Dein Nexus-Bot hat' : 'Einer deiner Helfer hat'} den Kern aus dem Schrott gezogen. Die Station läuft wieder auf voller Leistung!</p>
        <div class="stats">
@@ -1897,6 +1936,7 @@ function setupWorld(state) {
   if (S.coreFound) pile.ring.found = true;
   pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
   env.setTheme(S.deck || 0);
+  env.setDim(twist('dark'));
   setDeckAudio();
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
@@ -1995,7 +2035,9 @@ function makeDeckState(n, old) {
 }
 function welcomeDeck(n) {
   const d = deckDef(n);
+  const tw = deckTwist(n);
   say(`Willkommen auf ${d.name}: ${deckName(n)}! ${d.mech}`, 7);
+  if (tw) setTimeout(() => say(`Deck-Regel „${tw.name}“: ${tw.desc}`, 6), 14000);
   setTimeout(() => say(`Ziele: Kern finden · unter ${deckMinutes(n)} Min · ${d.goal.label.replace(/\d[\d.]*/, fmt(deckGoalTarget(n)))}`, 6), 7500);
 }
 function nextDeck() {
@@ -2246,7 +2288,7 @@ function showStart() {
       <b>${deckName(i)}</b>
       <small>${dd.name}</small>
       <span class="stars">${unlocked ? stars : ''}</span>
-      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : dd.mech) : 'Noch gesperrt'}</small>
+      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : (deckTwist(i) ? 'Regel: ' + deckTwist(i).name : dd.mech)) : 'Noch gesperrt'}</small>
     </button>`;
   }).join('');
   document.querySelectorAll('#deck-list .deck-card').forEach((el) => el.addEventListener('click', () => {
@@ -2255,7 +2297,7 @@ function showStart() {
     if (ex && i === deckIdx) { $('btn-start').click(); return; }
     initAudio();
     showMessage(`${deckName(i)} spielen?`,
-      `<p class="lead">${deckDef(i).mech}</p><div class="stats"><span>Schrott</span><span>${fmt(deckTotal(i))}</span><span>Fundwert</span><span>+${Math.round((deckValueMult(i) - 1) * 100)} %</span><span>Ziele</span><span>Kern · ${deckMinutes(i)} min · ${fmt(deckGoalTarget(i))}</span></div><p class="lead small">Du nimmst alles mit: Credits, Upgrades, Drohnen, Anlagen, Station und Skins. Nur der Schrottberg ist neu.</p>`,
+      `<p class="lead">${deckDef(i).mech}</p>${deckTwist(i) ? `<p class="lead small"><b>Deck-Regel: ${deckTwist(i).name}</b> – ${deckTwist(i).desc}</p>` : ''}<div class="stats"><span>Schrott</span><span>${fmt(deckTotal(i))}</span><span>Fundwert</span><span>+${Math.round((deckValueMult(i) - 1) * 100)} %</span><span>Ziele</span><span>Kern · ${deckMinutes(i)} min · ${fmt(deckGoalTarget(i))}</span></div><p class="lead small">Du nimmst alles mit: Credits, Upgrades, Drohnen, Anlagen, Station und Skins. Nur der Schrottberg ist neu.</p>`,
       'Los geht’s ▶', () => { $('overlay-start').classList.add('hidden'); playDeck(i); }, 'Abbrechen', () => {});
   }));
   const r = records;
@@ -2347,7 +2389,9 @@ setInterval(() => { if (playing) save(); }, 10000);
 document.addEventListener('click', (e) => { if (e.target.closest('.tab, .buy, .ghost, .chip-btn, .site, .deck-card, .icon-btn')) sfx.ui(); }, true);
 // iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)
 ['touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }));
-document.addEventListener('visibilitychange', () => { if (!document.hidden) initAudio(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAudio(); else initAudio(); });
+window.addEventListener('pagehide', pauseAudio);
+window.addEventListener('blur', () => { if (document.hidden) pauseAudio(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && playing) save(); });
 
 // ================================================================ input
@@ -2612,7 +2656,7 @@ function updateBot(dt) {
     const mx = fx * -jy + rx * jx, mz = fz * -jy + rz * jx;
     const ml = Math.hypot(mx, mz) || 1;
     const ch = chassisDef();
-    const speed = lv('drive') * ch.speed * mag;
+    const speed = lv('drive') * ch.speed * mag * (twist('heavy') ? 0.85 : 1);
     // climbing the heap is slower
     const ahead = pile.heightAt(p.x + (mx / ml) * 0.4, p.z + (mz / ml) * 0.4);
     const slope = Math.max(0, (ahead - Math.max(0, pile.heightAt(p.x, p.z))) / 0.4);
@@ -2735,8 +2779,8 @@ function animate() {
       updateCombo(dt);
       updatePulse(dt, t);
       updateGoal();
-      capsules.speed = (hasMod('radar') ? 2 : 1) * (1 + baseCache.beacon / 100);
-      events.speed = (hasMod('lure') ? 1.8 : 1) * deckEventSpeed(S.deck || 0) * (1 + SB.events);
+      capsules.speed = (hasMod('radar') ? 2 : 1) * (1 + baseCache.beacon / 100) * (twist('rush') ? 2 : 1);
+      events.speed = (hasMod('lure') ? 1.8 : 1) * deckEventSpeed(S.deck || 0) * (1 + SB.events) * (twist('rush') ? 2 : 1);
       events.special = deckDef(S.deck || 0).special;
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
       events.update(dt, t, pile, camera);

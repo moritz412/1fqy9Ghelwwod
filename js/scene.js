@@ -443,6 +443,10 @@ export function buildEnvironment(scene, renderer) {
   }
   let currentDeco = null;
   let stormTarget = 0, storm = 0;
+  let dimTarget = 0, dim = 0;
+  const lamp = new THREE.PointLight(0xd6ecff, 0, 13, 1.6);
+  lamp.position.set(0, 8, 0);
+  scene.add(lamp);
   function setTheme(i) {
     const th = THEMES[i % THEMES.length];
     scene.background = new THREE.Color(th.bg);
@@ -472,7 +476,9 @@ export function buildEnvironment(scene, renderer) {
     followShadow(x, z) {
       sun.target.position.set(x, 0, z);
       sun.position.set(x + 30, 40, z + 18);
+      lamp.position.set(x, 9, z + 2);
     },
+    setDim(on) { dimTarget = dim = on ? 1 : 0; },
     setStorm(on) { stormTarget = on ? 1 : 0; },
     shuttle,
     update(dt, t) {
@@ -499,6 +505,12 @@ export function buildEnvironment(scene, renderer) {
       blinkers.forEach((b, i) => { b.scale.setScalar(0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.9))); });
       sunCore.material.opacity = 0.9 + Math.sin(t * 0.7) * 0.1;
       storm += (stormTarget - storm) * Math.min(1, dt * 0.8);
+      dim += (dimTarget - dim) * Math.min(1, dt * 0.6);
+      sun.intensity = 2.2 * (1 - dim * 0.85);
+      hemi.intensity = 0.6 * (1 - dim * 0.75);
+      scene.environmentIntensity = 0.12 * (1 - dim * 0.7);
+      lamp.intensity = dim * 28;
+      rim.intensity = 0.6 * (1 - dim * 0.7);
       scene.fog.near = 45 - storm * 40;
       scene.fog.far = 140 - storm * 105;
       motes.material.size = baseMoteSize * (1 + storm * 1.5);

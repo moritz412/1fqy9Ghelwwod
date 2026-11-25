@@ -202,6 +202,7 @@ Module haben bis zu 3 Stufen; seltene Module brauchen zusätzlich seltene Funde 
 | 1.0 ✅  | Mondlandefähre mit Landeplatz, Intro mit Ton, Bloom und Reflexionen, Bau-System (13 Bauplätze, 8 Anlagen, Strom, Produktionskette, Förderband) |
 | 1.1 ✅  | Ruhigeres Bild, Deck-Mechaniken (Schneesturm, Goldrausch, Alien-Schwarm), 3 Sterne je Deck, Decks erneut spielen, Deck-Skalierung, Endlos-Decks |
 | 1.2 ✅  | Nexus Prime (modulare eigene Raumstation, Ränge, Meta-Boni), Detail-Texturen (Panele, Nieten, Warnstreifen) |
-| 1.3     | Nexus-Evolution Mk I–V (sichtbare Bot-Stufen), Bosse/Spezial-Decks, Online-Bestenliste |
+| 1.3 ✅  | Nexus-Evolution Mk I–V, Händler und Expeditionen, Schrottgolem (Boss), Deck-Regeln für Endlos-Decks (Schwerkraft, Notbeleuchtung, Schnellschicht, Golem-Nest), Deck-Abschluss „blitzblank“, ruhiges UI mit Linien-Icons |
+| 1.4     | Online-Bestenliste, weitere Bosse, mehr Grafikdetails |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

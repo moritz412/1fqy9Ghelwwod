@@ -183,6 +183,14 @@ export const DECKS = [
   { name: 'Schmelzdeck 9', title: 'Vulkanschmiede',  special: 'eruption', mech: 'Eruptionen schleudern glühende Lavabrocken voller Schätze auf den Haufen.', goal: { label: 'Sammle 30 Lavabrocken', key: 'lava', target: 30 }, minutes: 45, boost: { platinum: 2, graviton: 2.5 }, perk: '2× Platin, 2,5× Gravitonperlen', base: [0.2, 0.13, 0.1], pebbles: [[2.4, 0.8, 0.3], [1.2, 0.6, 0.4], [0.7, 0.6, 0.6], [1.0, 0.8, 0.7]] },
   { name: 'Kristalldeck Ω', title: 'Kristallgarten', special: 'resonance', mech: 'Resonanz: Die Kristalle singen – der Kern leuchtet durch den ganzen Berg.', goal: { label: 'Finde 15 Datenkerne', key: 'datacore', target: 15 }, minutes: 50, boost: { ice: 2, datacore: 2 }, perk: '2× Eiskristalle und Datenkerne', base: [0.22, 0.2, 0.3], pebbles: [[1.6, 1.0, 2.6], [0.8, 2.0, 2.4], [2.2, 1.4, 2.6], [1.1, 1.1, 1.4]] },
 ];
+// Deck rules for the endless repeats (II, III, ...): every round plays a bit differently, always with an upside.
+export const TWISTS = [
+  { id: 'heavy', name: 'Schwerkraft ×1,5', desc: 'Nexus fährt etwas langsamer, packt aber 50 % mehr Teile pro Griff.' },
+  { id: 'dark',  name: 'Notbeleuchtung',   desc: 'Halbdunkel auf dem Deck, Nexus fährt mit Scheinwerfer – seltene Funde doppelt so oft.' },
+  { id: 'rush',  name: 'Schnellschicht',   desc: 'Ereignisse und Frachtkapseln kommen doppelt so oft.' },
+  { id: 'nest',  name: 'Golem-Nest',       desc: 'Zwei Schrottgolems tauchen auf – bei 25 % und bei 75 %.' },
+];
+export const deckTwist = (n) => (n < DECKS.length ? null : TWISTS[(n - DECKS.length) % TWISTS.length]);
 export const STAR_BONUS = { finds: 0.25, helpers: 0.1 };
 export const TURBO = { duration: 8, cooldown: 40, factor: 2.5 };
 

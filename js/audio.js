@@ -44,6 +44,13 @@ function unlockMediaSession() {
   } catch (e) { /* ignore */ }
 }
 
+// App in the background / closed: everything goes quiet (iOS would otherwise keep the 'playback' session alive).
+export function pauseAudio() {
+  try { if (mediaEl && !mediaEl.paused) mediaEl.pause(); } catch (e) { /* ignore */ }
+  try { if (ctx && ctx.state === 'running') ctx.suspend(); } catch (e) { /* ignore */ }
+  try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch (e) { /* ignore */ }
+}
+
 // Call from every user gesture (touchend / click): creates or resumes audio.
 export function initAudio() {
   unlockMediaSession();
