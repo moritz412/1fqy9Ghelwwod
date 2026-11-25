@@ -25,7 +25,7 @@ Aus einem freigestellten Referenzbild ein Modell erzeugen, dann:
 2. Den Ursprung in die Mitte setzen und das Modell auf etwa 1 Einheit skalieren.
 3. Als `.glb` mit Draco-Kompression exportieren.
 
-Gebraucht werden: `crystal.glb` (Zeitkristall), `coin.glb`, `relic.glb` (Bronze-Amphore), `fossil.glb` (Ammonit).
+Gebraucht werden: `core.glb` (Nexus-Kern), Schrottteile (5–10 Varianten), Fundstücke (Kupferspule, Sondenteil, Abzeichen, Alien-Artefakt), Helfer-Drohnen und ein detaillierter Nexus-Bot (Vorlage `assets/ref/nexus-bot.png`).
 
 ## 3. Icons
 

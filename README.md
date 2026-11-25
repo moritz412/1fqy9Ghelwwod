@@ -1,29 +1,36 @@
-# Tiefenzeit – Die Suche nach dem Zeitkristall
+# Nexus Schrottberg
 
-Ein 3D-Grabungsspiel im Browser, gebaut für iPad, Handy und PC. Du gräbst dich durch die Epochen der Wüste
-Ar-Ruhal und suchst mit dem Resonanz-Detektor den versteckten Zeitkristall, die Nadel im Heuhaufen.
+Ein 3D-Sammel- und Aufräumspiel im Browser für iPad, Handy und PC. Auf dem Hangardeck der **Nexus-Raumstation**
+liegen 5.000.000 Teile Weltraumschrott, und darin steckt der verlorene **Nexus-Kern**. Du steuerst den **Nexus-Bot**,
+sortierst Teil für Teil, verkaufst Funde am Nexus-Markt, rüstest den Bot auf und kaufst Helfer, die automatisch mitarbeiten.
 
-- Konzept und Fahrplan: [KONZEPT.md](KONZEPT.md)
-- Ressourcen vom PC erzeugen: [tools/ASSETS.md](tools/ASSETS.md)
+- Konzept: [KONZEPT.md](KONZEPT.md)
+- Ressourcen vom PC: [tools/ASSETS.md](tools/ASSETS.md)
+- Erster Prototyp (Graben in Schichten): [docs/KONZEPT-v0-grabung.md](docs/KONZEPT-v0-grabung.md)
+
+## Steuerung
+| | Touch | PC |
+|---|---|---|
+| Fahren | Stick links | WASD / Pfeiltasten |
+| Kamera | ziehen, kneifen | Maus ziehen, Mausrad |
+| Greifen | GREIFEN halten oder auf den Haufen tippen | Leertaste |
+| Markt | Button am Dock | E |
 
 ## Spielen
 
-**Lokal:** Der Ordner braucht einen kleinen Webserver, weil ES-Module über `file://` nicht laden:
-
+**Lokal:**
 ```bash
-python3 -m http.server 8000
-# dann http://localhost:8000 öffnen (vom iPad aus über die IP des PCs im WLAN)
+python3 -m http.server 8000   # dann http://localhost:8000 öffnen
 ```
 
-**Online über GitHub Pages:**
-
-1. Im Repository unter *Settings → Pages → Build and deployment → Source* den Eintrag **GitHub Actions** wählen.
-2. Den Code auf `main` bringen (mergen). Der Workflow `.github/workflows/pages.yml` veröffentlicht ihn dann automatisch,
-   alternativ unter *Actions → Deploy to GitHub Pages → Run workflow* von Hand starten.
-3. Die Adresse lautet `https://<benutzer>.github.io/<repo>/`.
+**GitHub Pages:**
+1. *Settings → Pages → Source:* **GitHub Actions** wählen.
+2. Den Branch nach `main` mergen. Der Workflow `.github/workflows/pages.yml` veröffentlicht das Spiel automatisch.
 
 Auf dem iPad: In Safari öffnen, dann *Teilen → Zum Home-Bildschirm*. So startet das Spiel als Vollbild-App.
+Der Spielstand wird im Browser gespeichert.
 
 ## Technik
-
-Reines HTML, CSS und JavaScript mit Three.js 0.170 (liegt in `vendor/`, MIT-Lizenz). Es gibt keinen Build-Schritt.
+Reines HTML, CSS und JavaScript mit Three.js 0.170 (in `vendor/`, MIT). Es gibt keinen Build-Schritt.
+Der Haufen ist eine Höhenkarte mit 64 × 64 Säulen, jede Säule speichert ihre Teile als Zahl. Gezeichnet wird nur die Oberfläche,
+deshalb laufen auch 5 Millionen Teile flüssig auf dem Tablet.

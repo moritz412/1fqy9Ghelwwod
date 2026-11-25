@@ -1,4 +1,4 @@
-# STAUBMOND – Ein Ring in fünf Millionen Steinen
+# NEXUS SCHROTTBERG – Ein Kern in fünf Millionen Teilen
 
 *Konzept v1. Ein 3D-Sammel- und Aufräum-Simulator für iPad, Handy und Browser, spielbar über GitHub Pages.*
 
@@ -33,22 +33,35 @@ Für unser Spiel übernehmen wir **die Mechanik** (Genre-Schleife). Name, Grafik
 
 ---
 
-## 2. Unser Setting: der Staubmond
+## 2. Unser Setting: die Nexus-Raumstation
 
-Auf dem kleinen Mond **Kessa-7** hat Astronautin **Juna Vell** bei der Rückkehr zur Basis ihren
-**Verlobungsring** verloren. Er liegt in einem Krater voller Gerölltrümmer: genau **5.000.000 Mondsteine**.
-Du bist die Aufräum-Crew. Räum den Krater leer und finde den Ring.
+> Ursprünglich war ein Mondkrater geplant. Weil *Moon Sweepers* (DragDrop Games, 2026) schon
+> „Mondstaub putzen und Werkzeuge kaufen“ macht, spielt das Spiel jetzt **auf der Nexus-Raumstation**.
 
-**Was anders und eigen ist:**
-- **Mondschwerkraft:** Weggeworfene Steine fliegen in hohem Bogen und trudeln langsam. Das ist schön anzusehen und fühlt sich anders an als Heu.
-- **Licht:** Schwarzer Sternenhimmel, ein riesiger Gasplanet am Horizont, harte Sonnenschatten. Der Ring glitzert, wenn Licht auf ihn fällt.
-- **Funde passend zum Thema:** Meteoritensplitter, Eiskristalle, Teile alter Sonden, verlorene Werkzeuge, Raumfahrer-Abzeichen, sehr selten Alien-Fossilien.
-- **Händler:** die Basis-KI **„MAUS“** (Mobile Ankaufs- und Umtausch-Station), ein kleiner Roboterwagen am Kraterrand.
+Ein Frachter hat auf **Hangardeck 7** der Nexus-Raumstation **5.000.000 Teile Weltraumschrott** abgeladen.
+Darin ist der **Nexus-Kern** verschwunden, das leuchtende Herz der Station.
 
-Alternatives Setting mit identischer Technik: **Strand** (ein Ring in fünf Millionen Muscheln) oder **Wüste** (ein Ring in fünf Millionen Kieseln).
-Es müssen nur Farben, Modelle und Texte getauscht werden.
+- **Spielfigur: der Nexus-Bot** (Vorlage: `assets/ref/nexus-bot.png`). Weißer, runder Körper, Bildschirmgesicht mit
+  türkisen Augen, türkise Ohren und Hände, graue Raupen und ein Leuchtstreifen. Das Gesicht zeigt Gefühle:
+  blinzeln, freuen, Herzchen in Kern-Nähe, traurig bei vollem Laderaum.
+- **Ort:** ein offenes, rundes Hangardeck unter einer Glaskuppel. Darüber dreht sich der Stationsring, am Horizont steht ein Gasriese.
+- **Nexus-Markt:** eine Andockstation am Rand des Decks. Dort verkaufst du Funde und rüstest auf.
+- **Niedrige Schwerkraft:** Weggeworfene Teile fliegen in hohem, langsamem Bogen.
+- **Funde:** Kupferspule, Eiskristall, Sondenteil, Platin-Nugget, Pilotenabzeichen und das sehr seltene Alien-Artefakt.
 
----
+### Der Nexus-Bot wird aufgerüstet (sichtbar am Modell)
+| Upgrade      | Stufen                                                   | Sichtbar am Bot                         |
+|--------------|----------------------------------------------------------|-----------------------------------------|
+| Greifhände   | 1 → 5 → 25 → 120 → 600 → 3.000 Teile/Griff               | Hände werden größer und ändern die Farbe |
+| Greiftempo   | 2 → 9 Griffe/s                                           | –                                       |
+| Antrieb      | Raupen → Ionen-Gleiter                                   | Raupenfarbe, Schwebe-Leuchten           |
+| Laderaum     | 20 → 40.000 Funde                                        | Rucksack wächst                         |
+| Kern-Scanner | Glitzerfilter → Resonanz (heiß/kalt) → Tiefe             | Antenne, Schüssel                       |
+| Nexus-Link   | Funde werden direkt zur Station gebeamt                  | Leuchtfarbe wird violett                |
+
+### Helfer (Automatisierung)
+Mini-Nexus (2/s), Staubdrohne (15/s), Förderband (80/s), Kraterfräse (500/s), Orbit-Kran (3.000/s).
+Jeder Kauf macht den nächsten um 15 % teurer. Die Helfer arbeiten auch offline, bis zu 2 Stunden.
 
 ## 3. Spielschleife
 
@@ -142,8 +155,8 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 ## 7. Fahrplan
 | Version | Inhalt                                                                  |
 |---------|-------------------------------------------------------------------------|
-| 0.2     | Krater mit 5 Mio. Steinen, Greifen, Mondwurf, Zähler, Ring, Funde       |
-| 0.3     | MAUS-Händler, Shop, Werkzeuge 1–6, Speichern                            |
-| 0.4     | Maschinen und Automatisierung, Offline-Fortschritt                      |
+| 0.2 ✅  | Hangardeck, 5 Mio. Teile, Nexus-Bot, Greifen, Funde, Markt, Upgrades, Helfer, Speichern, Modus Pur |
+| 0.3     | Balancing am echten iPad, Musik, Tutorial-Sprechblasen des Bots         |
+| 0.4     | Nexus-Bot-Skins, weitere Decks (andere Schrottarten), Erfolge           |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

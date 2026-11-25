@@ -1,12 +1,12 @@
 {
-  "name": "Tiefenzeit – Die Suche nach dem Zeitkristall",
-  "short_name": "Tiefenzeit",
+  "name": "Nexus Schrottberg",
+  "short_name": "Nexus",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "any",
-  "background_color": "#2b1d14",
-  "theme_color": "#2b1d14",
+  "background_color": "#05070c",
+  "theme_color": "#05070c",
   "lang": "de",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
