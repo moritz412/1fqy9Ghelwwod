@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { PILE, TOTAL_STONES } from './config.js';
 import { mulberry32, makeNoise3 } from './noise.js';
+import { texMat } from './textures.js';
 
 const { N, CELL, H_PER, RADIUS, MAX_SLOPE } = PILE;
 const HALF = (N * CELL) / 2;
@@ -288,6 +289,7 @@ export class PileView {
       this.updatePebble(k);
     }
     this.pebMeshes.forEach((m) => scene.add(m));
+    this.buildJunk(pile, rnd);
 
     // The Nexus core (only visible when exposed) + glitter sprite
     this.ringMesh = new THREE.Group();
@@ -305,6 +307,82 @@ export class PileView {
     this.glitter.visible = false;
     scene.add(this.glitter);
     this.glitterT = 0;
+  }
+
+  // Large, recognisable scrap lying on top of the heap: gears, barrels, tyres, girders, panels.
+  buildJunk(pile, rnd) {
+    const gear = (() => {
+      const sh = new THREE.Shape(); const teeth = 10, r0 = 0.78, r1 = 1;
+      for (let k = 0; k < teeth * 2; k++) {
+        const a0 = (k / (teeth * 2)) * Math.PI * 2, a1 = ((k + 1) / (teeth * 2)) * Math.PI * 2, r = k % 2 ? r0 : r1;
+        if (k === 0) sh.moveTo(Math.cos(a0) * r, Math.sin(a0) * r); else sh.lineTo(Math.cos(a0) * r, Math.sin(a0) * r);
+        sh.lineTo(Math.cos(a1) * r, Math.sin(a1) * r);
+      }
+      const hole = new THREE.Path(); hole.absarc(0, 0, 0.28, 0, Math.PI * 2, true); sh.holes.push(hole);
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.22, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 1, curveSegments: 6 });
+      g.rotateX(Math.PI / 2); g.center(); return g;
+    })();
+    const beam = (() => {
+      const sh = new THREE.Shape(); const w = 0.5, h = 0.6, t = 0.1;
+      sh.moveTo(-w, -h); sh.lineTo(w, -h); sh.lineTo(w, -h + t); sh.lineTo(t / 2, -h + t); sh.lineTo(t / 2, h - t); sh.lineTo(w, h - t); sh.lineTo(w, h); sh.lineTo(-w, h); sh.lineTo(-w, h - t); sh.lineTo(-t / 2, h - t); sh.lineTo(-t / 2, -h + t); sh.lineTo(-w, -h + t); sh.closePath();
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 3.2, bevelEnabled: false }); g.center(); return g;
+    })();
+    const barrel = new THREE.CylinderGeometry(0.6, 0.6, 1.5, 14, 3);
+    { // rims on the barrel
+      const p = barrel.attributes.position;
+      for (let v = 0; v < p.count; v++) { const y = p.getY(v); if (Math.abs(Math.abs(y) - 0.25) < 0.01) { p.setX(v, p.getX(v) * 1.06); p.setZ(v, p.getZ(v) * 1.06); } }
+      barrel.computeVertexNormals();
+    }
+    const tyre = new THREE.TorusGeometry(0.75, 0.3, 8, 18);
+    const panel = new THREE.BoxGeometry(2.2, 0.12, 1.4, 1, 1, 1);
+    const kinds = [
+      { geo: gear,   mat: texMat('metal', 0xffffff, { roughness: 0.45, metalness: 0.8 }), n: 170, s: [0.28, 0.6], cols: [[0.75, 0.62, 0.45], [0.6, 0.62, 0.66], [0.8, 0.5, 0.3]] },
+      { geo: barrel, mat: texMat('hull', 0xffffff, { roughness: 0.5, metalness: 0.4 }),   n: 130, s: [0.28, 0.5], cols: [[0.75, 0.3, 0.2], [0.2, 0.4, 0.6], [0.85, 0.7, 0.25], [0.35, 0.5, 0.35]] },
+      { geo: tyre,   mat: new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 }), n: 100, s: [0.28, 0.52], cols: [[0.12, 0.12, 0.13]] },
+      { geo: beam,   mat: texMat('metal', 0xffffff, { roughness: 0.55, metalness: 0.75 }), n: 130, s: [0.22, 0.42], cols: [[0.7, 0.45, 0.3], [0.55, 0.57, 0.6]] },
+      { geo: panel,  mat: texMat('hull', 0xffffff, { roughness: 0.55, metalness: 0.35 }), n: 150, s: [0.3, 0.62], cols: [[0.8, 0.82, 0.85], [0.5, 0.55, 0.6], [0.75, 0.6, 0.3]] },
+    ];
+    this.junk = []; this.junkByCell = new Map();
+    const col = new THREE.Color();
+    this.junkMeshes = kinds.map((kd, type) => {
+      const m = new THREE.InstancedMesh(kd.geo, kd.mat, kd.n);
+      m.castShadow = true; m.receiveShadow = true;
+      for (let i = 0; i < kd.n; i++) {
+        let x = 0, z = 0, c = -1;
+        for (let t = 0; t < 30; t++) {
+          x = (rnd() - 0.5) * 2 * RADIUS * 0.95; z = (rnd() - 0.5) * 2 * RADIUS * 0.95;
+          c = pile.cellAt(x, z);
+          if (c >= 0 && pile.counts[c] > 0) break;
+        }
+        const s = kd.s[0] + rnd() * rnd() * (kd.s[1] - kd.s[0]);
+        const d = { x, z, c, s, type, i, rx: (rnd() - 0.5) * 1.1, ry: rnd() * 6.3, rz: (rnd() - 0.5) * 1.1, sink: 0.15 + rnd() * 0.35 };
+        if (type === 2) d.rx += Math.PI / 2;                 // tyres lie flat-ish
+        if (type === 1 && rnd() < 0.5) d.rz += Math.PI / 2;  // some barrels toppled
+        const k = this.junk.length; this.junk.push(d);
+        if (!this.junkByCell.has(c)) this.junkByCell.set(c, []);
+        this.junkByCell.get(c).push(k);
+        const cc = kd.cols[Math.floor(rnd() * kd.cols.length)], g = 0.75 + rnd() * 0.4;
+        col.setRGB(cc[0] * g, cc[1] * g, cc[2] * g);
+        m.setColorAt(i, col);
+      }
+      return m;
+    });
+    for (let k = 0; k < this.junk.length; k++) this.updateJunk(k);
+    this.junkMeshes.forEach((m) => this.scene.add(m));
+  }
+
+  updateJunk(k) {
+    const d = this.junk[k];
+    const m = this._jm || (this._jm = new THREE.Matrix4());
+    const cnt = d.c >= 0 ? this.pile.counts[d.c] : 0;
+    if (cnt < 40) m.makeScale(0, 0, 0);
+    else {
+      const y = this.pile.heightAt(d.x, d.z);
+      m.makeRotationFromEuler(new THREE.Euler(d.rx, d.ry, d.rz));
+      m.scale(new THREE.Vector3(d.s, d.s, d.s));
+      m.setPosition(d.x, y - d.s * d.sink, d.z);
+    }
+    this.junkMeshes[d.type].setMatrixAt(d.i, m);
   }
 
   updateVertex(v) {
@@ -368,12 +446,15 @@ export class PileView {
     for (const c of pebCells) {
       const list = this.pebByCell.get(c);
       if (list) list.forEach((k) => this.updatePebble(k));
+      const jl = this.junkByCell.get(c);
+      if (jl) jl.forEach((k) => this.updateJunk(k));
     }
     this.pebMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; });
+    this.junkMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; });
   }
 
   dispose(scene) {
-    scene.remove(this.mesh, this.ringMesh, this.glitter, ...this.pebMeshes);
+    scene.remove(this.mesh, this.ringMesh, this.glitter, ...this.pebMeshes, ...this.junkMeshes);
     this.mesh.geometry.dispose();
   }
 
