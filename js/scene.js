@@ -233,6 +233,29 @@ export function buildEnvironment(scene, renderer) {
   // ---- small outposts scattered around the deck edge (decor, some animated)
   const outposts = buildOutposts(scene, { white, dark, glow, postMat });
 
+  // ---- landing pad for the lander
+  {
+    const padG = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(WORLD.pad.r, WORLD.pad.r + 0.3, 0.16, 8), new THREE.MeshStandardMaterial({ color: 0x4a505c, metalness: 0.5, roughness: 0.5 }));
+    base.position.y = 0.08; base.receiveShadow = true;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(WORLD.pad.r - 0.35, 0.06, 6, 8), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.18;
+    const markMat = new THREE.MeshBasicMaterial({ color: 0xeef1f5 });
+    const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.02, 1.8), markMat); h1.position.set(-0.6, 0.17, 0);
+    const h2 = h1.clone(); h2.position.x = 0.6;
+    const h3 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.02, 0.25), markMat); h3.position.y = 0.17;
+    padG.add(base, ring, h1, h2, h3);
+    for (let k = 0; k < 8; k++) {
+      const a2 = (k / 8) * Math.PI * 2;
+      const l = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: k % 2 ? 0xffb347 : 0xffffff }));
+      l.position.set(Math.cos(a2) * (WORLD.pad.r + 0.1), 0.2, Math.sin(a2) * (WORLD.pad.r + 0.1));
+      padG.add(l);
+    }
+    padG.position.set(WORLD.pad.x, 0, WORLD.pad.z);
+    padG.rotation.y = Math.atan2(-WORLD.pad.x, -WORLD.pad.z);
+    scene.add(padG);
+  }
+
   // ---- shuttle (used in cutscenes), parked out of sight by default
   const shuttle = makeShuttle();
   shuttle.visible = false;
@@ -622,55 +645,91 @@ function buildOutposts(scene, m) {
   return { update(dt, t) { anim.forEach((f) => f(dt, t)); } };
 }
 
-// ------------------------------------------------------------------ shuttle for cutscenes
+// ------------------------------------------------------------------ lander for cutscenes (lunar-module style)
 export function makeShuttle() {
   const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xf3f4f2, metalness: 0.25, roughness: 0.35 });
-  const teal = new THREE.MeshStandardMaterial({ color: 0x2fc9a8, metalness: 0.3, roughness: 0.4 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d24, metalness: 0.6, roughness: 0.2 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.3, 4.2, 8, 20), white);
-  body.rotation.x = Math.PI / 2;
-  body.position.y = 1.6;
-  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0a2a3a, metalness: 0.9, roughness: 0.05, emissive: 0x0a3a4a }));
-  cockpit.rotation.x = Math.PI / 2.4;
-  cockpit.position.set(0, 2.2, 2.4);
-  const wingGeo = new THREE.BoxGeometry(3.2, 0.18, 1.6);
-  const wl = new THREE.Mesh(wingGeo, teal); wl.position.set(-2, 1.3, -0.6); wl.rotation.z = 0.15;
-  const wr = new THREE.Mesh(wingGeo, teal); wr.position.set(2, 1.3, -0.6); wr.rotation.z = -0.15;
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.5, 1.4), teal); fin.position.set(0, 3, -2);
-  const stripe = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.06, 6, 32), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
-  stripe.position.set(0, 1.6, 0.6);
-  g.add(body, cockpit, wl, wr, fin, stripe);
-  // engines with glow
-  const flames = [];
-  for (const x of [-0.7, 0.7]) {
-    const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 1, 14), dark);
-    eng.rotation.x = Math.PI / 2;
-    eng.position.set(x, 1.3, -3);
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.4, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
-    flame.rotation.x = -Math.PI / 2;
-    flame.position.set(x, 1.3, -4.6);
-    g.add(eng, flame);
-    flames.push(flame);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd8a040, metalness: 0.9, roughness: 0.35, emissive: 0x2a1800 });
+  const foil = new THREE.MeshStandardMaterial({ color: 0xb08030, metalness: 1, roughness: 0.55 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xe8eaee, metalness: 0.3, roughness: 0.45, flatShading: true });
+  const grey = new THREE.MeshStandardMaterial({ color: 0x8a909a, metalness: 0.6, roughness: 0.4 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x23262d, metalness: 0.7, roughness: 0.3 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x0a2a3a, metalness: 0.9, roughness: 0.05, emissive: 0x0a4a5a, emissiveIntensity: 0.6 });
+
+  // descent stage: octagonal gold-foil box
+  const descent = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 1.3, 8), gold);
+  descent.position.y = 1.65;
+  descent.rotation.y = Math.PI / 8;
+  const foilBand = new THREE.Mesh(new THREE.CylinderGeometry(1.72, 1.72, 0.35, 8), foil);
+  foilBand.position.y = 1.4; foilBand.rotation.y = Math.PI / 8;
+  g.add(descent, foilBand);
+  // engine bell under the descent stage + flame
+  const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.65, 0.7, 16, 1, true), dark);
+  bell.position.y = 0.75;
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.6, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xffc070, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  flame.rotation.x = Math.PI;
+  flame.position.y = -0.85;
+  const core = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1.4, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  core.rotation.x = Math.PI; core.position.y = -0.2;
+  g.add(bell, flame, core);
+  // four splayed legs with foot pads
+  for (let k = 0; k < 4; k++) {
+    const a = Math.PI / 4 + (k * Math.PI) / 2;
+    const leg = new THREE.Group();
+    leg.rotation.y = -a;
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.2, 8), grey);
+    strut.position.set(2.0, 1.1, 0); strut.rotation.z = 0.55;
+    const brace = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6), grey);
+    brace.position.set(1.65, 1.6, 0); brace.rotation.z = -0.9;
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.1, 16), grey);
+    pad.position.set(2.55, 0.05, 0);
+    leg.add(strut, brace, pad);
+    g.add(leg);
   }
-  // landing legs
-  for (const [x, z] of [[-1, 1.6], [1, 1.6], [-1, -1.6], [1, -1.6]]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 6), dark);
-    leg.position.set(x, 0.45, z);
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 10), dark);
-    foot.position.set(x, 0.03, z);
-    g.add(leg, foot);
+  // ascent stage: angular cabin
+  const cabin = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, 1.5, 6), white);
+  cabin.position.y = 3.05;
+  const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.15, 0.45, 6), white);
+  roof.position.y = 4.02;
+  const hatch = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.12), grey);
+  hatch.position.set(0, 2.75, 1.25);
+  const win1 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.08), glass); win1.position.set(-0.42, 3.45, 1.12); win1.rotation.y = -0.25; win1.rotation.x = -0.3;
+  const win2 = win1.clone(); win2.position.x = 0.42; win2.rotation.y = 0.25;
+  g.add(cabin, roof, hatch, win1, win2);
+  // antenna dish + mast
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 6), grey);
+  mast.position.set(-0.6, 4.55, -0.3);
+  const dish = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), new THREE.MeshStandardMaterial({ color: 0xeef1f5, side: THREE.DoubleSide, metalness: 0.4, roughness: 0.3 }));
+  dish.position.set(-0.6, 5.0, -0.3); dish.rotation.set(-0.9, 0.6, 0);
+  g.add(mast, dish);
+  // RCS thruster quads on the cabin corners
+  for (let k = 0; k < 4; k++) {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    const q = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), grey);
+    q.position.set(Math.cos(a) * 1.3, 3.5, Math.sin(a) * 1.3);
+    g.add(q);
   }
-  // ramp
-  const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 1.8), white);
-  ramp.position.set(0, 0.5, 3.3);
+  // nexus stripe + beacon light
+  const stripe = new THREE.Mesh(new THREE.TorusGeometry(1.26, 0.04, 6, 6), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
+  stripe.rotation.x = Math.PI / 2; stripe.position.y = 2.4; stripe.rotation.z = Math.PI / 6;
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff4040 }));
+  beacon.position.y = 4.3;
+  g.add(stripe, beacon);
+  // ramp (folds down at the front)
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 1.9), grey);
+  ramp.position.set(0, 1.15, 2.2);
+  ramp.rotation.x = 0.55;
   g.add(ramp);
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+
+  g.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
   g.userData.thrust = 0;
   g.userData.ramp = ramp;
   g.userData.update = (dt, t) => {
     const th = g.userData.thrust;
-    flames.forEach((f, i) => { f.scale.set(1, 0.3 + th * (1 + Math.sin(t * 40 + i) * 0.15), 1); f.material.opacity = 0.25 + th * 0.6; });
+    flame.visible = core.visible = th > 0.05;
+    flame.scale.set(1, 0.2 + th * (1 + Math.sin(t * 45) * 0.12), 1);
+    flame.material.opacity = 0.3 + th * 0.55;
+    core.scale.set(1, 0.3 + th * (1 + Math.sin(t * 60) * 0.2), 1);
+    beacon.visible = Math.sin(t * 5) > 0;
   };
   return g;
 }

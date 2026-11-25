@@ -15,6 +15,7 @@ export const WORLD = {
   botLimit: 29.5,
   dock: { x: 0, z: 19.5, r: 2.4 },     // Nexus-Ablage (sell)
   shop: { x: -19.5, z: 0, r: 2.4 },    // Nexus-Shop (buy)
+  pad: { x: 16.7, z: 19.9, r: 3.2 },   // landing pad for the lander
   gravity: 2.2,     // low artificial gravity on the deck
 };
 

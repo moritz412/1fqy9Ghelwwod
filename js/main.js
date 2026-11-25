@@ -3,6 +3,11 @@ import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUC
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
+import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
+import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
+import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
 import { buildEnvironment } from './scene.js';
@@ -52,6 +57,26 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1200);
 const env = buildEnvironment(scene, renderer);
+
+// ---- image-based lighting: soft reflections on metal and plastic
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.12;
+  pmrem.dispose();
+}
+// ---- bloom post-processing (only on the high quality level)
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.5, 0.45, 1.0);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+const gfx = { bloom: true };
+try { const g = JSON.parse(localStorage.getItem('nexus-gfx')); if (g) Object.assign(gfx, g); } catch (e) { /* ignore */ }
+function renderFrame() {
+  if (gfx.bloom && quality.level === 2) composer.render();
+  else renderer.render(scene, camera);
+}
 
 let pile = null, pileView = null;
 const bot = new NexusBot();
@@ -1214,9 +1239,8 @@ function setupWorld(state) {
   bot.applyUpgrades(S.levels);
   bot.setChassis(S.chassis || 'tracks');
   bot.setTool(S.tool || 'arms');
-  bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
-  bot.group.rotation.y = Math.PI;
-  cam.yaw = 0; cam.pitch = 0.42; cam.dist = 7;
+  { const sp = spawnPos(), d = PAD_DIR(); bot.group.position.copy(sp); bot.group.rotation.y = Math.atan2(d.x, d.z); }
+  cam.yaw = Math.atan2(-PAD_DIR().x, -PAD_DIR().z); cam.pitch = 0.42; cam.dist = 7;
   rebuildDrones();
   hudCache = {};
 }
@@ -1337,35 +1361,76 @@ function placeShuttle(pos, lookTo = null, rotY = Math.PI) {
   else shuttle.rotation.set(0, rotY, 0);
 }
 
-// Intro when the page opens: fly in from space, the shuttle lands, Nexus rolls out.
+const PAD = () => V(WORLD.pad.x, 0, WORLD.pad.z);
+const PAD_DIR = () => V(-WORLD.pad.x, 0, -WORLD.pad.z).normalize();          // from pad towards deck centre
+const PAD_SIDE = () => { const d = PAD_DIR(); return V(d.z, 0, -d.x); };
+const padRot = () => Math.atan2(-WORLD.pad.x, -WORLD.pad.z);
+const spawnPos = () => PAD().add(PAD_DIR().multiplyScalar(6.5));
+let lastDust = 0;
+function landerDust(t, strength) {
+  if (t - lastDust < 0.12) return;
+  lastDust = t;
+  const p = PAD();
+  for (let k = 0; k < 2; k++) {
+    const a = Math.random() * Math.PI * 2;
+    dust.puff(p.x + Math.cos(a) * 2.5, 0.1, p.z + Math.sin(a) * 2.5, 2, 1.6 * strength, 0xb0b4bc);
+  }
+}
+// lander descent from high above to the pad; returns thrust
+function landerDescent(t, t0, t1, from) {
+  const pad = PAD();
+  const mid = pad.clone().add(V(0, 9, 0));
+  const k = (t - t0) / (t1 - t0);
+  let pos, thrust;
+  if (k < 0.55) { pos = lerpV(from, mid, ease(k / 0.55)); thrust = 1; }
+  else { const k2 = (k - 0.55) / 0.45; pos = lerpV(mid, pad, 1 - Math.pow(1 - Math.min(1, k2), 2)); thrust = 0.95 - k2 * 0.6; }
+  shuttle.position.copy(pos);
+  shuttle.rotation.set(0, padRot(), 0);
+  return Math.max(0, thrust);
+}
+
+// Intro when the page opens: the lander comes down on its pad, Nexus rolls out.
 function introCutscene(onDone) {
-  const A = V(-70, 32, -60), B = V(0, 14, WORLD.dock.z), C = DOCK_V();
-  const camA = V(85, 48, 115), camB = V(15, 7, 32), camC = V(5, 2.6, 10);
-  const botFrom = V(0, 0, WORLD.dock.z - 2.2), botTo = V(0, 0, WORLD.dock.z - 5.5);
+  const pad = PAD(), dir = PAD_DIR(), side = PAD_SIDE();
+  const from = pad.clone().add(V(-18, 42, -10));
+  const rampTop = pad.clone().add(dir.clone().multiplyScalar(1.4)).setY(1.0);
+  const rampEnd = pad.clone().add(dir.clone().multiplyScalar(3.4));
+  const botTo = spawnPos();
+  let landed = false;
   shuttle.visible = true;
   bot.group.visible = false;
-  sfx.turbo();
+  sfx.event();
   runCutscene({
-    dur: 13,
-    subs: [[0.3, 'Nexus-Raumstation · Hangardeck 7'], [4, 'Ein Frachter hat 5.000.000 Teile Weltraumschrott abgeladen …'], [8.3, '… und irgendwo darin steckt der Nexus-Kern.'], [11, 'Zeit für Nexus.']],
+    dur: 15,
+    subs: [[0.4, 'Nexus-Raumstation · Hangardeck 7'], [4.2, 'Ein Frachter hat 5.000.000 Teile Weltraumschrott abgeladen …'], [8.6, '… und irgendwo darin steckt der Nexus-Kern.'], [12, 'Zeit für Nexus.']],
     update(t) {
-      if (t < 5) { const p = lerpV(A, B, seg(t, 0, 5)); placeShuttle(p, B.clone().setY(p.y)); shuttle.userData.thrust = 1; }
-      else { placeShuttle(lerpV(B, C, seg(t, 5, 8)), null, Math.PI); shuttle.userData.thrust = Math.max(0.15, 1 - seg(t, 5, 8)); }
-      if (t > 8.2) {
+      if (t < 9.5) {
+        const th = landerDescent(t, 0, 9.5, from);
+        shuttle.userData.thrust = th;
+        setEngine(th, 3);
+        if (t > 7.5) landerDust(t, 1);
+      } else {
+        shuttle.position.copy(pad); shuttle.userData.thrust = 0; setEngine(0);
+        if (!landed) { landed = true; sfx.meteor(0.45); shake = 0.25; dust.puff(pad.x, 0.2, pad.z, 10, 2.4, 0xb0b4bc); }
+      }
+      if (t > 10) {
         bot.group.visible = true;
-        bot.group.position.copy(lerpV(botFrom, botTo, seg(t, 8.5, 11.5)));
-        bot.group.rotation.y = Math.PI;
-        cine.moving = t < 11.5;
-        if (t > 11.6) bot.setMood('happy', 1);
+        const k = seg(t, 10, 13.2);
+        bot.group.position.copy(k < 0.3 ? lerpV(rampTop, rampEnd, k / 0.3) : lerpV(rampEnd, botTo, (k - 0.3) / 0.7));
+        bot.group.rotation.y = Math.atan2(dir.x, dir.z);
+        cine.moving = t < 13.2;
+        if (t > 13.3) bot.setMood('happy', 1);
       }
       let cp, look;
-      if (t < 8) { cp = lerpV(camA, camB, seg(t, 0, 8)); look = shuttle.position.clone().add(V(0, 1.5, 0)); }
-      else { cp = lerpV(camB, camC, seg(t, 8, 12.5)); look = lerpV(shuttle.position.clone().add(V(0, 1.5, 0)), bot.group.position.clone().add(V(0, 1, 0)), seg(t, 8, 11)); }
+      if (t < 6) { cp = pad.clone().add(side.clone().multiplyScalar(34)).add(dir.clone().multiplyScalar(14)).setY(14 + t * 0.5); look = shuttle.position.clone().add(V(0, 2, 0)); }
+      else if (t < 10) { cp = lerpV(pad.clone().add(side.clone().multiplyScalar(34)).add(dir.clone().multiplyScalar(14)).setY(17), pad.clone().add(dir.clone().multiplyScalar(11)).add(side.clone().multiplyScalar(6)).setY(4.5), seg(t, 6, 10)); look = shuttle.position.clone().add(V(0, 2, 0)); }
+      else { cp = lerpV(pad.clone().add(dir.clone().multiplyScalar(11)).add(side.clone().multiplyScalar(6)).setY(4.5), botTo.clone().add(dir.clone().multiplyScalar(4.5)).add(side.clone().multiplyScalar(1.6)).setY(2.2), seg(t, 10, 14.5)); look = lerpV(shuttle.position.clone().add(V(0, 1.5, 0)), bot.group.position.clone().add(V(0, 1, 0)), seg(t, 10, 12)); }
       camera.position.copy(cp); camera.lookAt(look);
     },
     onEnd() {
-      bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
-      bot.group.rotation.y = Math.PI;
+      setEngine(0);
+      bot.group.position.copy(botTo);
+      bot.group.rotation.y = Math.atan2(dir.x, dir.z);
       cine.moving = false;
       try { sessionStorage.setItem('nexus-intro', '1'); } catch (e) { /* ignore */ }
       onDone && onDone();
@@ -1373,206 +1438,74 @@ function introCutscene(onDone) {
   });
 }
 
-// Deck change: Nexus boards the shuttle, flies off, lands on the new deck.
+// Deck change: Nexus boards the lander, lifts off, lands on the new deck.
 function transferCutscene(newState, onDone) {
-  const C = DOCK_V(), above = V(0, 16, WORLD.dock.z), away = V(90, 55, -170);
-  const botStart = V(0, 0, WORLD.dock.z - 6), botIn = V(0, 0, WORLD.dock.z - 2.2);
+  const pad = PAD(), dir = PAD_DIR(), side = PAD_SIDE();
+  const botStart = spawnPos(), botIn = pad.clone().add(dir.clone().multiplyScalar(1.6));
+  const away = pad.clone().add(V(40, 80, -70));
   const nd = DECKS[newState.deck % DECKS.length];
-  let swapped = false;
+  let swapped = false, landed = false, lifted = false;
   shuttle.visible = true;
+  shuttle.position.copy(pad); shuttle.rotation.set(0, padRot(), 0);
   bot.group.position.copy(botStart);
-  bot.group.rotation.y = 0;
+  bot.group.rotation.y = Math.atan2(-dir.x, -dir.z);
   playing = false;
   runCutscene({
-    dur: 15,
-    subs: [[0.3, 'Der Nexus-Kern ist geborgen!'], [3.6, `Nächstes Ziel: ${nd.name} – ${nd.title}`], [9, `${nd.perk}`]],
+    dur: 16,
+    subs: [[0.3, 'Der Nexus-Kern ist geborgen!'], [3.4, `Nächstes Ziel: ${nd.name} – ${nd.title}`], [9.2, nd.perk]],
     update(t) {
-      // 0-2 shuttle lands, 2-4 Nexus boards, 4.2-7 lift-off and away
-      if (t < 2) { placeShuttle(lerpV(above, C, seg(t, 0, 2)), null, Math.PI); shuttle.userData.thrust = 0.5; }
-      else if (t < 4.2) { placeShuttle(C, null, Math.PI); shuttle.userData.thrust = 0.15; }
-      else if (t < 7.5) {
-        const k = seg(t, 4.2, 7.5);
-        const p = k < 0.35 ? lerpV(C, V(0, 7, WORLD.dock.z), k / 0.35) : lerpV(V(0, 7, WORLD.dock.z), away, (k - 0.35) / 0.65);
-        placeShuttle(p, k < 0.35 ? null : away, Math.PI); shuttle.userData.thrust = 1;
+      // 0.3-3 Nexus drives into the lander
+      if (t < 3.2) { bot.group.position.copy(lerpV(botStart, botIn, seg(t, 0.3, 3))); cine.moving = t < 3; }
+      else if (!swapped) { bot.group.visible = false; cine.moving = false; }
+      // 3.5-7.5 lift-off
+      if (t >= 3.5 && t < 8 && !swapped) {
+        const k = seg(t, 3.5, 7.5);
+        const p = k < 0.4 ? lerpV(pad, pad.clone().add(V(0, 9, 0)), ease(k / 0.4)) : lerpV(pad.clone().add(V(0, 9, 0)), away, Math.pow((k - 0.4) / 0.6, 2));
+        shuttle.position.copy(p); shuttle.userData.thrust = 1; setEngine(1, 3);
+        if (!lifted) { lifted = true; sfx.turbo(); }
+        if (t < 5) landerDust(t, 1.2);
       }
-      if (t >= 2 && t < 4) { bot.group.position.copy(lerpV(botStart, botIn, seg(t, 2, 4))); cine.moving = true; }
-      if (t >= 4) { bot.group.visible = false; cine.moving = false; }
-      // fade + swap world
-      if (t > 7.2 && t < 8.6) $('fade').classList.add('on');
+      if (t > 7.4 && t < 8.7) $('fade').classList.add('on');
       if (t >= 8 && !swapped) {
         swapped = true;
         setupWorld(newState);
         bot.group.visible = false;
         shuttle.visible = true;
       }
-      if (t >= 8.6) $('fade').classList.remove('on');
-      // 8.6-11.5 landing on the new deck, 11.8-14 Nexus rolls out
-      if (t >= 8.6) {
-        if (t < 11.5) { placeShuttle(lerpV(V(-60, 40, -80), C, seg(t, 8.6, 11.5)), t < 10.5 ? C : null, Math.PI); shuttle.userData.thrust = 1 - seg(t, 10.5, 11.5) * 0.85; }
-        else placeShuttle(C, null, Math.PI);
-        if (t > 11.6) {
+      if (t >= 8.7) $('fade').classList.remove('on');
+      // 8.7-12.5 descent on the new deck
+      if (swapped) {
+        if (t < 12.5) { const th = landerDescent(t, 8.7, 12.5, pad.clone().add(V(-14, 34, -8))); shuttle.userData.thrust = th; setEngine(th, 3); if (t > 11) landerDust(t, 1); }
+        else { shuttle.position.copy(pad); shuttle.userData.thrust = 0; setEngine(0); if (!landed) { landed = true; sfx.meteor(0.45); shake = 0.25; dust.puff(pad.x, 0.2, pad.z, 10, 2.4, 0xb0b4bc); } }
+        if (t > 12.8) {
           bot.group.visible = true;
-          bot.group.position.copy(lerpV(V(0, 0, WORLD.dock.z - 2.2), V(0, 0, WORLD.dock.z - 5.5), seg(t, 11.8, 14)));
-          bot.group.rotation.y = Math.PI;
-          cine.moving = t < 14;
+          bot.group.position.copy(lerpV(botIn, botStart, seg(t, 12.9, 15.2)));
+          bot.group.rotation.y = Math.atan2(dir.x, dir.z);
+          cine.moving = t < 15.2;
         }
       }
       // camera
       let cp, look;
       if (t < 8) {
-        cp = t < 4.2 ? V(14, 6, 30) : lerpV(V(14, 6, 30), V(10, 12, 40), seg(t, 4.2, 7.5));
-        look = t < 4.2 ? V(0, 1.2, WORLD.dock.z - 2) : shuttle.position.clone();
+        cp = pad.clone().add(dir.clone().multiplyScalar(13)).add(side.clone().multiplyScalar(7)).setY(5 + Math.max(0, t - 3.5) * 2.5);
+        look = t < 3.5 ? bot.group.position.clone().add(V(0, 1, 0)) : shuttle.position.clone().add(V(0, 2, 0));
       } else {
-        cp = lerpV(V(22, 14, 40), V(6, 3, 9), seg(t, 9, 14.5));
-        look = t < 11.6 ? shuttle.position.clone() : bot.group.position.clone().add(V(0, 1, 0));
+        cp = lerpV(pad.clone().add(side.clone().multiplyScalar(26)).add(dir.clone().multiplyScalar(12)).setY(15), botStart.clone().add(dir.clone().multiplyScalar(4.5)).add(side.clone().multiplyScalar(1.6)).setY(2.2), seg(t, 9, 15.5));
+        look = t < 12.8 ? shuttle.position.clone().add(V(0, 2, 0)) : bot.group.position.clone().add(V(0, 1, 0));
       }
       camera.position.copy(cp); camera.lookAt(look);
     },
     onEnd() {
+      setEngine(0);
       if (!swapped) setupWorld(newState);
-      bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 5.5);
-      bot.group.rotation.y = Math.PI;
+      bot.group.position.copy(botStart);
+      bot.group.rotation.y = Math.atan2(dir.x, dir.z);
       cine.moving = false;
       beginPlay(false);
       onDone && onDone();
     },
   });
 }
-
-function showStart() {
-  save();
-  playing = false;
-  hud.classList.add('hidden');
-  $('shop').classList.add('hidden');
-  $('archive').classList.add('hidden');
-  const ex = loadState();
-  $('btn-start').textContent = ex ? 'Weiterspielen ▶' : 'Spiel starten ▶';
-  $('btn-new').classList.toggle('hidden', !ex);
-  const deckIdx = ex ? (ex.deck || 0) : 0;
-  const d = DECKS[deckIdx % DECKS.length];
-  if (ex) {
-    const left = ex.pile.counts.reduce((a, b) => a + b, 0);
-    const pct = ((TOTAL_STONES - left) / TOTAL_STONES) * 100;
-    $('cont-kicker').textContent = ex.mode === 'pure' ? 'Modus Pur' : 'Dein Spielstand';
-    $('cont-title').textContent = `${d.name} · ${d.title}`;
-    $('cont-level').innerHTML = ex.mode === 'pure' ? '' : `Lv ${ex.level || 1}${ex.stars ? `<br>⭐ ${ex.stars}` : ''}`;
-    $('cont-fill').style.width = `${Math.max(1, pct)}%`;
-    $('cont-meta').textContent = `${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} % sortiert · ${fmt(ex.credits)} ⬡ · ${ex.coreFound ? 'Kern gefunden ✔' : 'Kern verschollen'}`;
-  } else {
-    $('cont-kicker').textContent = 'Neues Abenteuer';
-    $('cont-title').textContent = `${d.name} · ${d.title}`;
-    $('cont-level').innerHTML = '';
-    $('cont-fill').style.width = '0%';
-    $('cont-meta').textContent = 'Finde den Nexus-Kern in 5.000.000 Schrottteilen.';
-  }
-  // decks: unlocked up to the furthest one ever reached
-  const maxDeck = Math.max(records.maxDeck || 0, deckIdx);
-  const cols = [['#2a3140', '#4a3a30'], ['#1a3a5a', '#4a7aa0'], ['#4a2a0a', '#a0601a'], ['#2a0a3a', '#1a5a3a']];
-  const shown = Math.max(DECKS.length, maxDeck + 2);
-  $('deck-list').innerHTML = Array.from({ length: shown }, (_, i) => {
-    const dd = DECKS[i % DECKS.length];
-    const round = Math.floor(i / DECKS.length);
-    const unlocked = i <= maxDeck;
-    const cur = ex && i === deckIdx;
-    const best = (records.deckTimes || {})[i];
-    const c = cols[i % cols.length];
-    return `<div class="deck-card ${cur ? 'current' : ''} ${unlocked ? '' : 'locked'}" style="--c1:${c[0]};--c2:${c[1]}">
-      <span class="st">${cur ? '▶' : unlocked ? '✓' : '🔒'}</span>
-      <b>${dd.title}${round ? ' ' + 'I'.repeat(round + 1) : ''}</b>
-      <small>${dd.name}</small>
-      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : dd.perk) : 'Noch gesperrt'}</small>
-    </div>`;
-  }).join('');
-  const r = records;
-  const best = [
-    ['💠', r.cores || 0, 'Kerne gefunden'],
-    ['⏱', r.fastest ? formatTime(r.fastest) : '–', 'schnellster Kern'],
-    ['⭐', ex ? ex.stars || 0 : 0, 'Sterne'],
-    ['🔥', ex ? fmt(ex.bestCombo || 0) : 0, 'beste Kombo'],
-    ['🏆', ex ? `${(ex.achievements || []).length}/${ACHIEVEMENTS.length}` : `0/${ACHIEVEMENTS.length}`, 'Erfolge'],
-    ['♻️', ex ? fmt(ex.stats.removed) : 0, 'Teile sortiert'],
-  ];
-  $('records').innerHTML = best.map(([i, v, l]) => `<div class="best"><b>${i} ${v}</b><small>${l}</small></div>`).join('');
-  $('overlay-start').classList.remove('hidden');
-}
-
-$('btn-start').addEventListener('click', () => {
-  initAudio();
-  const existing = loadState();
-  if (existing) startGame(existing, true); else newGame('career');
-});
-$('btn-new').addEventListener('click', () => {
-  initAudio();
-  showMessage('Neues Spiel?', '<p class="lead">Dein aktueller Fortschritt wird überschrieben.</p>', 'Ja, neu starten', () => newGame('career'), 'Abbrechen', () => {});
-});
-$('btn-pure').addEventListener('click', () => {
-  initAudio();
-  showMessage('Modus „Pur“', '<p class="lead">Keine Upgrades, kein Markt, keine Helfer. 5.000.000 Teile, ein Bot, ein Kern. Ein vorhandener Spielstand wird überschrieben.</p>', 'Los geht’s', () => newGame('pure'), 'Abbrechen', () => {});
-});
-$('btn-menu').addEventListener('click', () => {
-  save();
-  showMessage('Pause',
-    `<p class="lead">Dein Fortschritt wird automatisch gespeichert.</p>
-     <div class="toggles">
-       <button class="toggle ${settings.music ? 'on' : ''}" id="tg-music">🎵 Musik</button>
-       <button class="toggle ${settings.sfx ? 'on' : ''}" id="tg-sfx">🔊 Effekte</button>
-     </div>`,
-    'Weiter', () => {},
-  );
-  $('tg-music').onclick = (e) => { initAudio(); setMusic(!settings.music); e.currentTarget.classList.toggle('on', settings.music); };
-  $('tg-sfx').onclick = (e) => { initAudio(); setSfx(!settings.sfx); e.currentTarget.classList.toggle('on', settings.sfx); sfx.click(); };
-  const share = document.createElement('button');
-  share.className = 'big share-btn';
-  share.textContent = '🔗 Spiel teilen';
-  share.onclick = shareGame;
-  $('msg-body').appendChild(share);
-  const test = document.createElement('button');
-  test.className = 'ghost';
-  test.textContent = '🔈 Ton testen';
-  test.onclick = () => { initAudio(); setTimeout(() => sfx.upgrade(), 50); };
-  $('msg-body').appendChild(test);
-  const tip = document.createElement('p');
-  tip.className = 'lead'; tip.style.fontSize = '12px'; tip.style.margin = '8px 0 0';
-  tip.textContent = 'Kein Ton? iPhone-Lautstärke hochdrehen. Ab iOS 17 klappt es auch im Lautlos-Modus, bei älteren iOS-Versionen den Lautlos-Schalter ausschalten.';
-  $('msg-body').appendChild(tip);
-  const extra = document.createElement('button');
-  extra.className = 'ghost';
-  extra.textContent = 'Hauptmenü';
-  extra.onclick = () => { $('overlay-msg').classList.add('hidden'); showStart(); };
-  $('msg-body').appendChild(extra);
-});
-
-// ---- share link (iOS/Android share sheet, otherwise copy to clipboard)
-const GAME_URL = location.origin + location.pathname.replace(/index\.html$/, '');
-async function shareGame() {
-  initAudio();
-  let text = 'NEXUS CORE: Hilf dem Nexus-Bot, den Nexus-Kern in 5.000.000 Schrottteilen zu finden! 🤖';
-  if (S && S.stats && S.stats.removed > 0 && S.mode !== 'pure') {
-    const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
-    text = `Ich bin Nexus Level ${S.level} und habe schon ${fmt(S.stats.removed)} Schrottteile sortiert (${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} %). Schaffst du mehr? 🤖`;
-  }
-  const data = { title: 'NEXUS CORE', text, url: GAME_URL };
-  try {
-    if (navigator.share) { await navigator.share(data); return; }
-  } catch (e) {
-    if (e && e.name === 'AbortError') return; // user closed the share sheet
-  }
-  try {
-    await navigator.clipboard.writeText(`${text} ${GAME_URL}`);
-    hint('Link kopiert! 📋', '#6ff3f0');
-    feed('Link in die Zwischenablage kopiert', '#6ff3f0');
-  } catch (e) {
-    showMessage('Spiel teilen', `<p class="lead">Kopiere diesen Link:</p><p class="share-url">${GAME_URL}</p>`, 'OK', () => {});
-  }
-}
-$('btn-share-start').addEventListener('click', shareGame);
-$('btn-intro').addEventListener('click', () => { initAudio(); $('overlay-start').classList.add('hidden'); introCutscene(() => showStart()); });
-
-setInterval(() => { if (playing) save(); }, 10000);
-// iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)
-['touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }));
-document.addEventListener('visibilitychange', () => { if (!document.hidden) initAudio(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden && playing) save(); });
 
 // ================================================================ input
 const input = { jx: 0, jy: 0, keys: new Set() };
@@ -1796,6 +1729,9 @@ function adaptQuality(dt) {
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
+  composer.setSize(w, h);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  bloom.resolution.set(w / 2, h / 2);
   camera.aspect = w / h;
   camera.fov = w < h ? 68 : 55;
   camera.updateProjectionMatrix();
@@ -1958,7 +1894,7 @@ function animate() {
     camera.position.y += (Math.random() - 0.5) * shake;
     shake = Math.max(0, shake - dt * 1.5);
   }
-  renderer.render(scene, camera);
+  renderFrame();
   requestAnimationFrame(animate);
 }
 
@@ -1968,7 +1904,13 @@ setupWorld(boot || freshState());
 animate();
 let introSeen = false;
 try { introSeen = sessionStorage.getItem('nexus-intro') === '1'; } catch (e) { /* ignore */ }
-if (introSeen) showStart(); else introCutscene(() => showStart());
+if (introSeen) showStart();
+else $('splash').classList.remove('hidden');
+$('splash').addEventListener('click', () => {
+  initAudio();
+  $('splash').classList.add('hidden');
+  introCutscene(() => showStart());
+});
 
 // test hook
-window.__nx = { rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
