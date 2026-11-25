@@ -262,6 +262,61 @@ export class NexusBot {
     this.toolId = 'arms';
     this.toolT = 0;
 
+    // ---- evolution parts (Mk II - Mk V)
+    this.evo = { 2: new THREE.Group(), 3: new THREE.Group(), 4: new THREE.Group(), 5: new THREE.Group() };
+    {
+      // Mk II: shoulder lights, chest emblem, side LED strips
+      const e = this.evo[2];
+      for (const sx of [-1, 1]) {
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), glow); lamp.position.set(sx * 0.3, 0.33, 0.06); e.add(lamp);
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.03, 0.34), glow); strip.position.set(sx * 0.312, -0.22, 0); e.add(strip);
+      }
+      const emblem = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 20), glow); emblem.position.set(0.17, 0.27, 0.202); e.add(emblem);
+      torso.add(e);
+    }
+    {
+      // Mk III: armour plates on the head, antenna crown, chest plate
+      const e = this.evo[3];
+      const plateMat = new THREE.MeshStandardMaterial({ color: 0x2fc9a8, metalness: 0.5, roughness: 0.35 });
+      for (const sx of [-1, 1]) { const pl = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.03, 0.3, 0.26, 2, 0.01), plateMat)); pl.position.set(sx * 0.36, 0.0, 0); e.add(pl); }
+      for (let k = -1; k <= 1; k++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.12, 6), plateMat); sp.position.set(k * 0.1, 0.29, -0.05); e.add(sp); }
+      head.add(e);
+      this.chestPlate = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.4, 0.06, 0.02, 2, 0.01), plateMat));
+      this.chestPlate.position.set(0, 0.32, 0.205);
+      torso.add(this.chestPlate);
+      this.chestPlate.visible = false;
+    }
+    {
+      // Mk IV: jet backpack with two thrusters (calm glow, no flicker)
+      const e = this.evo[4];
+      const packMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.7, roughness: 0.3 });
+      const box = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.3, 0.14, 2, 0.04), packMat)); box.position.set(0, 0.24, -0.27); e.add(box);
+      this.jets = [];
+      for (const sx of [-1, 1]) {
+        const noz = shadow(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.14, 12), packMat)); noz.position.set(sx * 0.11, 0.05, -0.3); e.add(noz);
+        const fl = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+        fl.rotation.x = Math.PI; fl.position.set(sx * 0.11, -0.13, -0.3); e.add(fl); this.jets.push(fl);
+      }
+      torso.add(e);
+    }
+    {
+      // Mk V: second (small) arm pair and a halo ring
+      const e = this.evo[5];
+      for (const sx of [-1, 1]) {
+        const arm = new THREE.Group(); arm.position.set(sx * 0.29, 0.08, 0.05);
+        const a1 = shadow(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 8), white)); a1.rotation.x = -1.1; a1.position.set(0, -0.03, 0.07);
+        const hnd = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), teal); hnd.position.set(0, -0.06, 0.16);
+        arm.add(a1, hnd); e.add(arm);
+      }
+      torso.add(e);
+      this.halo = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.015, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffe27a }));
+      this.halo.rotation.x = Math.PI / 2; this.halo.position.y = 0.38;
+      head.add(this.halo);
+      this.halo.visible = false;
+    }
+    for (const e of Object.values(this.evo)) e.visible = false;
+    this.mk = 1;
+
     g.scale.setScalar(1.25);
 
     // ---- animation state
@@ -289,6 +344,14 @@ export class NexusBot {
     this.dish.visible = lv.scanner >= 3;
     this.linkGlow = !!lv.link;
     this.glowMat.color.setHex(lv.link ? 0xb48cff : (this.skinGlow || CYAN));
+  }
+
+  setEvolution(mk) {
+    this.mk = mk;
+    for (const [k, e] of Object.entries(this.evo)) e.visible = mk >= Number(k);
+    this.chestPlate.visible = mk >= 3;
+    this.halo.visible = mk >= 5;
+    this.group.scale.setScalar(1.25 * (1 + (mk - 1) * 0.04));
   }
 
   setTool(id) {
@@ -402,6 +465,9 @@ export class NexusBot {
       }
     }
     for (const tr of this.tracks) tr.position.y = 0.13 + (moving ? Math.abs(Math.sin(t * 20)) * 0.006 : 0);
+    // evolution animations (gentle)
+    if (this.mk >= 4) this.jets.forEach((j, i) => { j.scale.y = (moving ? 1.3 : 0.6) + Math.sin(t * 3 + i) * 0.1; });
+    if (this.mk >= 5) { this.halo.rotation.z += dt * 0.6; this.halo.position.y = 0.38 + Math.sin(t * 1.5) * 0.015; }
     // tool animations
     this.toolT = Math.max(0, this.toolT - dt);
     const tk = this.toolT > 0 ? Math.sin((this.toolT / 0.35) * Math.PI) : 0;

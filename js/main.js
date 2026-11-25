@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS, deckDef, deckName, deckTotal, deckValueMult, deckEventSpeed, deckGoalTarget, deckMinutes } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS, deckDef, deckName, deckTotal, deckValueMult, deckEventSpeed, deckGoalTarget, deckMinutes, EVOLUTION } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
@@ -28,7 +28,7 @@ function freshState(mode = 'career') {
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0, aliens: 0 },
     total: TOTAL_STONES, deckBase: { removed: 0, found: {}, time: 0, aliens: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
-    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0, station: [], tonsSpent: 0,
+    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0, station: [], tonsSpent: 0, evo: 1,
     level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
@@ -641,7 +641,10 @@ function frontPoint() {
 function doGrab(x, z) {
   if (!playing) return;
   initAudio();
-  const amount = Math.max(1, Math.round(lv('hands') * toolDef().amount));
+  const evoMul = 1 + ((S.evo || 1) >= 2 ? 0.15 : 0);
+  const dbl = (S.evo || 1) >= 5 && Math.random() < 0.25;
+  const amount = Math.max(1, Math.round(lv('hands') * toolDef().amount * evoMul * (dbl ? 2 : 1)));
+  if (dbl && Math.random() < 0.15) say('Doppelgriff! 🙌', 1);
   const radius = grabRadius();
   const pickR = 2.6 + toolDef().pickup;
   const cap = S.mode !== 'pure' && capsules.take(x, z, pickR);
@@ -947,6 +950,15 @@ function stationTap(cx, cy) {
   renderStation();
 }
 function stationTick(dt) {
+  if ((S.evo || 1) >= 4 && !stationMode) {
+    const p = bot.group.position;
+    const cap = S.mode !== 'pure' && capsules.take(p.x, p.z, 5);
+    if (cap) openCapsule(cap.position);
+    const met = events.take(p.x, p.z, 5);
+    if (met) openMeteor(met);
+    const al = events.catchAlien(p.x, p.z, 5);
+    if (al) catchAlien(al);
+  }
   if (SB.teleport && S.cargoCount > 0 && !S.levels.link) {
     teleT -= dt;
     if (teleT <= 0) { teleT = 45; const v = sellCargo(); feed(`🌀 Teleport-Relais: +${fmt(v)} ⬡`, '#b48cff'); }
@@ -1344,6 +1356,33 @@ function renderShop() {
         },
       });
     }
+  } else if (shopTab === 'evo') {
+    const cur = EVOLUTION[(S.evo || 1) - 1], next = EVOLUTION[S.evo || 1];
+    const intro = document.createElement('p');
+    intro.className = 'lead small';
+    intro.innerHTML = `Aktuell: <b>${cur.name}</b>. Evolutionen bleiben über alle Decks erhalten und verändern Nexus sichtbar.`;
+    list.appendChild(intro);
+    for (const ev of EVOLUTION.slice(1)) {
+      const have = (S.evo || 1) >= ev.mk;
+      const isNext = next && next.mk === ev.mk;
+      const okLv = (S.level || 1) >= ev.level, okT = tonsAvail() >= ev.tons, okC = S.credits >= ev.credits;
+      shopItem(list, {
+        title: `🤖 ${ev.name}`,
+        desc: `${ev.perk}<br><span class="recipe"><span class="${okLv || have ? 'ok' : 'miss'}">Level ${ev.level}</span> · <span class="${okT || have ? 'ok' : 'miss'}">🧱 ${fmt(ev.tons)} t</span> · <span class="${okC || have ? 'ok' : 'miss'}">${fmt(ev.credits)} ⬡</span></span>`,
+        btn: have ? 'ERREICHT' : isNext ? 'Entwickeln' : '🔒', disabled: have || !isNext || !(okLv && okT && okC), cls: have ? 'got' : '',
+        onBuy: () => {
+          if (!(isNext && okLv && okT && okC)) return;
+          S.credits -= ev.credits; S.tonsSpent += ev.tons; S.evo = ev.mk;
+          bot.setEvolution(ev.mk);
+          dust.puff(bot.group.position.x, bot.group.position.y + 0.5, bot.group.position.z, 12, 1.8, 0x6ff3f0);
+          sfx.core(); vibrate([40, 40, 80]);
+          bot.setMood('love', 4);
+          say(`Ich bin jetzt ${ev.name}! ✨`, 4);
+          achvQueue.push({ kicker: 'Evolution!', name: `🤖 ${ev.name}`, desc: ev.perk, reward: 0 });
+          bought(`Evolution: ${ev.name}`);
+        },
+      });
+    }
   } else if (shopTab === 'tools') {
     const intro = document.createElement('p');
     intro.className = 'lead small';
@@ -1367,7 +1406,7 @@ function renderShop() {
       });
     }
   } else if (shopTab === 'modules') {
-    const slots = MODULE_SLOTS[S.slotLv].slots;
+    const slots = MODULE_SLOTS[S.slotLv].slots + ((S.evo || 1) >= 3 ? 1 : 0);
     const nextSlot = MODULE_SLOTS[S.slotLv + 1];
     shopItem(list, {
       title: `🔧 Modul-Slots: ${S.equipped.length}/${slots} belegt`,
@@ -1662,6 +1701,7 @@ function setupWorld(state) {
   bot.applyUpgrades(S.levels);
   bot.setChassis(S.chassis || 'tracks');
   bot.setTool(S.tool || 'arms');
+  bot.setEvolution(S.evo || 1);
   if (!S.sites) S.sites = Array(13).fill(null);
   refreshStationBonus();
   refreshBase();
@@ -1687,7 +1727,7 @@ function startGame(state, offline) {
   state.crafted = state.crafted || 0; state.bestCombo = state.bestCombo || 0;
   state.tool = state.tool || 'arms'; state.toolsOwned = state.toolsOwned || ['arms'];
   state.total = state.total || TOTAL_STONES;
-  state.station = state.station || []; state.tonsSpent = state.tonsSpent || 0;
+  state.station = state.station || []; state.tonsSpent = state.tonsSpent || 0; state.evo = state.evo || 1;
   state.deckBase = state.deckBase || { removed: 0, found: {}, time: 0, aliens: 0 };
   state.stats.aliens = state.stats.aliens || 0;
   records.deckStars = records.deckStars || {};
@@ -1734,7 +1774,7 @@ function makeDeckState(n, old) {
   Object.assign(st, {
     deck: n, stars: totalStars(),
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
-    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, station: old.station || [], tonsSpent: old.tonsSpent || 0,
+    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, station: old.station || [], tonsSpent: old.tonsSpent || 0, evo: old.evo || 1,
     chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
@@ -2407,7 +2447,7 @@ function updateBot(dt) {
   if (grabState.holding && playing) {
     grabState.timer -= dt;
     if (grabState.timer <= 0) {
-      grabState.timer = 1 / (lv('speed') * toolDef().speed * (turbo.t > 0 ? TURBO.factor : 1));
+      grabState.timer = 1 / (lv('speed') * toolDef().speed * ((S.evo || 1) >= 2 ? 1.1 : 1) * (turbo.t > 0 ? TURBO.factor : 1));
       const [x, z] = frontPoint();
       doGrab(x, z);
     }

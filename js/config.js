@@ -155,6 +155,8 @@ export const ACHIEVEMENTS = [
   { id: 'module1',  name: 'Grundstein',          desc: 'Baue dein erstes Stationsmodul.',          check: (s) => (s.station || []).length >= 1, reward: 500 },
   { id: 'citadel',  name: 'Zitadelle',           desc: 'Erreiche Stationsrang Zitadelle (11 Module).', check: (s) => (s.station || []).length >= 11, reward: 30000 },
   { id: 'gravity',  name: 'Herr der Schwerkraft', desc: 'Baue den Gravitationskern.',               check: (s) => (s.station || []).some((m) => m.type === 'gravcore'), reward: 100000 },
+  { id: 'evo3',     name: 'Weiterentwickelt',    desc: 'Entwickle Nexus zu Mk III.',               check: (s) => (s.evo || 1) >= 3, reward: 8000 },
+  { id: 'evo5',     name: 'Nexus Mk V',          desc: 'Erreiche die letzte Evolutionsstufe.',     check: (s) => (s.evo || 1) >= 5, reward: 250000 },
   { id: 'tinker',   name: 'Bastler',             desc: 'Besitze 3 Module.',                        check: (s) => (s.modules || []).length >= 3, reward: 1500 },
   { id: 'fusion',   name: 'Kernfusion',          desc: 'Rüste den Atomar-Kern auf Stufe III.',     check: (s) => (s.atomarLv || 0) >= 2, reward: 4000 },
   { id: 'meteor',   name: 'Sternschnuppen-Fänger', desc: 'Sammle 10 Meteoriten.',                 check: (s) => (s.stats.meteors || 0) >= 10, reward: 2500 },
@@ -223,3 +225,12 @@ export const deckValueMult = (n) => 1 + n * 0.4;
 export const deckEventSpeed = (n) => 1 + n * 0.15;
 export const deckGoalTarget = (n) => Math.round(deckDef(n).goal.target * (1 + deckRound(n) * 0.8));
 export const deckMinutes = (n) => Math.round(deckDef(n).minutes * (1 + deckRound(n) * 0.5));
+
+// Nexus evolution (meta, persists across decks). Perks are cumulative.
+export const EVOLUTION = [
+  { mk: 1, name: 'Nexus Mk I',   level: 1,  tons: 0,   credits: 0,       perk: 'Der Anfang.' },
+  { mk: 2, name: 'Nexus Mk II',  level: 5,  tons: 20,  credits: 5000,    perk: '+15 % Teile pro Griff, +10 % Greiftempo, Schulterlichter.' },
+  { mk: 3, name: 'Nexus Mk III', level: 10, tons: 60,  credits: 40000,   perk: '+1 Modul-Slot, Panzerplatten und Antennenkrone.' },
+  { mk: 4, name: 'Nexus Mk IV',  level: 18, tons: 150, credits: 250000,  perk: 'Düsen-Rucksack: Kapseln, Meteoriten und Aliens im Umkreis von 5 m werden automatisch eingesammelt.' },
+  { mk: 5, name: 'Nexus Mk V',   level: 28, tons: 400, credits: 1500000, perk: 'Zweites Armpaar: 25 % Chance auf Doppelgriff. Heiligenschein inklusive.' },
+];
