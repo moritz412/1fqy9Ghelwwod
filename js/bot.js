@@ -159,6 +159,15 @@ export class NexusBot {
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.34), new THREE.MeshBasicMaterial({ map: this.faceTex }));
     screen.position.set(0, -0.02, 0.172);
     head.add(screen);
+    const bezel = new THREE.Mesh(new RoundedBoxGeometry(0.58, 0.38, 0.02, 3, 0.03), dark);
+    bezel.position.set(0, -0.02, 0.163);
+    head.add(bezel);
+    for (const sx of [-1, 1]) {
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.01, 8), grey);
+      bolt.rotation.x = Math.PI / 2; bolt.position.set(sx * 0.3, 0.19, 0.168); head.add(bolt);
+      const cable = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 12, Math.PI), dark);
+      cable.position.set(sx * 0.09, 0.38, -0.08); cable.rotation.y = Math.PI / 2; torso.add(cable);
+    }
     const cam = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 16), dark);
     cam.rotation.x = Math.PI / 2;
     cam.position.set(0, 0.185, 0.17);
@@ -452,6 +461,11 @@ export class NexusBot {
     const bob = moving ? Math.sin(t * 14) * 0.012 : Math.sin(t * 2) * 0.006;
     this.torso.position.y = 0.4 + bob;
     this.head.rotation.z = moving ? Math.sin(t * 7) * 0.03 : Math.sin(t * 1.3) * 0.02;
+    // curious idle look-around when standing still
+    const look = moving || this.grabT > 0 ? 0 : Math.sin(t * 0.45) * 0.35 * Math.max(0, Math.sin(t * 0.17));
+    this.head.rotation.y += (look - this.head.rotation.y) * Math.min(1, dt * 3);
+    const lx = Math.round(look * 4) / 4;
+    if (lx !== this.lookX && this.blink <= 0) { this.lookX = lx; this.drawFace(); }
     this.grabT = Math.max(0, this.grabT - dt);
     const g = this.grabT > 0 ? Math.sin((this.grabT / 0.28) * Math.PI) : 0;
     for (const a of this.arms) {

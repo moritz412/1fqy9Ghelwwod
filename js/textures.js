@@ -4,6 +4,33 @@ import { mulberry32 } from './noise.js';
 
 const cache = {};
 
+// Build a tangent-space normal map from the brightness of a canvas (Sobel filter).
+export function normalFromCanvas(src0, strength = 2.5) {
+  let src = src0;
+  if (src0.width > 1024) {   // keep start-up fast on phones
+    src = document.createElement('canvas'); src.width = src.height = 1024;
+    src.getContext('2d').drawImage(src0, 0, 0, 1024, 1024);
+  }
+  const w = src.width, h = src.height;
+  const sg = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const out = g.createImageData(w, h);
+  const H = (x, y) => { x = (x + w) % w; y = (y + h) % h; const i = (y * w + x) * 4; return (sg[i] + sg[i + 1] + sg[i + 2]) / 765; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (H(x + 1, y - 1) + 2 * H(x + 1, y) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x - 1, y) + H(x - 1, y + 1));
+    const dy = (H(x - 1, y + 1) + 2 * H(x, y + 1) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x, y - 1) + H(x + 1, y - 1));
+    let nx = -dx * strength, ny = -dy * strength, nz = 1;
+    const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    const i = (y * w + x) * 4;
+    out.data[i] = (nx * 0.5 + 0.5) * 255; out.data[i + 1] = (ny * 0.5 + 0.5) * 255; out.data[i + 2] = nz * 255; out.data[i + 3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
 function canvasTex(key, size, draw, repeat = 1) {
   if (cache[key]) return cache[key];
   const c = document.createElement('canvas');
@@ -15,13 +42,15 @@ function canvasTex(key, size, draw, repeat = 1) {
   t.repeat.set(repeat, repeat);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  t.userData.canvas = c;
   cache[key] = t;
   return t;
 }
 
 // Light hull panels: seams, rivets, small grime. Multiplied with material colour.
 export function hullTexture() {
-  return canvasTex('hull', 256, (g, S) => {
+  return canvasTex('hull', 512, (g, S0) => {
+    g.scale(2, 2); const S = 256;
     const rnd = mulberry32(5);
     g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, S, S);
     // panels
@@ -48,7 +77,8 @@ export function hullTexture() {
 
 // Dark metal with brushed lines and bolts.
 export function metalTexture() {
-  return canvasTex('metal', 256, (g, S) => {
+  return canvasTex('metal', 512, (g, S0) => {
+    g.scale(2, 2); const S = 256;
     const rnd = mulberry32(8);
     g.fillStyle = '#9a9a9a'; g.fillRect(0, 0, S, S);
     for (let y = 0; y < S; y += 2) { const v = 140 + Math.floor(rnd() * 40); g.fillStyle = `rgba(${v},${v},${v},0.5)`; g.fillRect(0, y, S, 1); }
@@ -87,6 +117,12 @@ export function texMat(kind, color = 0xffffff, opts = {}) {
   const key = `${kind}-${color}-${JSON.stringify(opts)}`;
   if (mats[key]) return mats[key];
   const map = kind === 'hull' ? hullTexture() : kind === 'metal' ? metalTexture() : kind === 'hazard' ? hazardTexture() : ventTexture();
-  mats[key] = new THREE.MeshStandardMaterial({ color, map, bumpMap: kind === 'hazard' ? null : map, bumpScale: 0.6, roughness: 0.5, metalness: kind === 'metal' ? 0.7 : 0.25, ...opts });
+  let normalMap = null;
+  if (kind !== 'hazard') {
+    const nk = `n-${kind}`;
+    if (!cache[nk]) cache[nk] = normalFromCanvas(map.userData.canvas, kind === 'metal' ? 3 : 2.2);
+    normalMap = cache[nk];
+  }
+  mats[key] = new THREE.MeshStandardMaterial({ color, map, normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.5, metalness: kind === 'metal' ? 0.7 : 0.25, ...opts });
   return mats[key];
 }

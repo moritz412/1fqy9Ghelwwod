@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { WORLD } from './config.js';
 import { mulberry32 } from './noise.js';
-import { texMat } from './textures.js';
+import { texMat, normalFromCanvas } from './textures.js';
 
 export function buildEnvironment(scene, renderer) {
   scene.background = new THREE.Color(0x02030a);
@@ -15,7 +15,8 @@ export function buildEnvironment(scene, renderer) {
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
-  sc.left = -28; sc.right = 28; sc.top = 28; sc.bottom = -28; sc.near = 1; sc.far = 120;
+  sc.left = -20; sc.right = 20; sc.top = 20; sc.bottom = -20; sc.near = 1; sc.far = 120;
+  sun.shadow.radius = 3;
   sun.shadow.bias = -0.0008;
   sun.shadow.normalBias = 0.04;
   scene.add(sun, sun.target);
@@ -82,7 +83,8 @@ export function buildEnvironment(scene, renderer) {
   scene.add(planet);
 
   // ---- hangar deck (round platform)
-  const deckTopMat = new THREE.MeshStandardMaterial({ map: deckTexture(), metalness: 0.35, roughness: 0.65 });
+  const deckMap = deckTexture();
+  const deckTopMat = new THREE.MeshStandardMaterial({ map: deckMap, normalMap: normalFromCanvas(deckMap.userData.canvas, 3), normalScale: new THREE.Vector2(0.7, 0.7), metalness: 0.4, roughness: 0.6 });
   const deck = new THREE.Mesh(
     new THREE.CylinderGeometry(32, 33, 2, 64),
     [new THREE.MeshStandardMaterial({ color: 0x8a909c, metalness: 0.6, roughness: 0.5 }),
@@ -214,6 +216,11 @@ export function buildEnvironment(scene, renderer) {
     scene.add(g);
     return { ring, beam };
   }
+  for (const [pos, col] of [[WORLD.dock, 0x6ff3f0], [WORLD.shop, 0xffb347]]) {
+    const pl = new THREE.PointLight(col, 18, 12, 2);
+    pl.position.set(pos.x, 3, pos.z);
+    scene.add(pl);
+  }
   const ablage = makeStation(WORLD.dock, 0x6ff3f0, 'NEXUS', 'ABLAGE', (g, out, r) => {
     // recycler funnel
     const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.35, 1.1, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a909c, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide }));
@@ -256,6 +263,24 @@ export function buildEnvironment(scene, renderer) {
     padG.position.set(WORLD.pad.x, 0, WORLD.pad.z);
     padG.rotation.y = Math.atan2(-WORLD.pad.x, -WORLD.pad.z);
     scene.add(padG);
+  }
+
+  // ---- sky traffic: little cargo ships cruising past the station
+  const traffic = [];
+  {
+    const hullM = texMat('hull', 0xdde2e8), engM = new THREE.MeshBasicMaterial({ color: 0x6ff3f0 });
+    for (let k = 0; k < 4; k++) {
+      const sh = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 3.4), hullM);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.2, 6), hullM); nose.rotation.x = Math.PI / 2; nose.position.z = 2.2;
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(4, 0.12, 1.2), texMat('metal', 0xffb347)); wing.position.z = -0.4;
+      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.3, 10), engM); eng.rotation.x = Math.PI / 2; eng.position.z = -1.8;
+      const light = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), new THREE.MeshBasicMaterial({ color: k % 2 ? 0xff5050 : 0x50ff80 })); light.position.set(2, 0, -0.4);
+      sh.add(body, nose, wing, eng, light);
+      sh.userData = { r: 110 + k * 25, h: 45 + k * 12, speed: 0.025 + k * 0.008, phase: k * 1.7, dir: k % 2 ? 1 : -1 };
+      scene.add(sh);
+      traffic.push(sh);
+    }
   }
 
   // ---- shuttle (used in cutscenes), parked out of sight by default
@@ -406,6 +431,10 @@ export function buildEnvironment(scene, renderer) {
 
   return {
     setTheme,
+    followShadow(x, z) {
+      sun.target.position.set(x, 0, z);
+      sun.position.set(x + 30, 40, z + 18);
+    },
     setStorm(on) { stormTarget = on ? 1 : 0; },
     shuttle,
     update(dt, t) {
@@ -437,6 +466,13 @@ export function buildEnvironment(scene, renderer) {
       motes.material.size = baseMoteSize * (1 + storm * 1.5);
       motes.material.opacity = 0.55 + storm * 0.3;
       outposts.update(dt, t);
+      for (const sh of traffic) {
+        const u = sh.userData;
+        const a = t * u.speed * u.dir + u.phase;
+        sh.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 0.3 + u.phase) * 3, Math.sin(a) * u.r - 40);
+        sh.rotation.y = -a + (u.dir > 0 ? 0 : Math.PI);
+        sh.rotation.z = Math.sin(t * 0.5 + u.phase) * 0.1;
+      }
       shuttle.userData.update(dt, t);
       if (currentDeco) {
         for (const c of currentDeco.children) {
@@ -480,18 +516,46 @@ function planetTexture(cols0) {
 
 function deckTexture() {
   const c = document.createElement('canvas');
-  c.width = c.height = 1024;
+  c.width = c.height = 2048;
   const g = c.getContext('2d');
-  g.fillStyle = '#8b919c';
+  g.scale(2, 2);
+  g.fillStyle = '#7f858f';
   g.fillRect(0, 0, 1024, 1024);
   const rnd = mulberry32(3);
   const step = 64;
   for (let y = 0; y < 1024; y += step) for (let x = 0; x < 1024; x += step) {
-    const v = 130 + Math.floor(rnd() * 22);
+    const v = 128 + Math.floor(rnd() * 24);
     g.fillStyle = `rgb(${v},${v + 4},${v + 12})`;
     g.fillRect(x + 2, y + 2, step - 4, step - 4);
-    g.fillStyle = 'rgba(40,44,52,0.6)';
-    for (const [px, py] of [[6, 6], [step - 8, 6], [6, step - 8], [step - 8, step - 8]]) g.fillRect(x + px, y + py, 3, 3);
+    // bevel highlight / shadow per plate
+    g.fillStyle = 'rgba(255,255,255,0.10)'; g.fillRect(x + 2, y + 2, step - 4, 2);
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x + 2, y + step - 4, step - 4, 2);
+    g.fillStyle = 'rgba(40,44,52,0.7)';
+    for (const [px, py] of [[6, 6], [step - 9, 6], [6, step - 9], [step - 9, step - 9]]) { g.beginPath(); g.arc(x + px + 1.5, y + py + 1.5, 1.8, 0, Math.PI * 2); g.fill(); }
+    const r = rnd();
+    if (r < 0.12) { // vent grille
+      g.fillStyle = 'rgba(30,33,40,0.85)';
+      for (let k = 0; k < 6; k++) g.fillRect(x + 14, y + 14 + k * 6, step - 28, 3);
+    } else if (r < 0.2) { // hatch
+      g.strokeStyle = 'rgba(30,33,40,0.7)'; g.lineWidth = 2; g.strokeRect(x + 12, y + 12, step - 24, step - 24);
+      g.fillStyle = 'rgba(255,190,60,0.7)'; g.fillRect(x + 12, y + 12, 8, 3);
+    } else if (r < 0.26) { // plate number
+      g.fillStyle = 'rgba(30,33,40,0.55)'; g.font = 'bold 12px monospace';
+      g.fillText(`${String.fromCharCode(65 + Math.floor(rnd() * 8))}-${10 + Math.floor(rnd() * 89)}`, x + 10, y + 22);
+    }
+  }
+  // scuffs, oil stains and tyre marks
+  for (let k = 0; k < 220; k++) {
+    g.strokeStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '20,20,20'},${0.05 + rnd() * 0.1})`;
+    g.lineWidth = 1;
+    const x = rnd() * 1024, y = rnd() * 1024, a = rnd() * Math.PI, l = 6 + rnd() * 30;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  for (let k = 0; k < 40; k++) {
+    const x = rnd() * 1024, y = rnd() * 1024, r = 6 + rnd() * 22;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(20,18,15,0.22)'); gr.addColorStop(1, 'rgba(20,18,15,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
   // hazard ring + markings
   g.strokeStyle = 'rgba(255,190,60,0.85)';
@@ -504,7 +568,8 @@ function deckTexture() {
   g.beginPath(); g.arc(512, 512, 490, 0, Math.PI * 2); g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
+  t.anisotropy = 8;
+  t.userData.canvas = c;
   return t;
 }
 

@@ -84,6 +84,16 @@ function renderFrame() {
 let pile = null, pileView = null;
 const bot = new NexusBot();
 scene.add(bot.group);
+const contactShadow = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  scene.add(m);
+  return m;
+})();
 const capsules = new Capsules(scene);
 const baseView = new BaseView(scene);
 const stationView = new StationView(scene);
@@ -2495,6 +2505,7 @@ function updateBot(dt) {
 }
 
 function updateCamera(dt) {
+  { const p = bot.group.position; env.followShadow(Math.round(p.x / 2) * 2, Math.round(p.z / 2) * 2); }
   const p = bot.group.position;
   camTarget.lerp(tmpV.set(p.x, p.y + 1.2, p.z), Math.min(1, dt * 8));
   const cp = Math.cos(cam.pitch);
@@ -2586,6 +2597,7 @@ function animate() {
   }
   if (S) baseView.update(dt, t, baseFlow, baseCache.eff, (S.buffer || 0) / Math.max(1, baseCache.buffer));
   stationView.update(dt, t);
+  { const p = bot.group.position; contactShadow.position.set(p.x, Math.max(0, pile.heightAt(p.x, p.z)) + 0.03, p.z); contactShadow.visible = bot.group.visible; }
   updateDebris(dt);
   dust.update(dt);
   let shaken = false;
