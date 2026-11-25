@@ -28,6 +28,10 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > * { pointer-events: auto; }
+#hud, #hud * { touch-action: none; }
+.overlay { touch-action: none; }
+.card { touch-action: pan-y; }
+.card button { touch-action: manipulation; }
 
 #counter {
   position: absolute; top: calc(10px + var(--safe-t)); left: 50%; transform: translateX(-50%);
