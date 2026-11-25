@@ -29,6 +29,7 @@
     </div>
 
     <div id="topleft">
+      <div class="chip" id="level-chip">Lv <b id="level">1</b><i class="xpbar"><i id="xp-fill"></i></i></div>
       <div class="chip" id="credits-chip">⬡ <span id="credits">0</span></div>
       <div class="chip" id="cargo-chip">▣ <span id="cargo">0/20</span></div>
       <div class="chip hidden" id="dock-chip"><span id="dock-arrow">➤</span> <span id="dock-label">Ablage</span> <span id="dock-dist">0</span> m</div>
@@ -43,6 +44,9 @@
       <span id="heat-text">–</span>
     </div>
 
+    <div id="goal" class="hidden"><small>Nächstes Ziel</small><b id="goal-name"></b><div class="bar"><div class="fill" id="goal-fill"></div></div><span id="goal-cost"></span></div>
+    <div id="combo" class="hidden"><b id="combo-n">0</b><small>KOMBO</small><span id="combo-m"></span></div>
+    <div id="items"></div>
     <div id="bubble" class="hidden"><span id="bubble-text"></span></div>
     <div id="feed"></div>
     <div id="achv"></div>
@@ -71,6 +75,7 @@
         <button class="tab" data-tab="chassis">Fahrwerk</button>
         <button class="tab" data-tab="modules">Module</button>
         <button class="tab" data-tab="helpers">Atomar</button>
+        <button class="tab" data-tab="craft">Fabrikator</button>
         <button class="tab" data-tab="skins">Skins</button>
       </div>
       <div id="shop-list"></div>
@@ -89,6 +94,8 @@
       </div>
       <div class="tabs">
         <button class="tab active" data-tab="cargo">Laderaum</button>
+        <button class="tab" data-tab="vault">Lager</button>
+        <button class="tab" data-tab="contracts">Aufträge</button>
         <button class="tab" data-tab="finds">Fundbuch</button>
         <button class="tab" data-tab="achv">Erfolge</button>
       </div>

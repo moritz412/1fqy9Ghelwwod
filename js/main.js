@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
+import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
@@ -20,6 +21,7 @@ function freshState(mode = 'career') {
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
     chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0,
+    level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
 }
@@ -214,7 +216,7 @@ function hint(text, color = '#fff') {
 
 const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
 const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
-const valueOf = (f) => Math.round(f.value * starMult());
+const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS));
 const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult;
 const hasMod = (id) => S.equipped && S.equipped.includes(id);
 const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
@@ -232,6 +234,11 @@ function updateHud() {
   setText('progress', `${pct.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} %`);
   setText('deck-line', `${DECKS[(S.deck || 0) % DECKS.length].name}${S.stars ? ` · ⭐ ${S.stars}` : ''}`);
   setText('credits', fmt(S.credits));
+  setText('level', `${S.level}`);
+  $('xp-fill').style.width = `${Math.min(100, (S.xp / xpForLevel(S.level)) * 100)}%`;
+  $('level-chip').classList.toggle('hidden', S.mode === 'pure');
+  const ready = S.level >= UNLOCKS.contracts ? contractsReady() : 0;
+  $('btn-archive').classList.toggle('badge', ready > 0);
   const cap = lv('cargo');
   setText('cargo', S.levels.link ? 'Nexus-Link' : `${fmt(S.cargoCount)}/${fmt(cap)}`);
   $('cargo-chip').classList.toggle('full', !S.levels.link && S.cargoCount >= cap);
@@ -270,6 +277,7 @@ function handleFinds(list, byPlayer) {
   for (const { f, k, tier } of list) {
     S.stats.found[f.id] = (S.stats.found[f.id] || 0) + k;
     if (!byPlayer || S.levels.link || S.mode === 'pure') {
+      if (byPlayer && S.levels.link && S.keep.includes(f.id)) { S.vault[f.id] = (S.vault[f.id] || 0) + k; feed(`+${fmt(k)} ${f.name} → Lager`, f.color); best = Math.max(best, tier); continue; }
       if (S.mode !== 'pure') { S.credits += valueOf(f) * k; S.stats.earned += valueOf(f) * k; }
       if (byPlayer) { feed(`+${fmt(k)} ${f.name}`, f.color); best = Math.max(best, tier); }
       else if (tier >= 3) feed(`Helfer: ${f.name}!`, f.color);
@@ -300,20 +308,205 @@ function handleFinds(list, byPlayer) {
   }
 }
 
-function cargoValue() {
-  return FINDS.reduce((a, f) => a + (S.cargo[f.id] || 0) * valueOf(f), 0);
+function cargoValue(onlySold = false) {
+  return FINDS.reduce((a, f) => a + ((onlySold && S.keep.includes(f.id)) ? 0 : (S.cargo[f.id] || 0) * valueOf(f)), 0);
 }
+// At the Ablage: kept finds go to the vault (Lager), the rest is sold.
 function sellCargo() {
-  const v = cargoValue();
-  if (!v) return;
+  if (!S.cargoCount) return 0;
+  let stored = 0;
+  for (const f of FINDS) {
+    const n = S.cargo[f.id] || 0;
+    if (n && S.keep.includes(f.id)) { S.vault[f.id] = (S.vault[f.id] || 0) + n; stored += n; }
+  }
+  const v = cargoValue(true);
   S.credits += v; S.stats.earned += v;
   S.cargo = {}; S.cargoCount = 0;
   sfx.sell();
   bot.setMood('happy', 2);
-  feed(`Verkauft: +${fmt(v)} ⬡`, '#6ff3f0');
-  renderShop();
+  if (v) feed(`Verkauft: +${fmt(v)} ⬡`, '#6ff3f0');
+  if (stored) feed(`${fmt(stored)} Funde ins Lager`, '#ffb347');
+  addXp(Math.round(v / 15));
   updateHud();
   save();
+  return v;
+}
+
+// ================================================================ XP / level
+function addXp(n) {
+  if (!n || S.mode === 'pure') return;
+  S.xp += n;
+  let need = xpForLevel(S.level);
+  while (S.xp >= need) {
+    S.xp -= need;
+    S.level++;
+    need = xpForLevel(S.level);
+    const unlock = S.level === UNLOCKS.crafting ? ' · Fabrikator im Shop freigeschaltet!' : S.level === UNLOCKS.contracts ? ' · Aufträge im Archiv freigeschaltet!' : '';
+    achvQueue.push({ kicker: 'Level-Up!', name: `⭐ Nexus Level ${S.level}`, desc: `+${Math.round(LEVEL_BONUS * 100)} % Fundwert${unlock}`, reward: 0 });
+    bot.setMood('love', 3);
+    say(pick(['Level-Up! Ich werde immer besser! 🚀', 'Neues Level! 💪', `Level ${S.level}! Weiter so!`]), 3);
+    vibrate([20, 30, 40]);
+    if (S.level >= UNLOCKS.contracts) ensureContracts();
+  }
+}
+
+// ================================================================ combo
+const combo = { n: 0, t: 0 };
+function bumpCombo() {
+  combo.n = combo.t > 0 ? combo.n + 1 : 1;
+  combo.t = 1.3 + 1 / lv('speed');
+  if (combo.n > S.bestCombo) S.bestCombo = combo.n;
+  if ([25, 50, 100, 200].includes(combo.n)) {
+    sfx.find(Math.min(5, combo.n / 40 + 1));
+    say(combo.n >= 100 ? `KOMBO ${combo.n}! Unaufhaltsam! 🔥` : `Kombo ${combo.n}! 🔥`, 1.6);
+    addXp(combo.n / 5);
+  }
+}
+const comboLuck = () => 1 + Math.min(combo.n, 100) / 200;   // up to ×1.5
+function updateCombo(dt) {
+  combo.t -= dt;
+  if (combo.t <= 0) combo.n = 0;
+  const el = $('combo');
+  if (combo.n >= 5) {
+    el.classList.remove('hidden');
+    setText('combo-n', `${combo.n}`);
+    setText('combo-m', `Glück ×${comboLuck().toLocaleString('de-DE', { maximumFractionDigits: 2 })}`);
+    el.style.setProperty('--h', `${Math.max(0, 40 - combo.n / 2.5)}`);
+  } else el.classList.add('hidden');
+}
+
+// ================================================================ consumables
+const pulse = { t: 0, group: null };
+function giveItem(id, n = 1) { S.items[id] = (S.items[id] || 0) + n; renderItems(); }
+function renderItems() {
+  const bar = $('items');
+  bar.innerHTML = '';
+  for (const c of CONSUMABLES) {
+    const n = S.items[c.id] || 0;
+    if (!n) continue;
+    const b = document.createElement('button');
+    b.className = 'item-btn';
+    b.innerHTML = `<span>${c.icon}</span><b>${n}</b>`;
+    b.title = c.name;
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); useItem(c.id); });
+    bar.appendChild(b);
+  }
+}
+function useItem(id) {
+  if (!playing || !(S.items[id] > 0)) return;
+  const c = CONSUMABLES.find((x) => x.id === id);
+  if (id === 'bomb') {
+    const [x, z] = frontPoint();
+    const amount = Math.max(2500, lv('hands') * 25);
+    const res = pile.grab(x, z, amount, 4.5);
+    if (!res.removed && !res.ring) { hint('Hier ist nichts zum Sprengen'); return; }
+    S.stats.removed += res.removed;
+    const h = Math.max(0, pile.heightAt(x, z));
+    spawnDebris(x, h, z, 60, 0, 0, 1.6);
+    dust.puff(x, h, z, 14, 3, 0xffa040);
+    shake = 0.9;
+    sfx.meteor(1);
+    vibrate([60, 30, 60]);
+    handleFinds(rollFinds(res.removed, events.luckFactor), true);
+    floatLabel(camera, tmpV2.set(x, h + 1.5, z), `💥 ${fmt(res.removed)} Teile`, '#ffb347', true);
+    if (res.ring) coreFound(true);
+  } else if (id === 'pulse') {
+    showPulse();
+  } else if (id === 'cell') {
+    turbo.cd = 0; useTurbo();
+  } else if (id === 'bait') {
+    for (let k = 0; k < 3; k++) { capsules.list.length < 6 && capsules.spawn(pile); }
+    say('Kapseln im Anflug! 🎁');
+  } else if (id === 'spark') {
+    if (events.active) { hint('Gerade läuft schon ein Ereignis'); return; }
+    events.start('luck', pile);
+  }
+  S.items[id]--;
+  sfx.turbo();
+  feed(`${c.icon} ${c.name} benutzt`, '#ffb347');
+  renderItems();
+  save();
+}
+function showPulse() {
+  if (S.coreFound) { hint('Der Kern ist schon gefunden'); return; }
+  if (pulse.group) scene.remove(pulse.group);
+  const rp = pile.ringPosition();
+  const a = Math.random() * Math.PI * 2, d = Math.random() * 2.5;
+  const cx = rp.x + Math.cos(a) * d, cz = rp.z + Math.sin(a) * d;
+  const g = new THREE.Group();
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 60, 32, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x6ff3f0, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 30;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.08, 8, 64), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
+  ring.rotation.x = Math.PI / 2;
+  g.add(beam, ring);
+  g.position.set(cx, 0, cz);
+  g.userData.ring = ring;
+  scene.add(g);
+  pulse.group = g; pulse.t = 30;
+  say('Kernpuls! Der Kern liegt irgendwo im Lichtkegel! 📡', 4);
+  sfx.event();
+}
+function updatePulse(dt, t) {
+  if (!pulse.group) return;
+  pulse.t -= dt;
+  const g = pulse.group;
+  g.userData.ring.position.y = Math.max(0, pile.heightAt(g.position.x, g.position.z)) + 0.2;
+  g.userData.ring.scale.setScalar(1 + Math.sin(t * 4) * 0.05);
+  if (pulse.t <= 0 || S.coreFound) { scene.remove(g); pulse.group = null; }
+}
+
+// ================================================================ contracts
+function ensureContracts() {
+  if (S.mode === 'pure' || S.level < UNLOCKS.contracts) return;
+  while (S.contracts.length < 3) {
+    const c = makeContract(S);
+    if (c.kind === 'deliver' && !S.keep.includes(c.find)) S.keep.push(c.find);
+    S.contracts.push(c);
+  }
+}
+function claimContract(id) {
+  const c = S.contracts.find((x) => x.id === id);
+  if (!c || contractProgress(S, c) < c.n) return;
+  if (c.kind === 'deliver') S.vault[c.find] -= c.n;
+  S.credits += c.reward; S.stats.earned += c.reward;
+  S.contracts = S.contracts.filter((x) => x.id !== id);
+  S.contractsDone++;
+  addXp(c.xp);
+  sfx.achievement();
+  floatLabel(camera, tmpV2.copy(bot.group.position).setY(bot.group.position.y + 2), `📋 +${fmt(c.reward)} ⬡`, '#7cf0b0', true);
+  say(pick(['Auftrag erledigt! ✅', 'Die Station ist zufrieden!', 'Bonus kassiert!']));
+  ensureContracts();
+  renderArchive(); updateHud(); save();
+}
+function contractsReady() {
+  return S.contracts.filter((c) => contractProgress(S, c) >= c.n).length;
+}
+
+// ================================================================ next goal widget
+function nextGoal() {
+  if (S.mode === 'pure') return null;
+  const opts = [];
+  for (const [key, up] of Object.entries(BOT_UPGRADES)) {
+    const nx = up.levels[S.levels[key] + 1];
+    if (nx) opts.push({ name: `${up.title}: ${nx.name}`, cost: nx.cost });
+  }
+  for (const c of CHASSIS) if (!S.chassisOwned.includes(c.id)) opts.push({ name: `Fahrwerk: ${c.name}`, cost: c.cost });
+  for (const m of MODULES) if (!S.modules.includes(m.id)) opts.push({ name: `${m.icon} ${m.name}`, cost: m.cost });
+  opts.sort((a, b) => a.cost - b.cost);
+  // aim for the cheapest thing that isn't trivially cheap compared to credits, or the next one
+  return opts.find((o) => o.cost > S.credits) ? (opts.filter((o) => o.cost <= S.credits)[0] || opts.find((o) => o.cost > S.credits)) : opts[0];
+}
+function updateGoal() {
+  const g = nextGoal();
+  const el = $('goal');
+  if (!g || S.tutorial < 5) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const ready = S.credits >= g.cost;
+  el.classList.toggle('ready', ready);
+  setText('goal-name', ready ? `${g.name} – kaufbar!` : g.name);
+  setText('goal-cost', ready ? 'Ab zum Shop 🛒' : `${fmt(S.credits)} / ${fmt(g.cost)} ⬡`);
+  $('goal-fill').style.width = `${Math.min(100, (S.credits / g.cost) * 100)}%`;
 }
 
 // ================================================================ grabbing
@@ -344,6 +537,8 @@ function doGrab(x, z) {
     return;
   }
   S.stats.removed += res.removed;
+  bumpCombo();
+  addXp(1);
   const size = Math.min(5, S.levels.hands);
   sfx.grab(size);
   if (S.levels.hands === 0 && Math.random() < 0.15) bot.setMood('work', 0.6);
@@ -352,12 +547,13 @@ function doGrab(x, z) {
   spawnDebris(x, h, z, Math.min(2 + size * 3, Math.max(1, Math.round(res.removed / 3))), -Math.sin(a) * 0.4, -Math.cos(a) * 0.4, 1 + size * 0.15);
   dust.puff(x, h, z, 1 + Math.min(4, size), 0.8 + size * 0.25);
   const lucky = S.stats.grabs <= LUCK.grabs ? LUCK.factor : 1;
-  const finds = rollFinds(res.removed, lucky * events.luckFactor);
+  const finds = rollFinds(res.removed, lucky * events.luckFactor * comboLuck());
   // guaranteed early highlights
   if (S.stats.grabs === 3) finds.push({ f: FINDS[1], k: 1, tier: 1 });
   if (S.stats.grabs === 25) finds.push({ f: FINDS[2], k: 1, tier: 2 });
   handleFinds(finds, true);
   const worth = finds.reduce((a, q) => a + valueOf(q.f) * q.k, 0);
+  if (worth) addXp(Math.max(1, Math.round(worth / 20)));
   if (worth && S.mode !== 'pure') {
     const best = finds.reduce((a, q) => (q.tier > a.tier ? q : a), finds[0]);
     floatLabel(camera, tmpV2.set(x, h + 0.8, z), `+${fmt(worth)} ⬡`, best.f.color, worth >= 60);
@@ -383,12 +579,14 @@ function openMeteor(pos) {
   dust.puff(pos.x, pos.y, pos.z, 6, 1.5, 0xff9a5c);
   spawnDebris(pos.x, pos.y, pos.z, 10, 0, 0, 0.8);
   S.stats.meteors = (S.stats.meteors || 0) + 1;
+  addXp(25);
   bot.setMood('love', 1.5);
 }
 function openCapsule(pos) {
   const reward = capsuleReward();
   S.credits += reward; S.stats.earned += reward;
   S.stats.capsules++;
+  addXp(15);
   sfx.capsule();
   vibrate(25);
   bot.setMood('happy', 2);
@@ -717,6 +915,46 @@ function renderShop() {
     info.className = 'lead small';
     info.textContent = 'Atomar-Drohnen arbeiten auch, wenn das Spiel geschlossen ist (bis zu 2 Stunden). Ihre Funde werden direkt verkauft.';
     list.appendChild(info);
+  } else if (shopTab === 'craft') {
+    if (S.level < UNLOCKS.crafting) {
+      const p = document.createElement('p'); p.className = 'lead';
+      p.innerHTML = `🔒 Der Fabrikator wird ab <b>Nexus Level ${UNLOCKS.crafting}</b> freigeschaltet.`;
+      list.appendChild(p);
+    } else {
+      const intro = document.createElement('p');
+      intro.className = 'lead small';
+      intro.innerHTML = 'Der Fabrikator baut Gegenstände aus Funden in deinem <b>Lager</b>. Tipp auf „Zutaten sammeln“ – dann bringt Nexus diese Funde an der Ablage ins Lager, statt sie zu verkaufen.';
+      list.appendChild(intro);
+      for (const r of RECIPES) {
+        const c = CONSUMABLES.find((x) => x.id === r.out);
+        const parts = Object.entries(r.need).map(([id, n]) => {
+          const f = FINDS.find((x) => x.id === id);
+          const have = S.vault[id] || 0;
+          return `<span class="${have >= n ? 'ok' : 'miss'}">${fmt(Math.min(have, n))}/${n} ${f.name}${S.keep.includes(id) ? ' 🔒' : ''}</span>`;
+        }).join(' · ');
+        const can = Object.entries(r.need).every(([id, n]) => (S.vault[id] || 0) >= n) && S.credits >= r.credits;
+        const allKept = Object.keys(r.need).every((id) => S.keep.includes(id));
+        shopItem(list, {
+          title: `${c.icon} ${c.name} <span style="color:var(--muted)">(hast ${S.items[c.id] || 0})</span>`,
+          desc: `${c.desc}<br><span class="recipe">${parts} · ${fmt(r.credits)} ⬡</span>`,
+          extra: allKept ? '' : `<button class="mini-btn" data-keep="${Object.keys(r.need).join(',')}">Zutaten sammeln</button>`,
+          btn: can ? 'Bauen' : 'Fehlt was', disabled: !can,
+          onBuy: () => {
+            if (!can) return;
+            S.credits -= r.credits;
+            for (const [id, n] of Object.entries(r.need)) S.vault[id] -= n;
+            giveItem(r.out, r.n);
+            S.crafted++;
+            addXp(10);
+            bought(`Gebaut: ${c.icon} ${c.name}`);
+          },
+        });
+      }
+      list.querySelectorAll('[data-keep]').forEach((b) => b.addEventListener('click', () => {
+        for (const id of b.dataset.keep.split(',')) if (!S.keep.includes(id)) S.keep.push(id);
+        sfx.click(); feed('Zutaten werden jetzt gesammelt 🔒', '#ffb347'); renderShop(); save();
+      }));
+    }
   } else if (shopTab === 'skins') {
     for (const sk of SKINS) {
       const owned = S.skins.includes(sk.id);
@@ -759,6 +997,62 @@ function renderArchive() {
     const ch = CHASSIS.find((c) => c.id === S.chassis);
     eq.innerHTML = `Fahrwerk: <b>${ch.name}</b> · Module: ${S.equipped.length ? S.equipped.map((id) => { const m = MODULES.find((x) => x.id === id); return `${m.icon} ${m.name}`; }).join(', ') : 'keine'}`;
     list.appendChild(eq);
+  } else if (archTab === 'vault') {
+    const head = document.createElement('p');
+    head.className = 'lead small';
+    head.innerHTML = 'Tippe auf ein Fach: 🔒 = <b>behalten</b> (kommt an der Ablage ins Lager), sonst wird es verkauft. Das Lager braucht der Fabrikator und für Aufträge.';
+    list.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'cargo-grid';
+    grid.innerHTML = FINDS.map((f) => {
+      const n = S.vault[f.id] || 0;
+      const k = S.keep.includes(f.id);
+      return `<button class="cargo-cell keep-cell ${k ? 'kept' : ''}" data-id="${f.id}" style="--c:${f.color}"><b>${fmt(n)}</b><span>${f.name}</span><small>${k ? '🔒 behalten' : '⬡ verkaufen'}</small></button>`;
+    }).join('');
+    list.appendChild(grid);
+    grid.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.id;
+      S.keep = S.keep.includes(id) ? S.keep.filter((x) => x !== id) : [...S.keep, id];
+      sfx.click(); renderArchive(); save();
+    }));
+    const sellAll = document.createElement('p');
+    sellAll.className = 'lead small';
+    sellAll.textContent = `Lagerwert: ${fmt(FINDS.reduce((a, f) => a + (S.vault[f.id] || 0) * valueOf(f), 0))} ⬡`;
+    list.appendChild(sellAll);
+  } else if (archTab === 'contracts') {
+    if (S.level < UNLOCKS.contracts || S.mode === 'pure') {
+      const p = document.createElement('p'); p.className = 'lead';
+      p.innerHTML = S.mode === 'pure' ? 'Im Modus „Pur“ gibt es keine Aufträge.' : `🔒 Aufträge gibt es ab <b>Nexus Level ${UNLOCKS.contracts}</b>.`;
+      list.appendChild(p);
+    } else {
+      ensureContracts();
+      for (const c of S.contracts) {
+        const prog = contractProgress(S, c);
+        const done = prog >= c.n;
+        const el = document.createElement('div');
+        el.className = 'item' + (done ? ' got' : '');
+        el.innerHTML = `<div class="t">📋 ${contractLabel(c)}</div>
+          <div class="d">Belohnung: <b>${fmt(c.reward)} ⬡</b> · ${fmt(c.xp)} XP${c.kind === 'deliver' ? ' · aus dem Lager' : ''}</div>
+          <div class="pbar"><i style="width:${Math.min(100, (prog / c.n) * 100)}%"></i><span>${fmt(prog)} / ${fmt(c.n)}</span></div>`;
+        const b = document.createElement('button');
+        b.className = 'buy';
+        b.textContent = done ? 'Abholen' : 'Läuft…';
+        b.disabled = !done;
+        b.onclick = () => claimContract(c.id);
+        el.appendChild(b);
+        list.appendChild(el);
+      }
+      const rr = document.createElement('button');
+      rr.className = 'ghost';
+      rr.textContent = 'Aufträge neu würfeln (50 ⬡)';
+      rr.disabled = S.credits < 50;
+      rr.onclick = () => { if (!pay(50)) return; S.contracts = []; ensureContracts(); sfx.click(); renderArchive(); updateHud(); save(); };
+      list.appendChild(rr);
+      const done = document.createElement('p');
+      done.className = 'lead small';
+      done.textContent = `Erledigte Aufträge: ${S.contractsDone}`;
+      list.appendChild(done);
+    }
   } else if (archTab === 'achv') {
     const head = document.createElement('p');
     head.className = 'lead';
@@ -781,6 +1075,10 @@ function renderArchive() {
        <span>Spielzeit</span><span>${formatTime(S.stats.time)}</span>
        <span>Frachtkapseln</span><span>${fmt(S.stats.capsules)}</span>
        <span>Meteoriten</span><span>${fmt(S.stats.meteors || 0)}</span>
+       <span>Nexus-Level</span><span>${S.level} (${fmt(S.xp)}/${fmt(xpForLevel(S.level))} XP)</span>
+       <span>Beste Kombo</span><span>${fmt(S.bestCombo)}</span>
+       <span>Gebaute Gegenstände</span><span>${fmt(S.crafted)}</span>
+       <span>Aufträge</span><span>${fmt(S.contractsDone)}</span>
        <span>Atomar-Drohnen</span><span>${fmt(Object.values(S.helpers).reduce((a, b) => a + b, 0))}</span>
        <span>Nexus-Kern</span><span>${S.coreFound ? '✔ gefunden' : 'verschollen'}</span>
        <span>Sterne</span><span>⭐ ${S.stars || 0} (+${(S.stars || 0) * 25} % Fundwert)</span>`;
@@ -843,12 +1141,17 @@ function startGame(state, offline) {
   state.chassis = state.chassis || 'tracks'; state.chassisOwned = state.chassisOwned || ['tracks'];
   state.modules = state.modules || []; state.equipped = state.equipped || [];
   state.slotLv = state.slotLv || 0; state.atomarLv = state.atomarLv || 0;
+  state.level = state.level || 1; state.xp = state.xp || 0; state.vault = state.vault || {}; state.keep = state.keep || [];
+  state.items = state.items || {}; state.contracts = state.contracts || []; state.contractsDone = state.contractsDone || 0;
+  state.crafted = state.crafted || 0; state.bestCombo = state.bestCombo || 0;
   setupWorld(state);
   $('overlay-start').classList.add('hidden');
   hud.classList.remove('hidden');
   playing = true;
   updateHud();
   dailyBonus();
+  ensureContracts();
+  renderItems();
   if (offline) offlineProgress();
   else if (S.stats.grabs === 0) {
     setTimeout(() => bot.setMood('curious', 2), 400);
@@ -880,6 +1183,7 @@ function nextDeck() {
     deck: (old.deck || 0) + 1, stars: (old.stars || 0) + 1,
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
     chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
+    level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
   });
   st.credits = 100 * st.stars;
@@ -1281,10 +1585,9 @@ function animate() {
       $('btn-dock').classList.toggle('hidden', !nearShop() || S.mode === 'pure');
       const inA = nearDock();
       if (inA && !wasInAblage && S.mode !== 'pure') {
-        if (cargoValue() > 0) {
-          const v = cargoValue();
-          sellCargo();
-          floatLabel(camera, tmpV2.copy(bot.group.position).setY(bot.group.position.y + 2), `+${fmt(v)} ⬡`, '#6ff3f0', true);
+        if (S.cargoCount > 0) {
+          const v = sellCargo();
+          floatLabel(camera, tmpV2.copy(bot.group.position).setY(bot.group.position.y + 2), v ? `+${fmt(v)} ⬡` : '→ Lager', '#6ff3f0', true);
           dust.puff(WORLD.dock.x, 0.2, WORLD.dock.z, 6, 1.2, 0x6ff3f0);
         } else if (S.stats.grabs > 0) hint('Nexus-Ablage: Laderaum ist leer', '#6ff3f0');
       }
@@ -1294,6 +1597,9 @@ function animate() {
       updateBubble(dt);
       updateDockArrow();
       checkAchievements(dt);
+      updateCombo(dt);
+      updatePulse(dt, t);
+      updateGoal();
       capsules.speed = hasMod('radar') ? 2 : 1;
       events.speed = hasMod('lure') ? 1.8 : 1;
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
@@ -1335,4 +1641,4 @@ showStart();
 animate();
 
 // test hook
-window.__nx = { quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

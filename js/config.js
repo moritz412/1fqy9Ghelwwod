@@ -150,6 +150,12 @@ export const ACHIEVEMENTS = [
   { id: 'tinker',   name: 'Bastler',             desc: 'Besitze 3 Module.',                        check: (s) => (s.modules || []).length >= 3, reward: 1500 },
   { id: 'fusion',   name: 'Kernfusion',          desc: 'Rüste den Atomar-Kern auf Stufe III.',     check: (s) => (s.atomarLv || 0) >= 2, reward: 4000 },
   { id: 'meteor',   name: 'Sternschnuppen-Fänger', desc: 'Sammle 10 Meteoriten.',                 check: (s) => (s.stats.meteors || 0) >= 10, reward: 2500 },
+  { id: 'lv5',      name: 'Aufsteiger',          desc: 'Erreiche Nexus Level 5.',                  check: (s) => (s.level || 1) >= 5,          reward: 800 },
+  { id: 'lv15',     name: 'Veteran',             desc: 'Erreiche Nexus Level 15.',                 check: (s) => (s.level || 1) >= 15,         reward: 25000 },
+  { id: 'combo50',  name: 'Im Flow',             desc: 'Schaffe eine Kombo von 50.',               check: (s) => (s.bestCombo || 0) >= 50,     reward: 600 },
+  { id: 'combo200', name: 'Greif-Maschine',      desc: 'Schaffe eine Kombo von 200.',              check: (s) => (s.bestCombo || 0) >= 200,    reward: 6000 },
+  { id: 'craft',    name: 'Erfinder',            desc: 'Baue deinen ersten Gegenstand.',           check: (s) => (s.crafted || 0) >= 1,        reward: 200 },
+  { id: 'contract', name: 'Zuverlässig',         desc: 'Erledige 5 Aufträge.',                     check: (s) => (s.contractsDone || 0) >= 5,  reward: 2000 },
 ];
 
 export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };
