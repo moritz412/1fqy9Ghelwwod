@@ -157,6 +157,8 @@ export const ACHIEVEMENTS = [
   { id: 'gravity',  name: 'Herr der Schwerkraft', desc: 'Baue den Gravitationskern.',               check: (s) => (s.station || []).some((m) => m.type === 'gravcore'), reward: 100000 },
   { id: 'evo3',     name: 'Weiterentwickelt',    desc: 'Entwickle Nexus zu Mk III.',               check: (s) => (s.evo || 1) >= 3, reward: 8000 },
   { id: 'evo5',     name: 'Nexus Mk V',          desc: 'Erreiche die letzte Evolutionsstufe.',     check: (s) => (s.evo || 1) >= 5, reward: 250000 },
+  { id: 'explorer', name: 'Entdecker',           desc: 'Schließe 5 Expeditionen ab.',              check: (s) => (s.stats.expeditions || 0) >= 5, reward: 5000 },
+  { id: 'trader',   name: 'Händlerseele',        desc: 'Tausche 5-mal mit Händlern.',              check: (s) => (s.stats.trades || 0) >= 5, reward: 3000 },
   { id: 'tinker',   name: 'Bastler',             desc: 'Besitze 3 Module.',                        check: (s) => (s.modules || []).length >= 3, reward: 1500 },
   { id: 'fusion',   name: 'Kernfusion',          desc: 'Rüste den Atomar-Kern auf Stufe III.',     check: (s) => (s.atomarLv || 0) >= 2, reward: 4000 },
   { id: 'meteor',   name: 'Sternschnuppen-Fänger', desc: 'Sammle 10 Meteoriten.',                 check: (s) => (s.stats.meteors || 0) >= 10, reward: 2500 },

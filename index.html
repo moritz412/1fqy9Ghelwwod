@@ -61,6 +61,7 @@
     <button id="btn-grab" aria-label="Greifen"><span>GREIFEN</span><small id="grab-amt">1 Teil</small></button>
     <button id="btn-dock" class="hidden">NEXUS-SHOP</button>
     <button id="btn-site" class="hidden">🏗️ HIER BAUEN</button>
+    <button id="btn-trader" class="hidden">🛸 Händler <small id="trader-left"></small></button>
   </div>
 
   <!-- Shop (only at the Nexus-Shop station) -->
@@ -95,6 +96,16 @@
       <button class="icon-btn" id="station-close" aria-label="Zurück">✕</button>
     </div>
     <div id="st-list"></div>
+  </div>
+
+  <div id="trader" class="overlay hidden">
+    <div class="card wide">
+      <div class="shop-head">
+        <div><div class="kicker" style="color:#b48cff">Händlerschiff an Nexus Prime</div><h2>🛸 Tauschangebote</h2></div>
+        <button class="icon-btn" id="trader-close" aria-label="Schließen">✕</button>
+      </div>
+      <div id="trader-list"></div>
+    </div>
   </div>
 
   <!-- Base building -->

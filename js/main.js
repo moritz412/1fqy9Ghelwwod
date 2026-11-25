@@ -3,7 +3,8 @@ import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUC
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
-import { StationView, MODULES_ST, RANKS, stationRank, moduleCost, stationBonus, freeCells, STATION_POS, TONS_PER_PART } from './station.js';
+import { startIconObserver } from './icons.js';
+import { StationView, MODULES_ST, RANKS, stationRank, moduleCost, stationBonus, freeCells, STATION_POS, TONS_PER_PART, EXPEDITIONS, expSlots, makeTraderDeals } from './station.js';
 import { BaseView, BUILDINGS, baseStats, buildCost, SITE_COSTS, SITE_ANGLES, MAX_BLD_LEVEL, BUILD_UNLOCK_LEVEL, sitePos, bldValue } from './buildings.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
@@ -28,7 +29,7 @@ function freshState(mode = 'career') {
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0, aliens: 0 },
     total: TOTAL_STONES, deckBase: { removed: 0, found: {}, time: 0, aliens: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
-    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0, station: [], tonsSpent: 0, evo: 1,
+    chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0, station: [], tonsSpent: 0, evo: 1, tonsBonus: 0, expeditions: [], trader: null, traderNext: 0,
     level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
@@ -299,6 +300,7 @@ const hud = $('hud');
 // find messages are collected and shown as one calm line per ~1.5 s
 const feedAgg = { items: new Map(), t: 0 };
 function feedFind(f, k) {
+  if (f.value < 60) return;   // keep the screen calm: commons are not announced
   const cur = feedAgg.items.get(f.id) || { f, k: 0 };
   cur.k += k;
   feedAgg.items.set(f.id, cur);
@@ -306,7 +308,7 @@ function feedFind(f, k) {
 function flushFeed(dt) {
   feedAgg.t -= dt;
   if (feedAgg.t > 0 || !feedAgg.items.size) return;
-  feedAgg.t = 1.5;
+  feedAgg.t = 3;
   const list = [...feedAgg.items.values()].sort((a, b) => b.f.value - a.f.value);
   feedAgg.items.clear();
   const text = list.slice(0, 3).map((q) => `+${fmt(q.k)} ${q.f.name}`).join(' · ') + (list.length > 3 ? ' …' : '');
@@ -335,7 +337,7 @@ const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
 let SB = stationBonus([]);
 const refreshStationBonus = () => { SB = stationBonus(S.station || []); };
 const cargoCap = () => Math.round(lv('cargo') * (1 + SB.cargo));
-const tonsAvail = () => Math.max(0, S.stats.removed * TONS_PER_PART - (S.tonsSpent || 0));
+const tonsAvail = () => Math.max(0, S.stats.removed * TONS_PER_PART + (S.tonsBonus || 0) - (S.tonsSpent || 0));
 const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
 const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS) * deckValueMult(S.deck || 0) * events.valueFactor * (1 + SB.value + SB.all));
 const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult * (1 + (S.sites ? baseStats(S.sites).hangar : 0) / 100) * (1 + SB.drones + SB.all);
@@ -363,7 +365,7 @@ function updateHud() {
   $('btn-archive').classList.toggle('badge', ready > 0);
   $('btn-build').classList.toggle('hidden', S.mode === 'pure' || S.level < BUILD_UNLOCK_LEVEL);
   $('btn-station').classList.toggle('hidden', S.mode === 'pure');
-  $('btn-station').classList.toggle('badge', tonsAvail() >= 8 && S.station.length === 0);
+  $('btn-station').classList.toggle('badge', (tonsAvail() >= 8 && S.station.length === 0) || expReady() > 0);
   const anyB = S.sites && S.sites.some(Boolean);
   $('base-chip').classList.toggle('hidden', !anyB);
   if (anyB) setText('base-inc', `${fmt(baseIncome)}/s${baseCache.eff < 1 ? ' ⚡!' : ''}`);
@@ -425,7 +427,7 @@ function handleFinds(list, byPlayer) {
       best = Math.max(best, tier);
     }
     if (take < k && fullWarnT <= 0) {
-      fullWarnT = 3;
+      fullWarnT = 15;
       hint('Laderaum voll! Ab zur Nexus-Ablage', '#ff6b6b');
       bot.setMood('sad', 2.5);
       say(pick(LINES.full));
@@ -433,8 +435,7 @@ function handleFinds(list, byPlayer) {
     }
   }
   if (best >= 0) {
-    if (best >= 3) say(pick(LINES.rare));
-    else if (best >= 2 && Math.random() < 0.5) say(pick(LINES.find));
+    if (best >= 4) say(pick(LINES.rare));
     sfx.find(best);
     if (best >= 2) { bot.setMood('happy', 1.5); vibrate(20); }
   }
@@ -488,7 +489,7 @@ function bumpCombo() {
   combo.n = combo.t > 0 ? combo.n + 1 : 1;
   combo.t = 1.3 + 1 / lv('speed');
   if (combo.n > S.bestCombo) S.bestCombo = combo.n;
-  if ([25, 50, 100, 200].includes(combo.n)) {
+  if ([100, 250].includes(combo.n)) {
     sfx.find(Math.min(5, combo.n / 40 + 1));
     say(combo.n >= 100 ? `KOMBO ${combo.n}! Unaufhaltsam! 🔥` : `Kombo ${combo.n}! 🔥`, 1.6);
     addXp(combo.n / 5);
@@ -499,7 +500,7 @@ function updateCombo(dt) {
   combo.t -= dt;
   if (combo.t <= 0) combo.n = 0;
   const el = $('combo');
-  if (combo.n >= 5) {
+  if (combo.n >= 20) {
     el.classList.remove('hidden');
     setText('combo-n', `${combo.n}`);
     setText('combo-m', `Glück ×${comboLuck().toLocaleString('de-DE', { maximumFractionDigits: 2 })}`);
@@ -692,7 +693,7 @@ function doGrab(x, z) {
   handleFinds(finds, true);
   const worth = finds.reduce((a, q) => a + valueOf(q.f) * q.k, 0);
   if (worth) addXp(Math.max(1, Math.round(worth / 20)));
-  if (worth && S.mode !== 'pure' && (worth >= 20 || performance.now() - lastFloat > 700)) {
+  if (worth >= 60 && S.mode !== 'pure' && performance.now() - lastFloat > 1500) {
     lastFloat = performance.now();
     const best = finds.reduce((a, q) => (q.tier > a.tier ? q : a), finds[0]);
     floatLabel(camera, tmpV2.set(x, h + 0.8, z), `+${fmt(worth)} ⬡`, best.f.color, worth >= 60);
@@ -972,6 +973,8 @@ function stationTap(cx, cy) {
   renderStation();
 }
 function stationTick(dt) {
+  traderTick(dt);
+  if (stationMode && !stSel && Math.random() < dt * 0.5) renderStation();
   if ((S.evo || 1) >= 4 && !stationMode) {
     const p = bot.group.position;
     const cap = S.mode !== 'pure' && capsules.take(p.x, p.z, 5);
@@ -986,6 +989,87 @@ function stationTick(dt) {
     if (teleT <= 0) { teleT = 45; const v = sellCargo(); feed(`🌀 Teleport-Relais: +${fmt(v)} ⬡`, '#b48cff'); }
   }
 }
+// ---- expeditions (real time, also while offline)
+const rankNow = () => stationRank(S.station || []);
+function startExpedition(ex) {
+  if (S.expeditions.length >= expSlots(S.station) || S.credits < ex.cost) { sfx.deny(); return; }
+  S.credits -= ex.cost;
+  S.expeditions.push({ id: ex.id, start: Date.now(), end: Date.now() + ex.minutes * 60000 });
+  sfx.turbo(); feed(`🚀 Expedition gestartet: ${ex.name}`, '#6ff3f0');
+  say(pick(['Gute Reise, Crew! 🚀', 'Expedition unterwegs!', 'Ich bin gespannt, was sie mitbringen!']), 2);
+  renderStation(); updateHud(); save();
+}
+function collectExpedition(i) {
+  const e = S.expeditions[i];
+  if (!e || Date.now() < e.end) return;
+  const ex = EXPEDITIONS.find((x) => x.id === e.id);
+  const mult = 1 + rankNow() * 0.35;
+  const r = ex.reward;
+  S.tonsBonus = (S.tonsBonus || 0) + Math.round(r.tons * mult);
+  const cr = Math.round(r.credits * mult * deckValueMult(S.deck || 0));
+  S.credits += cr; S.stats.earned += cr;
+  const items = [];
+  for (const [id, n] of Object.entries(r.finds || {})) { const k = Math.max(1, Math.round(n * mult)); S.vault[id] = (S.vault[id] || 0) + k; items.push(`${k}× ${FINDS.find((f) => f.id === id).name}`); }
+  S.expeditions.splice(i, 1);
+  S.stats.expeditions = (S.stats.expeditions || 0) + 1;
+  addXp(30 + ex.minutes);
+  achvQueue.push({ kicker: 'Expedition zurück!', name: `${ex.icon} ${ex.name}`, desc: `+${fmt(Math.round(r.tons * mult))} t · +${fmt(cr)} ⬡ · ${items.join(', ')} (ins Lager)`, reward: 0 });
+  sfx.capsule();
+  renderStation(); updateHud(); save();
+}
+const fmtLeft = (ms) => { const s0 = Math.max(0, Math.ceil(ms / 1000)); const h = Math.floor(s0 / 3600), m = Math.floor((s0 % 3600) / 60), s1 = s0 % 60; return h ? `${h} h ${m} min` : m ? `${m} min ${s1} s` : `${s1} s`; };
+const expReady = () => (S.expeditions || []).filter((e) => Date.now() >= e.end).length;
+
+// ---- traders docking at Nexus Prime
+function traderTick(dt) {
+  if (S.mode === 'pure' || !S.station || S.station.length < 1) return;
+  const now = Date.now();
+  if (S.trader && now > S.trader.until) { S.trader = null; feed('🛸 Der Händler ist weitergeflogen', '#b48cff'); }
+  if (!S.trader) {
+    if (!S.traderNext) S.traderNext = now + 3 * 60000;
+    if (now >= S.traderNext) {
+      S.trader = { until: now + 4 * 60000, deals: makeTraderDeals(S.level || 1) };
+      S.traderNext = now + (10 + Math.random() * 8) * 60000;
+      sfx.event();
+      say('Ein Händler hat an Nexus Prime angedockt! 🛸 Schau mal rein!', 4);
+      feed('🛸 Händler angedockt – 4 Minuten', '#b48cff');
+    }
+  }
+  $('btn-trader').classList.toggle('hidden', !S.trader);
+  if (S.trader) setText('trader-left', fmtLeft(S.trader.until - now));
+}
+function hasGive(give) {
+  return Object.entries(give).every(([id, n]) => (id === 'credits' ? S.credits >= n : (S.vault[id] || 0) >= n));
+}
+function doTrade(i) {
+  const d = S.trader && S.trader.deals[i];
+  if (!d || d.done || !hasGive(d.give)) { sfx.deny(); return; }
+  for (const [id, n] of Object.entries(d.give)) { if (id === 'credits') S.credits -= n; else S.vault[id] -= n; }
+  for (const [id, n] of Object.entries(d.get)) { if (id === 'credits') { S.credits += n; S.stats.earned += n; } else if (id === 'tons') S.tonsBonus = (S.tonsBonus || 0) + n; else S.vault[id] = (S.vault[id] || 0) + n; }
+  d.done = true;
+  S.stats.trades = (S.stats.trades || 0) + 1;
+  sfx.sell(); feed(`🛸 Handel: ${d.text}`, '#b48cff');
+  renderTrader(); updateHud(); save();
+}
+const itemText = (obj) => Object.entries(obj).map(([id, n]) => (id === 'credits' ? `${fmt(n)} ⬡` : id === 'tons' ? `${fmt(n)} t Schrott` : `${n}× ${FINDS.find((f) => f.id === id).name}`)).join(' + ');
+function renderTrader() {
+  const list = $('trader-list');
+  list.innerHTML = '';
+  if (!S.trader) { list.innerHTML = '<p class="lead">Der Händler ist weitergeflogen.</p>'; return; }
+  S.trader.deals.forEach((d, i) => {
+    shopItem(list, {
+      title: `🛸 ${d.text}`, desc: `Du gibst: <b>${itemText(d.give)}</b><br>Du bekommst: <b>${itemText(d.get)}</b>`,
+      btn: d.done ? 'ERLEDIGT' : 'Tauschen', disabled: d.done || !hasGive(d.give), cls: d.done ? 'got' : '',
+      onBuy: () => doTrade(i),
+    });
+  });
+  const p = document.createElement('p'); p.className = 'lead small';
+  p.textContent = 'Funde zum Tauschen kommen aus deinem Lager. Tipp: Im Archiv → Lager Funde auf „behalten“ stellen.';
+  list.appendChild(p);
+}
+$('btn-trader').addEventListener('click', () => { initAudio(); $('trader').classList.remove('hidden'); renderTrader(); });
+$('trader-close').addEventListener('click', () => $('trader').classList.add('hidden'));
+
 function canPayModule(type, lvl) {
   const [tons, cr] = moduleCost(type, lvl);
   const rare = lvl === 0 ? (MODULES_ST[type].rare || {}) : {};
@@ -1016,6 +1100,31 @@ function renderStation() {
     if (b.teleport) parts.push('Teleport-Relais aktiv');
     list.innerHTML = `<p class="lead small">Tippe eine <b style="color:#6ff3f0">leuchtende Anbauposition</b> an, um ein Modul zu bauen, oder ein Modul, um es auszubauen. Ziehen dreht die Ansicht. Baumaterial: 1 t Schrott je 1.000 weggeräumte Teile.</p>
       <p class="lead small"><b>Stations-Boni (dauerhaft, alle Decks):</b><br>${parts.length ? parts.join(' · ') : 'noch keine – bau dein erstes Modul!'}</p>`;
+    // expeditions
+    const slots = expSlots(S.station);
+    const h = document.createElement('p'); h.className = 'lead small';
+    h.innerHTML = `<b>🚀 Expeditionen</b> (${S.expeditions.length}/${slots} unterwegs – mehr Plätze durch Frachtdocks)`;
+    list.appendChild(h);
+    S.expeditions.forEach((e, i) => {
+      const ex = EXPEDITIONS.find((x) => x.id === e.id);
+      const left = e.end - Date.now();
+      const el = document.createElement('div');
+      el.className = 'item' + (left <= 0 ? ' got' : '');
+      el.innerHTML = `<div class="t">${ex.icon} ${ex.name}</div><div class="pbar"><i style="width:${Math.min(100, ((Date.now() - e.start) / (e.end - e.start)) * 100)}%"></i><span>${left <= 0 ? 'zurück!' : `noch ${fmtLeft(left)}`}</span></div>`;
+      const b2 = document.createElement('button'); b2.className = 'buy'; b2.textContent = left <= 0 ? 'Abholen' : 'Unterwegs'; b2.disabled = left > 0;
+      b2.onclick = () => collectExpedition(i);
+      el.appendChild(b2); list.appendChild(el);
+    });
+    for (const ex of EXPEDITIONS) {
+      const locked = rankNow() < ex.rank;
+      const mult = 1 + rankNow() * 0.35;
+      shopItem(list, {
+        title: `${ex.icon} ${ex.name} · ${ex.minutes >= 60 ? `${ex.minutes / 60} h` : `${ex.minutes} min`}`,
+        desc: `Bringt ca. ${fmt(Math.round(ex.reward.tons * mult))} t Schrott, ${fmt(Math.round(ex.reward.credits * mult))} ⬡ und seltene Funde. Start: ${fmt(ex.cost)} ⬡`,
+        btn: locked ? `🔒 ${RANKS[ex.rank].name}` : 'Starten', disabled: locked || S.expeditions.length >= slots || S.credits < ex.cost,
+        onBuy: () => startExpedition(ex),
+      });
+    }
     return;
   }
   if (stSel.free) {
@@ -1164,7 +1273,7 @@ function checkAchievements(dt) {
   if (achvQueue.length && !$('achv').classList.contains('show')) showAchievement(achvQueue.shift());
 }
 function showAchievement(a) {
-  confetti(a.kicker && a.kicker.startsWith('Meilenstein') ? 40 : 70);
+  if (a.kicker && /Level|Evolution|Deck-Stern|Stationsrang/.test(a.kicker)) confetti(35);
   const el = $('achv');
   el.innerHTML = `<small>${a.kicker || 'Erfolg freigeschaltet'}</small><b>${a.kicker ? '' : '🏆 '}${a.name}</b><span>${a.desc}${S.mode !== 'pure' && a.reward ? ` · +${fmt(a.reward)} ⬡` : ''}</span>`;
   el.classList.add('show');
@@ -1789,6 +1898,7 @@ function startGame(state, offline) {
   state.tool = state.tool || 'arms'; state.toolsOwned = state.toolsOwned || ['arms'];
   state.total = state.total || TOTAL_STONES;
   state.station = state.station || []; state.tonsSpent = state.tonsSpent || 0; state.evo = state.evo || 1;
+  state.tonsBonus = state.tonsBonus || 0; state.expeditions = state.expeditions || []; state.trader = state.trader || null; state.traderNext = state.traderNext || 0;
   state.deckBase = state.deckBase || { removed: 0, found: {}, time: 0, aliens: 0 };
   state.stats.aliens = state.stats.aliens || 0;
   records.deckStars = records.deckStars || {};
@@ -1835,7 +1945,7 @@ function makeDeckState(n, old) {
   Object.assign(st, {
     deck: n, stars: totalStars(),
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
-    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, station: old.station || [], tonsSpent: old.tonsSpent || 0, evo: old.evo || 1,
+    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, station: old.station || [], tonsSpent: old.tonsSpent || 0, evo: old.evo || 1, tonsBonus: old.tonsBonus || 0, expeditions: old.expeditions || [], trader: old.trader || null, traderNext: old.traderNext || 0,
     chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
@@ -2343,7 +2453,7 @@ const TUTORIAL = [
 ];
 let tutorialShown = 0;
 const bubbleEl = $('bubble'), bubbleText = $('bubble-text');
-let chatter = { text: '', t: 0 }, idleChat = 25;
+let chatter = { text: '', t: 0 }, idleChat = 90;
 const LINES = {
   find: ['Oh, was Glänzendes!', 'Das gibt Credits!', 'Ich liebe Schrott. 🤖', 'Ein guter Fund!', 'Ab in den Laderaum!'],
   rare: ['WOW! Schau dir das an!', 'Selten! Sehr selten!', 'Meine Sensoren kribbeln!'],
@@ -2353,7 +2463,7 @@ const LINES = {
   hot: ['Ich spüre etwas… ganz nah!', 'Hier! Hier muss er sein!'],
 };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-function say(text, dur = 2.6) { chatter = { text, t: dur }; idleChat = 30 + Math.random() * 30; }
+function say(text, dur = 2.6) { chatter = { text, t: dur }; idleChat = 120 + Math.random() * 90; }
 
 function updateDockArrow() {
   let target = null, label = '';
@@ -2633,6 +2743,7 @@ function animate() {
 }
 
 // ---- boot: show the title over the saved (or a demo) heap
+startIconObserver();
 const boot = loadState();
 setupWorld(boot || freshState());
 animate();

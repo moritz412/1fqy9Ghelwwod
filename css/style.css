@@ -50,7 +50,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 #credits-chip { color: var(--accent); }
 #dock-chip { color: #6ff3f0; border-color: #6ff3f0; }
 #dock-arrow { display: inline-block; transition: transform .1s; }
-#cargo-chip.full { color: var(--danger); border-color: var(--danger); animation: blink 1s infinite; }
+#cargo-chip.full { color: var(--danger); border-color: var(--danger);  }
 @keyframes blink { 50% { opacity: .55; } }
 
 .icon-btn {
@@ -112,7 +112,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   position: absolute; right: calc(22px + var(--safe-r)); bottom: calc(170px + var(--safe-b));
   min-height: 54px; padding: 0 20px; border-radius: 16px; font-weight: 900; letter-spacing: .04em;
   background: linear-gradient(180deg, #6ff3f0, #2aa7c9); color: #031a22; box-shadow: 0 5px 0 #13607a;
-  animation: pulseBtn 1.2s infinite;
+  
 }
 @keyframes pulseBtn { 50% { transform: scale(1.05); } }
 
@@ -186,7 +186,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 }
 #btn-turbo span { font-size: 24px; }
 #btn-turbo small { font-size: 9px; font-weight: 900; letter-spacing: .08em; }
-#btn-turbo.ready { animation: pulseBtn 1.4s infinite; border-color: #ffb347; }
+#btn-turbo.ready {  border-color: #ffb347; }
 #btn-turbo.active { box-shadow: inset 0 0 0 5px rgba(10,16,26,.9), 0 0 24px rgba(255,179,71,.8); }
 
 #btn-dock { background: linear-gradient(180deg, #ffd08a, #ffb347); color: #3a2208; box-shadow: 0 5px 0 #8a5312; }
@@ -218,7 +218,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 #goal .bar { height: 6px; margin: 4px 0 2px; }
 #goal-fill { background: linear-gradient(90deg, #ffd08a, #ffb347); }
 #goal span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-#goal.ready { border-color: #ffb347; animation: pulseBtn 1.2s infinite; }
+#goal.ready { border-color: #ffb347;  }
 #goal.ready b, #goal.ready span { color: #ffb347; }
 
 #combo {
@@ -392,7 +392,7 @@ h2 { margin: 0 0 10px; font-size: 24px; }
 }
 #splash h1 { font-size: clamp(44px, 13vw, 84px); margin: 0; filter: drop-shadow(0 0 24px rgba(111,243,240,.45)); }
 .splash-bot { width: 120px; height: 120px; border-radius: 30px; box-shadow: 0 0 40px rgba(111,243,240,.4); animation: bob 3s ease-in-out infinite; margin-bottom: 10px; }
-#splash .tap { margin-top: 18px; font-size: 18px; font-weight: 900; letter-spacing: .08em; color: var(--accent); animation: blink 1.4s infinite; }
+#splash .tap { margin-top: 18px; font-size: 18px; font-weight: 900; letter-spacing: .08em; color: var(--accent); }
 #splash small { color: var(--muted); }
 
 /* ---------- base building ---------- */
@@ -415,7 +415,7 @@ h2 { margin: 0 0 10px; font-size: 24px; }
 #btn-site {
   position: absolute; right: calc(22px + var(--safe-r)); bottom: calc(170px + var(--safe-b));
   min-height: 54px; padding: 0 18px; border-radius: 16px; font-weight: 900; letter-spacing: .03em;
-  background: linear-gradient(180deg, #7cf0b0, #2fc9a8); color: #03221c; box-shadow: 0 5px 0 #13705e; animation: pulseBtn 1.2s infinite;
+  background: linear-gradient(180deg, #7cf0b0, #2fc9a8); color: #03221c; box-shadow: 0 5px 0 #13705e; 
 }
 @media (max-width: 520px) { #btn-site { bottom: calc(146px + var(--safe-b)); } }
 
@@ -445,3 +445,26 @@ h2 { margin: 0 0 10px; font-size: 24px; }
   0% { transform: translate(0, 0) rotate(0); opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; }
 }
+
+#btn-trader {
+  position: absolute; left: 50%; transform: translateX(-50%); top: calc(150px + var(--safe-t));
+  min-height: 44px; padding: 0 16px; border-radius: 14px; font-weight: 900; color: #1a0a2a;
+  background: linear-gradient(180deg, #d9c0ff, #b48cff); box-shadow: 0 4px 0 #6a4aa0; 
+}
+#btn-trader small { font-weight: 700; opacity: .75; margin-left: 4px; }
+@media (max-width: 520px) { #btn-trader { top: calc(196px + var(--safe-t)); } }
+
+/* calm UI: neutral speech bubbles, no glowing borders */
+#bubble { border-color: rgba(255,255,255,.6) !important; background: rgba(243,244,242,.94) !important; }
+#bubble::after { border-top-color: rgba(243,244,242,.94) !important; }
+#bubble.tut { background: #f3f4f2 !important; }
+.feed-item { border-left-width: 3px; opacity: .92; }
+#combo { opacity: .85; }
+
+/* line icons */
+.icw { display: inline-flex; vertical-align: middle; line-height: 1; }
+.ic { width: 1.1em; height: 1.1em; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.18em; }
+.icon-btn .ic { width: 22px; height: 22px; }
+.tool .ico .ic, .site .ico .ic { width: 26px; height: 26px; }
+#btn-turbo span .ic { width: 26px; height: 26px; }
+.deck-card .stars .ic { width: 15px; height: 15px; }

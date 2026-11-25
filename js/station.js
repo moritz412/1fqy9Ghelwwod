@@ -190,3 +190,32 @@ export class StationView {
   }
   worldOf(cell) { return this.root.localToWorld(new THREE.Vector3(cell.x * CELL, cell.y * CELL, cell.z * CELL)); }
 }
+
+// ------------------------------------------------------------------ expeditions & traders
+export const EXPEDITIONS = [
+  { id: 'belt',   icon: '☄️', name: 'Asteroidenring',  minutes: 5,   cost: 500,    rank: 0, reward: { tons: 12, credits: 1500, finds: { probe: 3 } } },
+  { id: 'aurora', icon: '🛰️', name: 'Wrack der Aurora', minutes: 20,  cost: 3000,   rank: 0, reward: { tons: 40, credits: 6000, finds: { datacore: 3, badge: 1 } } },
+  { id: 'nebula', icon: '🌌', name: 'Kessa-Nebel',      minutes: 60,  cost: 15000,  rank: 1, reward: { tons: 120, credits: 30000, finds: { artifact: 1, datacore: 6 } } },
+  { id: 'deep',   icon: '🕳️', name: 'Tiefer Raum',      minutes: 240, cost: 80000,  rank: 2, reward: { tons: 500, credits: 200000, finds: { graviton: 2, artifact: 2 } } },
+];
+export const expSlots = (mods) => 1 + Math.min(2, mods.filter((m) => m.type === 'dock').length);
+
+// trader deals: give -> get (finds from the Lager or credits)
+export function makeTraderDeals(level, rnd = Math.random) {
+  const pool = [
+    { give: { copper: 30 }, get: { datacore: 1 }, text: 'Kupfer gegen Datenkern' },
+    { give: { ice: 15 }, get: { credits: 600 }, text: 'Eiskristalle zum Sonderpreis' },
+    { give: { platinum: 3 }, get: { credits: 2500 }, text: 'Platin zum Spitzenpreis' },
+    { give: { probe: 6 }, get: { badge: 1 }, text: 'Sondenteile gegen Abzeichen' },
+    { give: { credits: 8000 + level * 500 }, get: { artifact: 1 }, text: 'Alien-Artefakt kaufen' },
+    { give: { credits: 20000 + level * 2000 }, get: { graviton: 1 }, text: 'Gravitonperle kaufen' },
+    { give: { datacore: 4 }, get: { tons: 40 }, text: 'Datenkerne gegen Baumaterial' },
+    { give: { credits: 3000 + level * 300 }, get: { tons: 25 }, text: 'Schrott-Tonnen kaufen' },
+  ];
+  const out = [];
+  while (out.length < 3) {
+    const d = pool[Math.floor(rnd() * pool.length)];
+    if (!out.includes(d)) out.push(d);
+  }
+  return out.map((d) => ({ ...d, done: false }));
+}
