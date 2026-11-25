@@ -418,3 +418,7 @@ h2 { margin: 0 0 10px; font-size: 24px; }
   background: linear-gradient(180deg, #7cf0b0, #2fc9a8); color: #03221c; box-shadow: 0 5px 0 #13705e; animation: pulseBtn 1.2s infinite;
 }
 @media (max-width: 520px) { #btn-site { bottom: calc(146px + var(--safe-b)); } }
+
+.deck-card { text-align: left; color: var(--text); font: inherit; cursor: pointer; display: block; width: 100%; }
+.deck-card .stars { display: block; color: #ffd34d; font-size: 16px; letter-spacing: 2px; margin-top: 2px; }
+.deck-card:active { transform: scale(.97); }

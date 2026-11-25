@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS, deckDef, deckName, deckTotal, deckValueMult, deckEventSpeed, deckGoalTarget, deckMinutes } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
@@ -24,7 +24,8 @@ function freshState(mode = 'career') {
     credits: 0, cargo: {}, cargoCount: 0,
     levels: { hands: 0, speed: 0, drive: 0, cargo: 0, scanner: 0, link: 0 },
     helpers: {},
-    stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
+    stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0, aliens: 0 },
+    total: TOTAL_STONES, deckBase: { removed: 0, found: {}, time: 0, aliens: 0 },
     skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
     chassis: 'tracks', chassisOwned: ['tracks'], modules: [], equipped: [], slotLv: 0, atomarLv: 0, tool: 'arms', toolsOwned: ['arms'], sites: Array(13).fill(null), sitesUnlocked: 3, buffer: 0, fabT: 0,
     level: 1, xp: 0, vault: {}, keep: [], items: {}, contracts: [], contractsDone: 0, crafted: 0, bestCombo: 0,
@@ -103,9 +104,10 @@ const events = new Events(scene, {
     el.querySelector('small').textContent = e.desc;
     el.classList.remove('hidden');
     sfx.event();
-    say(type === 'meteor' ? 'Achtung, Meteoriten! Die sind voller Schätze! ☄️' : 'Ich spüre eine Glückswelle! Schnell greifen! ✨', 4);
+    if (type === 'storm') env.setStorm(true);
+    say({ meteor: 'Achtung, Meteoriten! Die sind voller Schätze! ☄️', luck: 'Ich spüre eine Glückswelle! Schnell greifen! ✨', storm: 'Schneesturm! Ich sehe kaum was – aber hier glitzert es! 🌨️', gold: 'GOLDRAUSCH! Jetzt zählt jeder Griff doppelt! 💰', swarm: 'Aliens! Fahr hin und schnapp sie dir! 👽' }[type], 4);
   },
-  onEnd() { $('event').classList.add('hidden'); },
+  onEnd(type) { $('event').classList.add('hidden'); if (type === 'storm') env.setStorm(false); },
 });
 
 // ================================================================ debris
@@ -317,7 +319,7 @@ function hint(text, color = '#fff') {
 
 const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
 const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
-const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS));
+const valueOf = (f) => Math.round(f.value * starMult() * (1 + ((S.level || 1) - 1) * LEVEL_BONUS) * deckValueMult(S.deck || 0) * events.valueFactor);
 const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers) * ATOMAR_CORE[S.atomarLv || 0].mult * (1 + (S.sites ? baseStats(S.sites).hangar : 0) / 100);
 const hasMod = (id) => S.equipped && S.equipped.includes(id);
 const chassisDef = () => CHASSIS.find((c) => c.id === S.chassis) || CHASSIS[0];
@@ -332,9 +334,9 @@ function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).text
 
 function updateHud() {
   setText('remaining', fmt(pile.total));
-  const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
+  const pct = (((S.total || TOTAL_STONES) - pile.total) / (S.total || TOTAL_STONES)) * 100;
   setText('progress', `${pct.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} %`);
-  setText('deck-line', `${DECKS[(S.deck || 0) % DECKS.length].name}${S.stars ? ` · ⭐ ${S.stars}` : ''}`);
+  setText('deck-line', `${deckDef(S.deck || 0).name} · ${deckName(S.deck || 0)}${S.stars ? ` · ⭐ ${S.stars}` : ''}`);
   setText('credits', fmt(S.credits));
   setText('level', `${S.level}`);
   $('xp-fill').style.width = `${Math.min(100, (S.xp / xpForLevel(S.level)) * 100)}%`;
@@ -371,7 +373,7 @@ function rollFinds(n, luck = 1) {
     let m = tier < 3 ? luck : 1;
     if (S && hasMod('magnet') && ['copper', 'platinum', 'probe'].includes(f.id)) m *= 1.4;
     if (S && hasMod('sense') && f.value >= 300) m *= 1.5;
-    if (S && f.value >= 300) m *= toolDef().rare;
+    if (S && f.value >= 300) m *= toolDef().rare * events.rareFactor;
     if (S) m *= (DECKS[(S.deck || 0) % DECKS.length].boost || {})[f.id] || 1;
     const k = poisson(n * f.rate * m);
     if (k) out.push({ f, k, tier: Math.min(5, tier) });
@@ -638,9 +640,11 @@ function doGrab(x, z) {
   if (cap) openCapsule(cap.position);
   const met = events.take(x, z, pickR);
   if (met) openMeteor(met);
+  const al = events.catchAlien(x, z, pickR + 0.4);
+  if (al) catchAlien(al);
   const res = pile.grab(x, z, amount, Math.max(radius, 0.8));
   bot.grab();
-  if ((cap || met) && !res.removed) return;
+  if ((cap || met || al) && !res.removed) return;
   S.stats.grabs++;
   if (!res.removed && !res.ring) {
     sfx.empty();
@@ -694,6 +698,18 @@ function openMeteor(pos) {
   S.stats.meteors = (S.stats.meteors || 0) + 1;
   addXp(25);
   bot.setMood('love', 1.5);
+}
+function catchAlien(pos) {
+  S.stats.aliens = (S.stats.aliens || 0) + 1;
+  const list = Math.random() < 0.3 ? [{ f: FINDS[5], k: 1, tier: 5 }] : [{ f: FINDS.find((f) => f.id === 'datacore'), k: 2, tier: 3 }];
+  handleFinds(list, true);
+  addXp(20);
+  sfx.capsule();
+  vibrate(25);
+  bot.setMood('love', 1.5);
+  say(pick(['Hab dich! 👽', 'Gefangen!', 'Der war flink!']), 1.4);
+  floatLabel(camera, tmpV2.copy(pos).setY(pos.y + 1), '👽 gefangen!', '#7cff9a', true);
+  dust.puff(pos.x, pos.y, pos.z, 6, 1.2, 0x7cff9a);
 }
 function openCapsule(pos) {
   const reward = capsuleReward();
@@ -874,6 +890,41 @@ function renderBuild() {
   list.appendChild(tip);
 }
 
+// ================================================================ deck stars (3 per deck)
+function totalStars() {
+  const ds = records.deckStars || {};
+  return Object.values(ds).reduce((a, b) => a + (b & 1 ? 1 : 0) + (b & 2 ? 1 : 0) + (b & 4 ? 1 : 0), 0);
+}
+function deckGoalProgress(st = S) {
+  const g = deckDef(st.deck || 0).goal, b = st.deckBase || { removed: 0, found: {}, aliens: 0 };
+  if (g.key === 'removed') return st.stats.removed - (b.removed || 0);
+  if (g.key === 'aliens') return (st.stats.aliens || 0) - (b.aliens || 0);
+  return (st.stats.found[g.key] || 0) - ((b.found || {})[g.key] || 0);
+}
+const deckTime = () => (S.coreFound ? S.coreTime : S.stats.time) - ((S.deckBase && S.deckBase.time) || 0);
+function deckStarBits() {
+  let bits = 0;
+  if (S.coreFound) bits |= 1;
+  if (S.coreFound && deckTime() <= deckMinutes(S.deck || 0) * 60) bits |= 2;
+  if (deckGoalProgress() >= deckGoalTarget(S.deck || 0)) bits |= 4;
+  return bits;
+}
+function checkDeckStars() {
+  if (S.mode === 'pure') return;
+  records.deckStars = records.deckStars || {};
+  const n = S.deck || 0;
+  const had = records.deckStars[n] || 0;
+  const now = had | deckStarBits();
+  if (now === had) return;
+  records.deckStars[n] = now;
+  saveRecords();
+  S.stars = totalStars();
+  const names = { 1: 'Nexus-Kern gefunden', 2: `Kern in unter ${deckMinutes(n)} Minuten`, 4: deckDef(n).goal.label.replace('Sortiere', 'Sortiert').replace('Sammle', 'Gesammelt:').replace('Finde', 'Gefunden:').replace('Fange', 'Gefangen:') };
+  for (const bit of [1, 2, 4]) {
+    if ((now & bit) && !(had & bit)) achvQueue.push({ kicker: `Deck-Stern · ${deckName(n)}`, name: '⭐ ' + names[bit], desc: `Jetzt ${S.stars} Sterne = +${S.stars * 25} % Fundwert`, reward: 0 });
+  }
+}
+
 // ================================================================ achievements
 let achvT = 1;
 const achvQueue = [];
@@ -1004,9 +1055,9 @@ function coreFound(byPlayer) {
   S.coreTime = S.stats.time;
   pile.ring.found = true;
   records.cores = (records.cores || 0) + 1;
-  if (!records.fastest || S.stats.time < records.fastest) records.fastest = S.stats.time;
   records.deckTimes = records.deckTimes || {};
-  const dt0 = S.stats.time - (S.deckStart || 0);
+  const dt0 = S.stats.time - ((S.deckBase && S.deckBase.time) || S.deckStart || 0);
+  if (!records.fastest || dt0 < records.fastest) records.fastest = dt0;
   if (!records.deckTimes[S.deck || 0] || dt0 < records.deckTimes[S.deck || 0]) records.deckTimes[S.deck || 0] = dt0;
   saveRecords();
   sfx.core();
@@ -1019,15 +1070,14 @@ function coreFound(byPlayer) {
     showMessage('💠 Nexus-Kern gefunden!',
       `<p class="lead">${byPlayer ? 'Dein Nexus-Bot hat' : 'Einer deiner Helfer hat'} den Kern aus dem Schrott gezogen. Die Station läuft wieder auf voller Leistung!</p>
        <div class="stats">
-         <span>Spielzeit</span><span>${formatTime(S.stats.time)}</span>
-         <span>Sortierte Teile</span><span>${fmt(S.stats.removed)}</span>
-         <span>davon übrig</span><span>${fmt(pile.total)}</span>
-         <span>Griffe</span><span>${fmt(S.stats.grabs)}</span>
-         <span>Verdient</span><span>${fmt(S.stats.earned)} ⬡</span>
+         <span>Zeit auf diesem Deck</span><span>${formatTime(deckTime())} ${deckTime() <= deckMinutes(S.deck || 0) * 60 ? '⭐' : `(Ziel ${deckMinutes(S.deck || 0)} min)`}</span>
+         <span>${deckDef(S.deck || 0).goal.label.replace(/\d[\d.]*/, fmt(deckGoalTarget(S.deck || 0)))}</span><span>${fmt(Math.min(deckGoalProgress(), deckGoalTarget(S.deck || 0)))} / ${fmt(deckGoalTarget(S.deck || 0))}</span>
+         <span>Davon übrig</span><span>${fmt(pile.total)}</span>
+         <span>Sterne gesamt</span><span>⭐ ${totalStars()}</span>
        </div>
-       <p class="lead">Weiter aufräumen – oder mit einem Stern auf das nächste Deck wechseln. Skins und Erfolge nimmst du mit, Upgrades und Helfer beginnen neu.</p>`,
+       <p class="lead">Weiter aufräumen (fehlende Sterne holen) – oder ab zum nächsten Deck: <b>${deckName((S.deck || 0) + 1)}</b>, ${Math.round((deckTotal((S.deck || 0) + 1) / 1e6) * 10) / 10} Mio. Teile, Funde +${Math.round((deckValueMult((S.deck || 0) + 1) - 1) * 100)} % wert. Level, Werkzeuge und Skins nimmst du mit.</p>`,
       'Weiter aufräumen', () => {},
-      S.mode === 'pure' ? 'Neues Spiel' : `Nächstes Deck ⭐ (+${Math.round(STAR_BONUS.finds * 100)} % Fundwert)`,
+      S.mode === 'pure' ? 'Neues Spiel' : `Nächstes Deck ▶ ${deckName((S.deck || 0) + 1)}`,
       () => (S.mode === 'pure' ? newGame('pure') : nextDeck()));
   }, 1600);
 }
@@ -1039,7 +1089,7 @@ function formatTime(s) {
 }
 
 // ================================================================ shop
-let shopTab = 'bot', archTab = 'cargo';
+let shopTab = 'bot', archTab = 'deck';
 function openShop() {
   if (S.mode === 'pure') { hint('Im Modus „Pur“ gibt es keinen Shop'); return; }
   $('shop').classList.remove('hidden');
@@ -1301,6 +1351,34 @@ function renderArchive() {
     const ch = CHASSIS.find((c) => c.id === S.chassis);
     eq.innerHTML = `Fahrwerk: <b>${ch.name}</b> · Module: ${S.equipped.length ? S.equipped.map((id) => { const m = MODULES.find((x) => x.id === id); return `${m.icon} ${m.name}`; }).join(', ') : 'keine'}`;
     list.appendChild(eq);
+  } else if (archTab === 'deck') {
+    const n = S.deck || 0, d = deckDef(n);
+    const bits = ((records.deckStars || {})[n] || 0) | deckStarBits();
+    const gp = Math.min(deckGoalProgress(), deckGoalTarget(n));
+    const tm = deckMinutes(n) * 60, tnow = deckTime();
+    const el = document.createElement('div');
+    el.innerHTML = `<p class="lead"><b>${d.name} · ${deckName(n)}</b><br>${d.mech}</p>
+      <div class="stats">
+        <span>Schrott auf diesem Deck</span><span>${fmt(S.total || TOTAL_STONES)}</span>
+        <span>Fundwert-Bonus</span><span>+${Math.round((deckValueMult(n) - 1) * 100)} %</span>
+        <span>Sterne gesamt</span><span>⭐ ${totalStars()} (+${totalStars() * 25} % Fundwert)</span>
+      </div>`;
+    list.appendChild(el);
+    const goals = [
+      [1, '💠 Finde den Nexus-Kern', S.coreFound ? 1 : 0, 1, S.coreFound ? 'gefunden' : 'verschollen'],
+      [2, `⏱ Kern in unter ${deckMinutes(n)} Minuten`, S.coreFound && tnow <= tm ? 1 : 0, 1, S.coreFound ? formatTime(tnow) : `${formatTime(tnow)} / ${deckMinutes(n)} min`],
+      [4, `🎯 ${d.goal.label.replace(/\d[\d.]*/, fmt(deckGoalTarget(n)))}`, gp, deckGoalTarget(n), `${fmt(gp)} / ${fmt(deckGoalTarget(n))}`],
+    ];
+    for (const [bit, label, prog, max, txt] of goals) {
+      const it = document.createElement('div');
+      it.className = 'item' + (bits & bit ? ' got' : '');
+      it.innerHTML = `<div class="t">${bits & bit ? '⭐' : '☆'} ${label}</div><div class="pbar"><i style="width:${Math.min(100, (prog / max) * 100)}%"></i><span>${txt}</span></div>`;
+      list.appendChild(it);
+    }
+    const tip = document.createElement('p');
+    tip.className = 'lead small';
+    tip.textContent = 'Jeder Stern gibt dauerhaft +25 % Fundwert. Fehlende Sterne kannst du später holen: Im Startmenü lassen sich alle freigespielten Decks erneut spielen.';
+    list.appendChild(tip);
   } else if (archTab === 'vault') {
     const head = document.createElement('p');
     head.className = 'lead small';
@@ -1422,7 +1500,8 @@ function setupWorld(state) {
   capsules.clear();
   events.clear();
   $('event').classList.add('hidden');
-  pile = new Pile(S.seed, S.pile);
+  env.setStorm(false);
+  pile = new Pile(S.seed, S.pile, S.total || TOTAL_STONES);
   if (S.coreFound) pile.ring.found = true;
   pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
   env.setTheme(S.deck || 0);
@@ -1452,6 +1531,12 @@ function startGame(state, offline) {
   state.items = state.items || {}; state.contracts = state.contracts || []; state.contractsDone = state.contractsDone || 0;
   state.crafted = state.crafted || 0; state.bestCombo = state.bestCombo || 0;
   state.tool = state.tool || 'arms'; state.toolsOwned = state.toolsOwned || ['arms'];
+  state.total = state.total || TOTAL_STONES;
+  state.deckBase = state.deckBase || { removed: 0, found: {}, time: 0, aliens: 0 };
+  state.stats.aliens = state.stats.aliens || 0;
+  records.deckStars = records.deckStars || {};
+  for (let i = 0; i < (state.deck || 0); i++) records.deckStars[i] = (records.deckStars[i] || 0) | 1;   // old saves: earlier decks were finished
+  state.stars = totalStars();
   state.sites = state.sites || Array(13).fill(null); state.sitesUnlocked = state.sitesUnlocked || 3; state.buffer = state.buffer || 0; state.fabT = state.fabT || 0;
   setupWorld(state);
   beginPlay(offline);
@@ -1488,24 +1573,38 @@ function dailyBonus() {
   achvQueue.push({ kicker: `Tagesbonus · Serie ${streak}/7`, name: `+${fmt(reward)} ⬡`, desc: streak < 7 ? 'Komm morgen wieder, der Bonus wächst!' : 'Maximale Serie – stark!', reward: 0 });
 }
 
-function nextDeck() {
-  const old = S;
+function makeDeckState(n, old) {
   const st = freshState('career');
   Object.assign(st, {
-    deck: (old.deck || 0) + 1, stars: (old.stars || 0) + 1,
+    deck: n, stars: totalStars(),
     skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
-    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked, chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
+    tool: old.tool, toolsOwned: old.toolsOwned, sitesUnlocked: old.sitesUnlocked,
+    chassis: old.chassis, chassisOwned: old.chassisOwned, modules: old.modules, equipped: old.equipped, slotLv: old.slotLv,
     level: old.level, xp: old.xp, items: old.items, contractsDone: old.contractsDone, crafted: old.crafted, bestCombo: old.bestCombo, keep: old.keep,
     stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
   });
-  st.credits = 100 * st.stars;
+  st.total = deckTotal(n);
+  st.deckBase = { removed: st.stats.removed, found: { ...st.stats.found }, time: st.stats.time, aliens: st.stats.aliens || 0 };
   st.deckStart = st.stats.time;
-  records.maxDeck = Math.max(records.maxDeck || 0, st.deck);
+  st.credits = 150 * (n + 1) + 50 * st.stars;
+  records.maxDeck = Math.max(records.maxDeck || 0, n);
   saveRecords();
-  const d = DECKS[st.deck % DECKS.length];
-  transferCutscene(st, () => {
-    setTimeout(() => say(`Willkommen auf ${d.name}: ${d.title}! ${d.perk}. ⭐ ${st.stars} = +${st.stars * 25} % Fundwert.`, 7), 300);
-  });
+  return st;
+}
+function welcomeDeck(n) {
+  const d = deckDef(n);
+  say(`Willkommen auf ${d.name}: ${deckName(n)}! ${d.mech}`, 7);
+  setTimeout(() => say(`Ziele: Kern finden · unter ${deckMinutes(n)} Min · ${d.goal.label.replace(/\d[\d.]*/, fmt(deckGoalTarget(n)))}`, 6), 7500);
+}
+function nextDeck() {
+  const st = makeDeckState((S.deck || 0) + 1, S);
+  transferCutscene(st, () => setTimeout(() => welcomeDeck(st.deck), 300));
+}
+function playDeck(n) {
+  const base = loadState() || S;
+  const st = makeDeckState(n, base);
+  startGame(st, false);
+  setTimeout(() => welcomeDeck(n), 500);
 }
 
 // ================================================================ cutscenes
@@ -1714,7 +1813,7 @@ function showStart() {
   const d = DECKS[deckIdx % DECKS.length];
   if (ex) {
     const left = ex.pile.counts.reduce((a, b) => a + b, 0);
-    const pct = ((TOTAL_STONES - left) / TOTAL_STONES) * 100;
+    const pct = (((ex.total || TOTAL_STONES) - left) / (ex.total || TOTAL_STONES)) * 100;
     $('cont-kicker').textContent = ex.mode === 'pure' ? 'Modus Pur' : 'Dein Spielstand';
     $('cont-title').textContent = `${d.name} · ${d.title}`;
     $('cont-level').innerHTML = ex.mode === 'pure' ? '' : `Lv ${ex.level || 1}${ex.stars ? `<br>⭐ ${ex.stars}` : ''}`;
@@ -1738,18 +1837,30 @@ function showStart() {
     const cur = ex && i === deckIdx;
     const best = (records.deckTimes || {})[i];
     const c = cols[i % cols.length];
-    return `<div class="deck-card ${cur ? 'current' : ''} ${unlocked ? '' : 'locked'}" style="--c1:${c[0]};--c2:${c[1]}">
-      <span class="st">${cur ? '▶' : unlocked ? '✓' : '🔒'}</span>
-      <b>${dd.title}${round ? ' ' + 'I'.repeat(round + 1) : ''}</b>
+    const bits = (records.deckStars || {})[i] || 0;
+    const stars = [1, 2, 4].map((b) => (bits & b ? '★' : '☆')).join('');
+    return `<button class="deck-card ${cur ? 'current' : ''} ${unlocked ? '' : 'locked'}" data-deck="${i}" style="--c1:${c[0]};--c2:${c[1]}">
+      <span class="st">${cur ? '▶' : unlocked ? '' : '🔒'}</span>
+      <b>${deckName(i)}</b>
       <small>${dd.name}</small>
-      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : dd.perk) : 'Noch gesperrt'}</small>
-    </div>`;
+      <span class="stars">${unlocked ? stars : ''}</span>
+      <small>${unlocked ? (best ? `Kern in ${formatTime(best)}` : dd.mech) : 'Noch gesperrt'}</small>
+    </button>`;
   }).join('');
+  document.querySelectorAll('#deck-list .deck-card').forEach((el) => el.addEventListener('click', () => {
+    const i = Number(el.dataset.deck);
+    if (i > maxDeck) return;
+    if (ex && i === deckIdx) { $('btn-start').click(); return; }
+    initAudio();
+    showMessage(`${deckName(i)} spielen?`,
+      `<p class="lead">${deckDef(i).mech}</p><div class="stats"><span>Schrott</span><span>${fmt(deckTotal(i))}</span><span>Fundwert</span><span>+${Math.round((deckValueMult(i) - 1) * 100)} %</span><span>Ziele</span><span>Kern · ${deckMinutes(i)} min · ${fmt(deckGoalTarget(i))}</span></div><p class="lead small">Level, Werkzeuge, Fahrwerke, Module und Skins bleiben erhalten. Der Fortschritt auf dem aktuellen Deck wird verlassen.</p>`,
+      'Los geht’s ▶', () => { $('overlay-start').classList.add('hidden'); playDeck(i); }, 'Abbrechen', () => {});
+  }));
   const r = records;
   const best = [
     ['💠', r.cores || 0, 'Kerne gefunden'],
     ['⏱', r.fastest ? formatTime(r.fastest) : '–', 'schnellster Kern'],
-    ['⭐', ex ? ex.stars || 0 : 0, 'Sterne'],
+    ['⭐', `${totalStars()}/${Math.max(4, maxDeck + 1) * 3}`, 'Deck-Sterne'],
     ['🔥', ex ? fmt(ex.bestCombo || 0) : 0, 'beste Kombo'],
     ['🏆', ex ? `${(ex.achievements || []).length}/${ACHIEVEMENTS.length}` : `0/${ACHIEVEMENTS.length}`, 'Erfolge'],
     ['♻️', ex ? fmt(ex.stats.removed) : 0, 'Teile sortiert'],
@@ -1810,7 +1921,7 @@ async function shareGame() {
   initAudio();
   let text = 'NEXUS CORE: Hilf dem Nexus-Bot, den Nexus-Kern in 5.000.000 Schrottteilen zu finden! 🤖';
   if (S && S.stats && S.stats.removed > 0 && S.mode !== 'pure') {
-    const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
+    const pct = (((S.total || TOTAL_STONES) - pile.total) / (S.total || TOTAL_STONES)) * 100;
     text = `Ich bin Nexus Level ${S.level} und habe schon ${fmt(S.stats.removed)} Schrottteile sortiert (${pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} %). Schaffst du mehr? 🤖`;
   }
   const data = { title: 'NEXUS CORE', text, url: GAME_URL };
@@ -2204,12 +2315,14 @@ function animate() {
       updateDockArrow();
       checkAchievements(dt);
       flushFeed(dt);
+      if (achvT > 0.95) checkDeckStars();
       baseTick(dt);
       updateCombo(dt);
       updatePulse(dt, t);
       updateGoal();
       capsules.speed = (hasMod('radar') ? 2 : 1) * (1 + baseCache.beacon / 100);
-      events.speed = hasMod('lure') ? 1.8 : 1;
+      events.speed = (hasMod('lure') ? 1.8 : 1) * deckEventSpeed(S.deck || 0);
+      events.special = deckDef(S.deck || 0).special;
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
       events.update(dt, t, pile, camera);
       updateTurbo(dt);
@@ -2258,4 +2371,4 @@ $('splash').addEventListener('click', () => {
 });
 
 // test hook
-window.__nx = { cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

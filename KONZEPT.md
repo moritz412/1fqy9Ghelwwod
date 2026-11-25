@@ -152,6 +152,25 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 
 ---
 
+## 6b. Progression: warum es nicht abflacht
+
+| Ebene | Was passiert | Warum man dranbleibt |
+|---|---|---|
+| **Minuten** | Greifen, Kombo, Funde, Kapseln, Ereignisse | ständig kleine Belohnungen, Ziel-Anzeige fürs nächste Upgrade |
+| **Stunde** | Upgrades, Werkzeuge, Fahrwerke, Module, Bau-System mit Produktionskette | Bot und Basis werden sichtbar stärker |
+| **Deck** | Jedes Deck hat eine **eigene Mechanik** und **3 Sterne** | Kern finden · Kern in Zielzeit · Deck-Aufgabe |
+| **Kampagne** | Decks werden größer (+50 % Schrott), reicher (+40 % Fundwert) und ereignisreicher | Endlos-Decks („Eiswrack II“ …) mit steigenden Zielen |
+| **Meta** | Jeder Stern = dauerhaft +25 % Fundwert, Level, Erfolge, Skins | Decks erneut spielen, um fehlende Sterne zu holen |
+
+**Deck-Mechaniken**
+
+| Deck | Ereignis | Deck-Aufgabe |
+|---|---|---|
+| Schrotthalde | (Übungsdeck) | 250.000 Teile sortieren |
+| Eiswrack | 🌨️ Schneesturm: kaum Sicht, seltene Funde ×2,5 | 150 Eiskristalle |
+| Goldmine | 💰 Goldrausch: alle Funde doppelt wert | 25 Platin-Nuggets |
+| Alienschrott | 👽 Alien-Schwarm: Aliens fangen gibt Artefakte/Datenkerne | 12 Aliens fangen |
+
 ## 7. Fahrplan
 | Version | Inhalt                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -164,6 +183,7 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | 0.8 ✅  | Teilen-Button, Grafik (Detail-Textur, Nebel, Sonne, Staub), Deck-Kulissen (Eiswrack, Goldmine, Alienschrott) mit eigenen Fundboni, sichtbare Atomar-Drohnen (max. 6), Nexus-Link 350.000 ⬡ mit 25 % Gebühr |
 | 0.9 ✅  | Name „NEXUS CORE“, Intro-Film, Shuttle-Zwischensequenz beim Deckwechsel, neues Startmenü mit Deck-Übersicht und Bestwerten, Außenposten auf dem Deck, Werkzeuge (Greifkran, Staubsauger, Bohrer), Quadrokopter-Drohnen |
 | 1.0 ✅  | Mondlandefähre mit Landeplatz, Intro mit Ton, Bloom und Reflexionen, Bau-System (13 Bauplätze, 8 Anlagen, Strom, Produktionskette, Förderband) |
-| 1.1     | Ereignisse je Deck (Schneesturm, Goldrausch, Alien-Schwarm), Online-Bestenliste (braucht Server), PC-Modelle |
+| 1.1 ✅  | Ruhigeres Bild, Deck-Mechaniken (Schneesturm, Goldrausch, Alien-Schwarm), 3 Sterne je Deck, Decks erneut spielen, Deck-Skalierung, Endlos-Decks |
+| 1.2     | Online-Bestenliste (braucht Server), PC-Modelle, Bosse/Spezial-Decks |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

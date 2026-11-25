@@ -277,6 +277,7 @@ export function buildEnvironment(scene, renderer) {
   const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ map: nebTex, color: 0xcfe9ff, size: 0.18, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(motes);
   let moteDir = 0.12;
+  let baseMoteSize = 0.18;
 
   // ---- blinking position lights on the dome ring
   const blinkMat = new THREE.MeshBasicMaterial({ color: 0xff4040 });
@@ -376,6 +377,7 @@ export function buildEnvironment(scene, renderer) {
     return g;
   }
   let currentDeco = null;
+  let stormTarget = 0, storm = 0;
   function setTheme(i) {
     const th = THEMES[i % THEMES.length];
     scene.background = new THREE.Color(th.bg);
@@ -385,6 +387,7 @@ export function buildEnvironment(scene, renderer) {
     deckTopMat.color.setHex(th.deck);
     motes.material.color.setHex(th.motes);
     motes.material.size = th.moteSize;
+    baseMoteSize = th.moteSize;
     moteDir = th.moteDir;
     nebSprites.forEach((sp, k) => sp.material.color.setHex(th.neb[k % th.neb.length]));
     sunGlow.material.color.setHex(th.sunGlow);
@@ -401,6 +404,7 @@ export function buildEnvironment(scene, renderer) {
 
   return {
     setTheme,
+    setStorm(on) { stormTarget = on ? 1 : 0; },
     shuttle,
     update(dt, t) {
       station.rotation.y += dt * 0.02;
@@ -415,7 +419,9 @@ export function buildEnvironment(scene, renderer) {
       for (let k = 0; k < MOTES; k++) {
         const sd = moteSeed[k];
         mp.setX(k, mp.getX(k) + Math.sin(t * 0.2 + sd) * dt * 0.25);
-        let ny = mp.getY(k) + dt * moteDir * (0.5 + (sd % 1));
+        let ny = mp.getY(k) + dt * (moteDir - storm * 2.5) * (0.5 + (sd % 1));
+        if (storm > 0.05) mp.setX(k, mp.getX(k) + dt * storm * 6);
+        if (mp.getX(k) > 28) mp.setX(k, -28);
         if (ny > 14) ny -= 14; if (ny < 0) ny += 14;
         mp.setY(k, ny);
         mp.setZ(k, mp.getZ(k) + Math.cos(t * 0.17 + sd) * dt * 0.25);
@@ -423,6 +429,11 @@ export function buildEnvironment(scene, renderer) {
       mp.needsUpdate = true;
       blinkers.forEach((b, i) => { b.scale.setScalar(0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.9))); });
       sunCore.material.opacity = 0.9 + Math.sin(t * 0.7) * 0.1;
+      storm += (stormTarget - storm) * Math.min(1, dt * 0.8);
+      scene.fog.near = 45 - storm * 40;
+      scene.fog.far = 140 - storm * 105;
+      motes.material.size = baseMoteSize * (1 + storm * 1.5);
+      motes.material.opacity = 0.55 + storm * 0.3;
       outposts.update(dt, t);
       shuttle.userData.update(dt, t);
       if (currentDeco) {

@@ -8,7 +8,8 @@ const { N, CELL, H_PER, RADIUS, MAX_SLOPE } = PILE;
 const HALF = (N * CELL) / 2;
 
 export class Pile {
-  constructor(seed, saved = null) {
+  constructor(seed, saved = null, target = TOTAL_STONES) {
+    this.target = target;
     this.counts = new Uint32Array(N * N);
     this.dirty = new Set();     // cells that may need to slide
     this.changed = new Set();   // cells whose visuals need an update
@@ -74,11 +75,11 @@ export class Pile {
     }
     let assigned = 0;
     for (let c = 0; c < N * N; c++) {
-      this.counts[c] = Math.floor((w[c] / sum) * TOTAL_STONES);
+      this.counts[c] = Math.floor((w[c] / sum) * this.target);
       assigned += this.counts[c];
     }
     // distribute the remainder onto the centre
-    this.counts[this.idx(N / 2, N / 2)] += TOTAL_STONES - assigned;
+    this.counts[this.idx(N / 2, N / 2)] += this.target - assigned;
 
     // let it settle completely
     for (let c = 0; c < N * N; c++) if (this.counts[c]) this.dirty.add(c);
@@ -86,7 +87,7 @@ export class Pile {
     this.dirty.clear();
 
     // hide the ring: a uniformly random stone of all 5,000,000
-    let s = Math.floor(this.rnd() * TOTAL_STONES);
+    let s = Math.floor(this.rnd() * this.target);
     let c = 0;
     for (; c < N * N; c++) { if (s < this.counts[c]) break; s -= this.counts[c]; }
     this.ring = { c, k: s, found: false };

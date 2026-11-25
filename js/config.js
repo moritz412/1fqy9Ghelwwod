@@ -168,10 +168,10 @@ export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };
 // Decks (prestige): after finding the core you can move on to the next deck.
 // Each star = +25 % find value and +10 % helper speed, permanently.
 export const DECKS = [
-  { name: 'Hangardeck 7',  title: 'Schrotthalde',    boost: {}, perk: 'Normaler Schrott',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
-  { name: 'Kühldeck 3',    title: 'Eiswrack',        boost: { ice: 3, datacore: 1.5 }, perk: '3× Eiskristalle, mehr Datenkerne',        base: [0.3, 0.36, 0.43],  pebbles: [[1.6, 2.1, 2.6], [2.2, 2.4, 2.6], [1.2, 1.5, 2.0], [1.4, 1.6, 1.8]] },
-  { name: 'Frachtdeck 12', title: 'Goldmine',        boost: { platinum: 2.5, copper: 1.5, graviton: 2 }, perk: '2,5× Platin, doppelte Gravitonperlen',        base: [0.33, 0.26, 0.16], pebbles: [[2.6, 2.0, 0.7], [2.2, 1.4, 0.5], [1.6, 1.4, 1.2], [1.2, 0.9, 0.6]] },
-  { name: 'Labordeck X',   title: 'Alienschrott',    boost: { artifact: 4, badge: 1.5 }, perk: '4× Alien-Artefakte, mehr Abzeichen',    base: [0.2, 0.17, 0.26],  pebbles: [[1.4, 0.8, 2.4], [0.7, 2.2, 1.3], [1.9, 1.0, 1.9], [1.0, 1.0, 1.2]] },
+  { name: 'Hangardeck 7',  title: 'Schrotthalde',    special: null,    mech: 'Das Übungsdeck: Lerne Greifen, Verkaufen und Aufrüsten.', goal: { label: 'Sortiere 250.000 Teile', key: 'removed', target: 250000 }, minutes: 25, boost: {}, perk: 'Normaler Schrott',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
+  { name: 'Kühldeck 3',    title: 'Eiswrack',        special: 'storm', mech: 'Schneestürme nehmen die Sicht, aber bringen seltene Funde.', goal: { label: 'Sammle 150 Eiskristalle', key: 'ice', target: 150 }, minutes: 30,        boost: { ice: 3, datacore: 1.5 }, perk: '3× Eiskristalle, mehr Datenkerne',        base: [0.3, 0.36, 0.43],  pebbles: [[1.6, 2.1, 2.6], [2.2, 2.4, 2.6], [1.2, 1.5, 2.0], [1.4, 1.6, 1.8]] },
+  { name: 'Frachtdeck 12', title: 'Goldmine',        special: 'gold',  mech: 'Im Goldrausch ist jeder Fund doppelt so viel wert.', goal: { label: 'Finde 25 Platin-Nuggets', key: 'platinum', target: 25 }, minutes: 35,        boost: { platinum: 2.5, copper: 1.5, graviton: 2 }, perk: '2,5× Platin, doppelte Gravitonperlen',        base: [0.33, 0.26, 0.16], pebbles: [[2.6, 2.0, 0.7], [2.2, 1.4, 0.5], [1.6, 1.4, 1.2], [1.2, 0.9, 0.6]] },
+  { name: 'Labordeck X',   title: 'Alienschrott',    special: 'swarm', mech: 'Alien-Schwärme huschen über den Haufen – fang sie!', goal: { label: 'Fange 12 Aliens', key: 'aliens', target: 12 }, minutes: 40,    boost: { artifact: 4, badge: 1.5 }, perk: '4× Alien-Artefakte, mehr Abzeichen',    base: [0.2, 0.17, 0.26],  pebbles: [[1.4, 0.8, 2.4], [0.7, 2.2, 1.3], [1.9, 1.0, 1.9], [1.0, 1.0, 1.2]] },
 ];
 export const STAR_BONUS = { finds: 0.25, helpers: 0.1 };
 export const TURBO = { duration: 8, cooldown: 40, factor: 2.5 };
@@ -210,3 +210,13 @@ export const TOOLS = [
   { id: 'vacuum', icon: '🌀', name: 'Staubsauger', cost: 3000,  amount: 0.8,  speed: 1.7,  radius: 0.6,  reach: 0.5, rare: 1,    pickup: 2.5, desc: 'Saugt viel schneller und zieht Kapseln und Meteoriten von weiter weg an.' },
   { id: 'drill',  icon: '🔩', name: 'Bohrer',      cost: 12000, amount: 1.35, speed: 1,    radius: -0.4, reach: 0,   rare: 1.35, pickup: 0,   desc: 'Bohrt tief in den Haufen: mehr Teile und 35 % mehr seltene Funde.' },
 ];
+
+// ---- deck progression: every deck is bigger, richer and busier; after the 4th it repeats as "II", "III", ...
+export const deckRound = (n) => Math.floor(n / DECKS.length);
+export const deckDef = (n) => DECKS[n % DECKS.length];
+export const deckName = (n) => `${deckDef(n).title}${deckRound(n) ? ' ' + 'I'.repeat(deckRound(n) + 1) : ''}`;
+export const deckTotal = (n) => Math.round(TOTAL_STONES * Math.min(3, 1 + n * 0.5));
+export const deckValueMult = (n) => 1 + n * 0.4;
+export const deckEventSpeed = (n) => 1 + n * 0.15;
+export const deckGoalTarget = (n) => Math.round(deckDef(n).goal.target * (1 + deckRound(n) * 0.8));
+export const deckMinutes = (n) => Math.round(deckDef(n).minutes * (1 + deckRound(n) * 0.5));
