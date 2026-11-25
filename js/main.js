@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK } from './config.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
 import { buildEnvironment } from './scene.js';
@@ -206,9 +206,9 @@ function poisson(l) {
   if (l < 30) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *= Math.random(); } while (p > L); return k - 1; }
   return Math.max(0, Math.round(l + Math.sqrt(l) * gauss()));
 }
-function rollFinds(n) {
+function rollFinds(n, luck = 1) {
   const out = [];
-  FINDS.forEach((f, tier) => { const k = poisson(n * f.rate); if (k) out.push({ f, k, tier }); });
+  FINDS.forEach((f, tier) => { const k = poisson(n * f.rate * (tier < 3 ? luck : 1)); if (k) out.push({ f, k, tier }); });
   return out;
 }
 
@@ -294,7 +294,14 @@ function doGrab(x, z) {
   const h = Math.max(0, pile.heightAt(x, z));
   const a = bot.group.rotation.y;
   spawnDebris(x, h, z, Math.min(2 + size * 3, Math.max(1, Math.round(res.removed / 3))), -Math.sin(a) * 0.4, -Math.cos(a) * 0.4, 1 + size * 0.15);
-  handleFinds(rollFinds(res.removed), true);
+  const lucky = S.stats.grabs <= LUCK.grabs ? LUCK.factor : 1;
+  const finds = rollFinds(res.removed, lucky);
+  // guaranteed early highlights
+  if (S.stats.grabs === 3) finds.push({ f: FINDS[1], k: 1, tier: 1 });
+  if (S.stats.grabs === 25) finds.push({ f: FINDS[2], k: 1, tier: 2 });
+  handleFinds(finds, true);
+  if (S.stats.grabs === 3) say('Ein Eiskristall – gleich beim dritten Griff! ❄️');
+  if (S.stats.grabs === 25) say('Ein Sondenteil! Das bringt 60 Credits!');
   if (res.ring) coreFound(true);
   scannerPing();
 }
@@ -716,7 +723,7 @@ const TUTORIAL = [
   { text: 'Hallo! Ich bin Nexus. 👋 Fahr mich mit dem Stick links zum Schrottberg.',
     done: () => Math.hypot(bot.group.position.x, bot.group.position.z) < 15 || pile.heightAt(bot.group.position.x, bot.group.position.z) > 0.2 },
   { text: 'Halte jetzt GREIFEN gedrückt – ich sortiere Teil für Teil!', done: () => S.stats.grabs >= 12 },
-  { text: 'Funde landen in meinem Laderaum (▣ oben links). Sammle noch ein bisschen!', done: () => S.cargoCount >= 6 || S.credits >= 50 },
+  { text: 'Funde landen in meinem Laderaum (▣ oben links). Sammle Funde für 20 ⬡!', done: () => cargoValue() >= 20 || S.credits >= 20 },
   { text: 'Bring die Funde zum Nexus-Markt – dem türkisen Lichtstrahl am Rand.', done: () => !$('shop').classList.contains('hidden') },
   { text: 'Verkaufe die Ladung und kauf mir Krallenhände. Dann schaffe ich 5 Teile pro Griff!', done: () => S.levels.hands >= 1 },
   { text: 'Danke! 💚 Irgendwo hier ist der Nexus-Kern. Wenn es türkis aufblitzt: dort graben!', done: () => tutorialShown > 6 },
