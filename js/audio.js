@@ -15,11 +15,51 @@ function persist() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(set
 // kept for older callers
 export let muted = !settings.sfx && !settings.music;
 
+// iOS: with the ring/silent switch on "silent", Web Audio is muted unless the page
+// declares itself as media playback. audioSession (Safari 17+) does that directly;
+// on older iOS a looping silent <audio> element switches the session to playback.
+let mediaEl = null;
+function silentWavUrl() {
+  const rate = 8000, n = rate / 2;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+function unlockMediaSession() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
+  try {
+    if (!mediaEl) {
+      mediaEl = document.createElement('audio');
+      mediaEl.src = silentWavUrl();
+      mediaEl.loop = true;
+      mediaEl.setAttribute('playsinline', '');
+      mediaEl.volume = 0.01;
+    }
+    if (mediaEl.paused) { const p = mediaEl.play(); if (p && p.catch) p.catch(() => {}); }
+  } catch (e) { /* ignore */ }
+}
+
+// Call from every user gesture (touchend / click): creates or resumes audio.
 export function initAudio() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  unlockMediaSession();
+  if (ctx) {
+    if (ctx.state !== 'running') ctx.resume();
+    return;
+  }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
+  // play one silent sample inside the gesture: required by older iOS to unlock
+  try {
+    const b = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource(); src.buffer = b; src.connect(ctx.destination); src.start(0);
+  } catch (e) { /* ignore */ }
+  if (ctx.state !== 'running') ctx.resume();
   master = ctx.createGain();
   master.gain.value = 0.8;
   const comp = ctx.createDynamicsCompressor();
@@ -238,6 +278,8 @@ export const sfx = {
   click() { tone(1200, 0.03, 0.04, 'square'); },
   beep() { tone(1400, 0.05, 0.04, 'sine'); tone(1800, 0.05, 0.03, 'sine', 0.06); },
 };
+
+export function audioState() { return ctx ? ctx.state : 'none'; }
 
 export function vibrate(ms) {
   if (settings.sfx && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* ignore */ } }

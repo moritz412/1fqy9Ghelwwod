@@ -812,6 +812,15 @@ $('btn-menu').addEventListener('click', () => {
   );
   $('tg-music').onclick = (e) => { initAudio(); setMusic(!settings.music); e.currentTarget.classList.toggle('on', settings.music); };
   $('tg-sfx').onclick = (e) => { initAudio(); setSfx(!settings.sfx); e.currentTarget.classList.toggle('on', settings.sfx); sfx.click(); };
+  const test = document.createElement('button');
+  test.className = 'ghost';
+  test.textContent = '🔈 Ton testen';
+  test.onclick = () => { initAudio(); setTimeout(() => sfx.upgrade(), 50); };
+  $('msg-body').appendChild(test);
+  const tip = document.createElement('p');
+  tip.className = 'lead'; tip.style.fontSize = '12px'; tip.style.margin = '8px 0 0';
+  tip.textContent = 'Kein Ton? iPhone-Lautstärke hochdrehen. Ab iOS 17 klappt es auch im Lautlos-Modus, bei älteren iOS-Versionen den Lautlos-Schalter ausschalten.';
+  $('msg-body').appendChild(tip);
   const extra = document.createElement('button');
   extra.className = 'ghost';
   extra.textContent = 'Hauptmenü';
@@ -820,6 +829,9 @@ $('btn-menu').addEventListener('click', () => {
 });
 
 setInterval(() => { if (playing) save(); }, 10000);
+// iOS only unlocks audio on touchend/click – listen globally, every time (cheap if already running)
+['touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) initAudio(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && playing) save(); });
 
 // ================================================================ input
