@@ -29,8 +29,8 @@ Gebraucht werden: `core.glb` (Nexus-Kern), Schrottteile (5–10 Varianten), Fund
 
 ## 3. Icons
 
-`icon.svg` ist die Vorlage. PNG-Größen (180, 512) lassen sich mit jedem Browser-Screenshot oder mit
-`rsvg-convert -w 512 icon.svg > icon-512.png` erzeugen.
+Die Icons (`icon-180.png`, `icon-512.png`, `favicon.png`) sind aus `assets/ref/nexus-bot.png` zugeschnitten.
+Ein eigenes, freigestelltes Icon-Motiv vom PC (FLUX) wäre noch schöner.
 
 ## 4. Vorberechnete Felder (später)
 

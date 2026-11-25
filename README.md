@@ -23,9 +23,10 @@ sortierst Teil für Teil, verkaufst Funde am Nexus-Markt, rüstest den Bot auf u
 python3 -m http.server 8000   # dann http://localhost:8000 öffnen
 ```
 
-**GitHub Pages:**
-1. *Settings → Pages → Source:* **GitHub Actions** wählen.
-2. Den Branch nach `main` mergen. Der Workflow `.github/workflows/pages.yml` veröffentlicht das Spiel automatisch.
+**Online:** https://moritz412.github.io/1fqy9Ghelwwod/
+
+Die Seite wird über GitHub Pages direkt aus dem Branch `claude/peaceful-albattani-sd46bs` (Ordner `/`) ausgeliefert.
+Jeder Push auf diesen Branch aktualisiert das Spiel nach ein bis zwei Minuten.
 
 Auf dem iPad: In Safari öffnen, dann *Teilen → Zum Home-Bildschirm*. So startet das Spiel als Vollbild-App.
 Der Spielstand wird im Browser gespeichert.

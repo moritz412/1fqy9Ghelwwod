@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Nexus">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
@@ -30,6 +30,7 @@
     <div id="topleft">
       <div class="chip" id="credits-chip">⬡ <span id="credits">0</span></div>
       <div class="chip" id="cargo-chip">▣ <span id="cargo">0/20</span></div>
+      <div class="chip hidden" id="dock-chip"><span id="dock-arrow">➤</span> Markt <span id="dock-dist">0</span> m</div>
       <div class="chip hidden" id="rate-chip">⚙ <span id="rate">0</span>/s</div>
     </div>
     <button class="icon-btn" id="btn-menu" aria-label="Menü">☰</button>
@@ -40,6 +41,7 @@
       <span id="heat-text">–</span>
     </div>
 
+    <div id="bubble" class="hidden"><span id="bubble-text"></span></div>
     <div id="feed"></div>
     <div id="hint"></div>
 

@@ -44,6 +44,8 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); width: max-content;
 }
 #credits-chip { color: var(--accent); }
+#dock-chip { color: #6ff3f0; border-color: #6ff3f0; }
+#dock-arrow { display: inline-block; transition: transform .1s; }
 #cargo-chip.full { color: var(--danger); border-color: var(--danger); animation: blink 1s infinite; }
 @keyframes blink { 50% { opacity: .55; } }
 
@@ -108,6 +110,21 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   animation: pulseBtn 1.2s infinite;
 }
 @keyframes pulseBtn { 50% { transform: scale(1.05); } }
+
+#bubble {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -100%);
+  max-width: min(280px, 70vw); width: max-content;
+  background: #f3f4f2; color: #0d1420; border-radius: 16px; padding: 9px 13px;
+  font-size: 14px; font-weight: 700; line-height: 1.3; text-align: center;
+  box-shadow: 0 6px 20px rgba(0,0,0,.45); pointer-events: none !important;
+  border: 2px solid #2fc9a8;
+}
+#bubble::after {
+  content: ''; position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%);
+  border: 9px solid transparent; border-bottom: 0; border-top-color: #2fc9a8;
+}
+#bubble.tut { background: #e9fffb; }
+#bubble .step { display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #1f9e86; margin-bottom: 2px; }
 
 /* ---------- Overlays ---------- */
 .overlay {

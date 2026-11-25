@@ -16,7 +16,7 @@ function freshState(mode = 'career') {
     levels: { hands: 0, speed: 0, drive: 0, cargo: 0, scanner: 0, link: 0 },
     helpers: {},
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0 },
-    coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null,
+    coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
 }
 function loadState() {
@@ -237,10 +237,13 @@ function handleFinds(list, byPlayer) {
       fullWarnT = 3;
       hint('Laderaum voll! Ab zum Nexus-Markt', '#ff6b6b');
       bot.setMood('sad', 2.5);
+      say(pick(LINES.full));
       sfx.full();
     }
   }
   if (best >= 0) {
+    if (best >= 3) say(pick(LINES.rare));
+    else if (best >= 2 && Math.random() < 0.5) say(pick(LINES.find));
     sfx.find(best);
     if (best >= 2) { bot.setMood('happy', 1.5); vibrate(20); }
   }
@@ -300,7 +303,7 @@ function scannerPing() {
   if (S.levels.scanner < 2 || S.coreFound) return;
   const heat = scannerHeat();
   sfx.ping(heat);
-  if (heat > 0.85) bot.setMood('love', 1);
+  if (heat > 0.85) { bot.setMood('love', 1); if (chatter.t <= 0 && Math.random() < 0.08) say(pick(LINES.hot)); }
   else if (heat > 0.6 && bot.mood === 'normal') bot.setMood('curious', 1);
 }
 function scannerHeat() {
@@ -450,6 +453,7 @@ function renderShop() {
           S.levels[key]++;
           bot.applyUpgrades(S.levels);
           bot.setMood('happy', 2.5);
+          say(pick(LINES.upgrade));
           sfx.upgrade();
           vibrate(30);
           feed(`Upgrade: ${next.name}`, '#ffb347');
@@ -538,6 +542,7 @@ function setupWorld(state) {
 }
 
 function startGame(state, offline) {
+  if (state.tutorial === undefined) state.tutorial = state.stats.grabs > 30 ? 99 : 0;
   setupWorld(state);
   $('overlay-start').classList.add('hidden');
   hud.classList.remove('hidden');
@@ -546,7 +551,7 @@ function startGame(state, offline) {
   if (offline) offlineProgress();
   else if (S.stats.grabs === 0) {
     setTimeout(() => bot.setMood('curious', 2), 400);
-    hint(S.mode === 'pure' ? 'Modus Pur: nur du, deine Hände und 5 Millionen Teile.' : 'Fahr zum Schrottberg und halte GREIFEN!', '#6ff3f0');
+    if (S.mode === 'pure') say('Modus Pur: nur wir zwei und 5 Millionen Teile. Los geht’s!', 5);
   }
   save();
 }
@@ -706,6 +711,96 @@ function nearDock() {
   return Math.hypot(p.x - WORLD.dock.x, p.z - WORLD.dock.z) < WORLD.dock.r + 0.6;
 }
 
+// ================================================================ Nexus speaks (tutorial & chatter)
+const TUTORIAL = [
+  { text: 'Hallo! Ich bin Nexus. 👋 Fahr mich mit dem Stick links zum Schrottberg.',
+    done: () => Math.hypot(bot.group.position.x, bot.group.position.z) < 15 || pile.heightAt(bot.group.position.x, bot.group.position.z) > 0.2 },
+  { text: 'Halte jetzt GREIFEN gedrückt – ich sortiere Teil für Teil!', done: () => S.stats.grabs >= 12 },
+  { text: 'Funde landen in meinem Laderaum (▣ oben links). Sammle noch ein bisschen!', done: () => S.cargoCount >= 6 || S.credits >= 50 },
+  { text: 'Bring die Funde zum Nexus-Markt – dem türkisen Lichtstrahl am Rand.', done: () => !$('shop').classList.contains('hidden') },
+  { text: 'Verkaufe die Ladung und kauf mir Krallenhände. Dann schaffe ich 5 Teile pro Griff!', done: () => S.levels.hands >= 1 },
+  { text: 'Danke! 💚 Irgendwo hier ist der Nexus-Kern. Wenn es türkis aufblitzt: dort graben!', done: () => tutorialShown > 6 },
+];
+let tutorialShown = 0;
+const bubbleEl = $('bubble'), bubbleText = $('bubble-text');
+let chatter = { text: '', t: 0 }, idleChat = 25;
+const LINES = {
+  find: ['Oh, was Glänzendes!', 'Das gibt Credits!', 'Ich liebe Schrott. 🤖', 'Ein guter Fund!', 'Ab in den Laderaum!'],
+  rare: ['WOW! Schau dir das an!', 'Selten! Sehr selten!', 'Meine Sensoren kribbeln!'],
+  full: ['Mein Laderaum ist voll… 😟', 'Ich passe nichts mehr rein!'],
+  upgrade: ['Ich fühle mich stärker!', 'Neues Teil – danke!', 'Upgrade installiert ✔'],
+  idle: ['Noch ein paar Millionen…', 'Irgendwo hier muss der Kern sein.', 'Schrott, Schrott, Schrott…', 'Ich habe Zeit. Viel Zeit.', 'Kennst du schon den Markt?'],
+  hot: ['Ich spüre etwas… ganz nah!', 'Hier! Hier muss er sein!'],
+};
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+function say(text, dur = 2.6) { chatter = { text, t: dur }; idleChat = 30 + Math.random() * 30; }
+
+function updateDockArrow() {
+  const want = S.mode !== 'pure' && !nearDock() &&
+    (S.tutorial === 3 || (!S.levels.link && S.cargoCount >= lv('cargo')));
+  $('dock-chip').classList.toggle('hidden', !want);
+  if (!want) return;
+  const p = bot.group.position;
+  const dx = WORLD.dock.x - p.x, dz = WORLD.dock.z - p.z;
+  // angle of dock direction relative to camera forward (screen up)
+  const fwd = Math.atan2(-Math.sin(cam.yaw), -Math.cos(cam.yaw));
+  const dir = Math.atan2(dx, dz);
+  const rel = Math.atan2(Math.sin(fwd - dir), Math.cos(fwd - dir));
+  $('dock-arrow').style.transform = `rotate(${(-90 + rel * 180 / Math.PI).toFixed(0)}deg)`;
+  setText('dock-dist', fmt(Math.hypot(dx, dz)));
+}
+
+function updateBubble(dt) {
+  let text = '', tut = false;
+  if (S.tutorial < TUTORIAL.length && S.mode !== 'pure') {
+    const step = TUTORIAL[S.tutorial];
+    if (S.tutorial === TUTORIAL.length - 1) tutorialShown += dt;
+    if (step.done()) { S.tutorial++; tutorialShown = 0; bot.setMood('happy', 1); save(); }
+    else if ($('shop').classList.contains('hidden') || S.tutorial === 4) { text = `<span class="step">Schritt ${S.tutorial + 1}/${TUTORIAL.length}</span>${step.text}`; tut = true; }
+  }
+  if (!text) {
+    idleChat -= dt;
+    if (idleChat <= 0) say(pick(LINES.idle));
+    if (chatter.t > 0) { chatter.t -= dt; text = chatter.text; }
+  }
+  if (!text || !$('overlay-msg').classList.contains('hidden')) { bubbleEl.classList.add('hidden'); return; }
+  if (bubbleText.innerHTML !== text) bubbleText.innerHTML = text;
+  bubbleEl.classList.toggle('tut', tut);
+  // shop open: show bubble at top of screen instead of over the bot
+  if (!$('shop').classList.contains('hidden')) { bubbleEl.classList.add('hidden'); return; }
+  const v = tmpV.copy(bot.group.position);
+  v.y += 2.3;
+  v.project(camera);
+  if (v.z > 1) { bubbleEl.classList.add('hidden'); return; }
+  const x = Math.max(150, Math.min(window.innerWidth - 150, (v.x * 0.5 + 0.5) * window.innerWidth));
+  const y = Math.max(160, (-v.y * 0.5 + 0.5) * window.innerHeight);
+  bubbleEl.style.left = `${x}px`;
+  bubbleEl.style.top = `${y}px`;
+  bubbleEl.classList.remove('hidden');
+}
+
+// ================================================================ adaptive quality
+const quality = { level: 2, t: 0, frames: 0, checks: 0 };
+function adaptQuality(dt) {
+  if (quality.checks >= 3) return;
+  quality.t += dt; quality.frames++;
+  if (quality.t < 3) return;
+  const fps = quality.frames / quality.t;
+  quality.t = 0; quality.frames = 0; quality.checks++;
+  if (fps < 42 && quality.level === 2) {
+    quality.level = 1;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    env.sun.shadow.mapSize.set(1024, 1024);
+    env.sun.shadow.map?.dispose(); env.sun.shadow.map = null;
+    onResize();
+  } else if (fps < 30 && quality.level === 1) {
+    quality.level = 0;
+    renderer.setPixelRatio(1);
+    env.sun.castShadow = false;
+    onResize();
+  }
+}
+
 // ================================================================ main loop
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -795,7 +890,11 @@ function animate() {
       $('btn-dock').classList.toggle('hidden', !nearDock() || S.mode === 'pure');
       updateHud();
       updateScannerHud();
+      updateBubble(dt);
+      updateDockArrow();
+      adaptQuality(dt);
     } else {
+      bubbleEl.classList.add('hidden');
       // title screen: slow orbit
       demoT += dt;
       bot.update(dt, false);
