@@ -1,0 +1,16 @@
+{
+  "name": "Tiefenzeit – Die Suche nach dem Zeitkristall",
+  "short_name": "Tiefenzeit",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#2b1d14",
+  "theme_color": "#2b1d14",
+  "lang": "de",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

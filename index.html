@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Tiefenzeit</title>
+  <meta name="description" content="Grabe dich durch die Epochen der Wüste Ar-Ruhal und finde den versteckten Zeitkristall.">
+  <meta name="theme-color" content="#2b1d14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tiefenzeit">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="topbar">
+      <div class="stat" id="stat-stamina">
+        <span class="label">Ausdauer</span>
+        <div class="bar"><div class="fill" id="stamina-fill"></div></div>
+        <span class="value" id="stamina-val">0</span>
+      </div>
+      <div class="stat compact"><span class="label">Punkte</span><span class="value" id="score-val">0</span></div>
+      <div class="stat compact"><span class="label">Tiefe</span><span class="value" id="depth-val">0 m</span></div>
+      <div class="stat compact"><span class="label">Feld</span><span class="value" id="level-val">1</span></div>
+      <button class="icon-btn" id="btn-menu" aria-label="Menü">☰</button>
+    </div>
+
+    <div id="detector">
+      <span class="label">Resonanz</span>
+      <div class="bar"><div class="fill" id="heat-fill"></div></div>
+      <span id="heat-text">–</span>
+    </div>
+
+    <div id="layer-ctrl">
+      <button class="icon-btn" id="btn-up" aria-label="Schnitt höher">▲</button>
+      <div id="cut-val">0</div>
+      <button class="icon-btn" id="btn-down" aria-label="Schnitt tiefer">▼</button>
+    </div>
+
+    <div id="toolbar">
+      <button class="tool active" data-tool="shovel"><span class="ico">⛏︎</span><span>Schaufel</span><small>1 / Schlag</small></button>
+      <button class="tool" data-tool="pick"><span class="ico">⚒︎</span><span>Spitzhacke</span><small>3× Kraft · 2</small></button>
+      <button class="tool" data-tool="bomb"><span class="ico">✸</span><span>Sprengung <b id="bomb-count">1</b></span><small>3×3×3 · 4</small></button>
+    </div>
+
+    <div id="toast"></div>
+    <div id="layer-name"></div>
+  </div>
+
+  <!-- Overlays -->
+  <div id="overlay-start" class="overlay">
+    <div class="card">
+      <div class="kicker">Ein Grabungsspiel aus der Wüste Ar-Ruhal</div>
+      <h1>TIEFENZEIT</h1>
+      <p class="lead">Irgendwo unter den Dünen liegt ein winziger <b>Zeitkristall</b>. Grabe dich durch die Epochen, folge der Resonanz und finde ihn, bevor deine Ausdauer endet.</p>
+      <ul class="howto">
+        <li><b>Tippen:</b> graben</li>
+        <li><b>Ziehen:</b> drehen · <b>Kneifen:</b> zoomen</li>
+        <li><b>Resonanz:</b> je röter, desto näher am Kristall</li>
+        <li><b>Fossilien</b> geben Ausdauer, <b>Münzen</b> und <b>Relikte</b> Punkte</li>
+      </ul>
+      <button class="big" id="btn-start">Expedition starten</button>
+      <div class="records" id="records"></div>
+    </div>
+  </div>
+
+  <div id="overlay-msg" class="overlay hidden">
+    <div class="card">
+      <h2 id="msg-title"></h2>
+      <div id="msg-body"></div>
+      <div class="row">
+        <button class="big" id="msg-btn"></button>
+        <button class="ghost" id="msg-btn2"></button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
