@@ -468,3 +468,9 @@ h2 { margin: 0 0 10px; font-size: 24px; }
 .tool .ico .ic, .site .ico .ic { width: 26px; height: 26px; }
 #btn-turbo span .ic { width: 26px; height: 26px; }
 .deck-card .stars .ic { width: 15px; height: 15px; }
+
+#golem-bar { position: absolute; left: 50%; transform: translateX(-50%); top: calc(132px + var(--safe-t)); width: min(320px, 70vw); text-align: center; pointer-events: none !important; }
+#golem-bar b { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #ffb347; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+#golem-bar .bar { height: 8px; margin-top: 3px; border: 1px solid rgba(255,179,71,.5); }
+#golem-fill { background: linear-gradient(90deg, #ffb347, #ff8a3a); width: 100%; }
+@media (max-width: 520px) { #golem-bar { top: calc(160px + var(--safe-t)); } }

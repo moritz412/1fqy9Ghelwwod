@@ -159,6 +159,7 @@ export const ACHIEVEMENTS = [
   { id: 'evo5',     name: 'Nexus Mk V',          desc: 'Erreiche die letzte Evolutionsstufe.',     check: (s) => (s.evo || 1) >= 5, reward: 250000 },
   { id: 'explorer', name: 'Entdecker',           desc: 'Schließe 5 Expeditionen ab.',              check: (s) => (s.stats.expeditions || 0) >= 5, reward: 5000 },
   { id: 'trader',   name: 'Händlerseele',        desc: 'Tausche 5-mal mit Händlern.',              check: (s) => (s.stats.trades || 0) >= 5, reward: 3000 },
+  { id: 'golem',    name: 'Golem-Bezwinger',     desc: 'Zerlege einen Schrottgolem.',              check: (s) => (s.stats.golems || 0) >= 1, reward: 4000 },
   { id: 'tinker',   name: 'Bastler',             desc: 'Besitze 3 Module.',                        check: (s) => (s.modules || []).length >= 3, reward: 1500 },
   { id: 'fusion',   name: 'Kernfusion',          desc: 'Rüste den Atomar-Kern auf Stufe III.',     check: (s) => (s.atomarLv || 0) >= 2, reward: 4000 },
   { id: 'meteor',   name: 'Sternschnuppen-Fänger', desc: 'Sammle 10 Meteoriten.',                 check: (s) => (s.stats.meteors || 0) >= 10, reward: 2500 },
