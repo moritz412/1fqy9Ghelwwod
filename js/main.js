@@ -69,7 +69,7 @@ const env = buildEnvironment(scene, renderer);
 // ---- bloom post-processing (only on the high quality level)
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.5, 0.45, 1.0);
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.32, 0.4, 1.0);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const gfx = { bloom: true };
@@ -269,7 +269,7 @@ function updateDrones(dt, t) {
     if (u.rotors) u.rotors.forEach((r, i) => { r.rotation.y += dt * (i % 2 ? 38 : -38); });
     d.rotation.z = Math.sin(t * 1.7 + u.phase) * 0.06;
     const suck = (Math.sin(t * 1.3 + u.phase * 3) + 1) / 2;
-    u.beam.material.opacity = suck > 0.55 ? (suck - 0.55) * 0.9 : 0;
+    u.beam.material.opacity = suck > 0.5 ? (suck - 0.5) * 0.12 : 0;   // subtle, no flashing
     u.beam.scale.y = u.h;
     u.beam.position.y = -u.h / 2;
     if (suck > 0.85 && Math.random() < dt * 10 && pile.total > 0) { spawnDebris(x, ground, z, 1, 0, 0, 0.8); dust.puff(x, ground, z, 1, 0.7); }
@@ -280,6 +280,22 @@ function updateDrones(dt, t) {
 const $ = (id) => document.getElementById(id);
 const hud = $('hud');
 
+// find messages are collected and shown as one calm line per ~1.5 s
+const feedAgg = { items: new Map(), t: 0 };
+function feedFind(f, k) {
+  const cur = feedAgg.items.get(f.id) || { f, k: 0 };
+  cur.k += k;
+  feedAgg.items.set(f.id, cur);
+}
+function flushFeed(dt) {
+  feedAgg.t -= dt;
+  if (feedAgg.t > 0 || !feedAgg.items.size) return;
+  feedAgg.t = 1.5;
+  const list = [...feedAgg.items.values()].sort((a, b) => b.f.value - a.f.value);
+  feedAgg.items.clear();
+  const text = list.slice(0, 3).map((q) => `+${fmt(q.k)} ${q.f.name}`).join(' · ') + (list.length > 3 ? ' …' : '');
+  feed(text, list[0].f.color);
+}
 function feed(text, color = '#6ff3f0') {
   const el = document.createElement('div');
   el.className = 'feed-item';
@@ -287,7 +303,7 @@ function feed(text, color = '#6ff3f0') {
   el.textContent = text;
   const f = $('feed');
   f.prepend(el);
-  while (f.children.length > 5) f.lastChild.remove();
+  while (f.children.length > 3) f.lastChild.remove();
   setTimeout(() => el.remove(), 3100);
 }
 let hintTimer = 0;
@@ -373,7 +389,7 @@ function handleFinds(list, byPlayer) {
       if (byPlayer && S.levels.link && S.keep.includes(f.id)) { S.vault[f.id] = (S.vault[f.id] || 0) + k; feed(`+${fmt(k)} ${f.name} → Lager`, f.color); best = Math.max(best, tier); continue; }
       const fee = byPlayer && S.levels.link ? 0.75 : 1;
       if (S.mode !== 'pure') { const v = Math.round(valueOf(f) * k * fee); S.credits += v; S.stats.earned += v; }
-      if (byPlayer) { feed(`+${fmt(k)} ${f.name}`, f.color); best = Math.max(best, tier); }
+      if (byPlayer) { feedFind(f, k); best = Math.max(best, tier); }
       else if (tier >= 3) feed(`Helfer: ${f.name}!`, f.color);
       continue;
     }
@@ -383,7 +399,7 @@ function handleFinds(list, byPlayer) {
     if (take > 0) {
       S.cargo[f.id] = (S.cargo[f.id] || 0) + take;
       S.cargoCount += take;
-      feed(`+${fmt(take)} ${f.name}`, f.color);
+      feedFind(f, take);
       best = Math.max(best, tier);
     }
     if (take < k && fullWarnT <= 0) {
@@ -649,7 +665,8 @@ function doGrab(x, z) {
   handleFinds(finds, true);
   const worth = finds.reduce((a, q) => a + valueOf(q.f) * q.k, 0);
   if (worth) addXp(Math.max(1, Math.round(worth / 20)));
-  if (worth && S.mode !== 'pure') {
+  if (worth && S.mode !== 'pure' && (worth >= 20 || performance.now() - lastFloat > 700)) {
+    lastFloat = performance.now();
     const best = finds.reduce((a, q) => (q.tier > a.tier ? q : a), finds[0]);
     floatLabel(camera, tmpV2.set(x, h + 0.8, z), `+${fmt(worth)} ⬡`, best.f.color, worth >= 60);
   }
@@ -660,6 +677,7 @@ function doGrab(x, z) {
 }
 
 const tmpV2 = new THREE.Vector3();
+let lastFloat = 0;
 function capsuleReward() {
   const perSec = lv('hands') * lv('speed') * 0.37 + helperRate() * 0.37;
   return Math.max(25, Math.round(perSec * 25));
@@ -2185,6 +2203,7 @@ function animate() {
       updateBubble(dt);
       updateDockArrow();
       checkAchievements(dt);
+      flushFeed(dt);
       baseTick(dt);
       updateCombo(dt);
       updatePulse(dt, t);

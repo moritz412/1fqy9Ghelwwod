@@ -421,7 +421,7 @@ export function buildEnvironment(scene, renderer) {
         mp.setZ(k, mp.getZ(k) + Math.cos(t * 0.17 + sd) * dt * 0.25);
       }
       mp.needsUpdate = true;
-      blinkers.forEach((b, i) => { b.visible = Math.sin(t * 2 + i * 0.9) > 0.2; });
+      blinkers.forEach((b, i) => { b.scale.setScalar(0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.9))); });
       sunCore.material.opacity = 0.9 + Math.sin(t * 0.7) * 0.1;
       outposts.update(dt, t);
       shuttle.userData.update(dt, t);
@@ -551,7 +551,7 @@ function buildOutposts(scene, m) {
     g.add(mast, head, lamp);
     shadowAll(g);
     place(g, 0.55, 27);
-    anim.push((dt, t) => { head.rotation.y += dt * 0.6; lamp.visible = Math.sin(t * 3) > 0; });
+    anim.push((dt, t) => { head.rotation.y += dt * 0.6; lamp.scale.setScalar(0.7 + 0.3 * Math.sin(t * 1.2)); });
   }
   // 2) fuel tank farm
   {
@@ -617,7 +617,7 @@ function buildOutposts(scene, m) {
     g.add(floor, arch, arm, mini);
     shadowAll(g);
     place(g, 4.3, 26.5);
-    anim.push((dt, t) => { spark.visible = Math.random() < 0.5; arm.rotation.y = Math.sin(t * 1.5) * 0.3; mh.rotation.y = Math.sin(t * 0.7) * 0.4; });
+    anim.push((dt, t) => { spark.scale.setScalar(0.7 + 0.3 * Math.sin(t * 2.5)); arm.rotation.y = Math.sin(t * 1.5) * 0.3; mh.rotation.y = Math.sin(t * 0.7) * 0.4; });
   }
   // 6) beacon pylons with pulsing lights
   for (const [ang, col] of [[5.2, 0x6ff3f0], [5.75, 0xffb347], [0.05, 0xb48cff]]) {
@@ -729,7 +729,7 @@ export function makeShuttle() {
     flame.scale.set(1, 0.2 + th * (1 + Math.sin(t * 45) * 0.12), 1);
     flame.material.opacity = 0.3 + th * 0.55;
     core.scale.set(1, 0.3 + th * (1 + Math.sin(t * 60) * 0.2), 1);
-    beacon.visible = Math.sin(t * 5) > 0;
+    beacon.scale.setScalar(0.7 + 0.3 * Math.sin(t * 2));
   };
   return g;
 }

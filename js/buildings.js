@@ -73,7 +73,7 @@ function model(type, lvl) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.04, 6, 18), M.glow); ring.position.set(0, -1.45, -4.05); ring.rotation.x = Math.PI / 2 - 0.35;
     boom.add(pipe, mouth, ring);
     g.add(body, top, boom);
-    anim.update = (dt, t, on) => { boom.rotation.y = Math.sin(t * 0.6) * 0.25; ring.visible = on; top.rotation.y += dt * (on ? 3 : 0.3); };
+    anim.update = (dt, t, on) => { boom.rotation.y = Math.sin(t * 0.6) * 0.25; ring.scale.setScalar(on ? 1 + Math.sin(t * 1.5) * 0.08 : 0.85); top.rotation.y += dt * (on ? 3 : 0.3); };
   } else if (type === 'sorter') {
     const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.8, 1.6), M.white); base.position.y = 0.4;
     const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 2.0, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a909a, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide, wireframe: false }));
@@ -84,7 +84,7 @@ function model(type, lvl) {
     const chute = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 1.2), M.grey); chute.position.set(1.4, 0.9, 0); chute.rotation.z = -0.5;
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), M.hot); lamp.position.set(-1.1, 1.0, 0.8);
     g.add(base, drum, ribs, chute, lamp);
-    anim.update = (dt, t, on) => { drum.rotation.x += dt * (on ? 4 : 0); ribs.rotation.x += dt * (on ? 4 : 0); lamp.visible = on ? Math.sin(t * 6) > -0.3 : false; };
+    anim.update = (dt, t, on) => { drum.rotation.x += dt * (on ? 4 : 0); ribs.rotation.x += dt * (on ? 4 : 0); lamp.scale.setScalar(on ? 0.85 + Math.sin(t * 1.4) * 0.15 : 0.5); };
   } else if (type === 'silo') {
     const tank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.2, 20), M.white); tank.position.y = 1.9;
     const cone = new THREE.Mesh(new THREE.ConeGeometry(1, 0.6, 20), M.white); cone.position.y = 3.8;
@@ -135,7 +135,7 @@ function model(type, lvl) {
     dish.position.y = 4.1; dish.rotation.x = -0.9;
     const orb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), M.glow); orb.position.y = 4.4;
     g.add(mast, dish, orb);
-    anim.update = (dt, t, on) => { dish.rotation.z += dt * (on ? 1.2 : 0.2); orb.visible = Math.sin(t * 4) > 0; };
+    anim.update = (dt, t, on) => { dish.rotation.z += dt * (on ? 1.2 : 0.2); orb.scale.setScalar(0.85 + Math.sin(t * 1.2) * 0.15); };
   }
   g.scale.setScalar(s);
   g.traverse((o) => { if (o.isMesh && !(o.material && o.material.transparent)) o.castShadow = true; });
