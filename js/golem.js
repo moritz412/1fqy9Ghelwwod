@@ -7,7 +7,11 @@ export class Golem {
     this.scene = scene;
     this.g = null;
     this.active = false;
+    this.falling = null;
+    this.name = 'Schrottgolem';
   }
+
+  get exposed() { return this.active && this.falling === null; }
 
   spawn(pile, hp) {
     this.remove();
@@ -106,6 +110,129 @@ export class Golem {
   }
 
   get position() { return this.g ? this.g.position : null; }
+
+  remove() {
+    if (this.g) this.scene.remove(this.g);
+    this.g = null;
+    this.active = false;
+    this.falling = null;
+  }
+}
+
+// The Scrap Worm: a long chain of scrap rings that arcs in and out of the heap.
+// It can only be hit while its head is above the surface.
+export class Worm {
+  constructor(scene) {
+    this.scene = scene;
+    this.g = null;
+    this.active = false;
+    this.falling = null;
+    this.name = 'Schrottwurm';
+  }
+
+  spawn(pile, hp) {
+    this.remove();
+    const g = new THREE.Group();
+    const ring = texMat('metal', 0x9a7a5a, { roughness: 0.45 });
+    const ring2 = texMat('metal', 0x6d737c, { roughness: 0.5 });
+    const plate = texMat('hull', 0xd7dade);
+    this.segs = [];
+    const N = 14;
+    for (let k = 0; k < N; k++) {
+      const s = new THREE.Group();
+      const r = 0.62 - (k / N) * 0.3;
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.55, 12), k % 2 ? ring : ring2);
+      body.rotation.x = Math.PI / 2; body.castShadow = true; s.add(body);
+      const band = new THREE.Mesh(new THREE.TorusGeometry(r * 1.02, 0.06, 6, 16), ring2);
+      s.add(band);
+      if (k % 3 === 1) for (const sx of [-1, 1]) { const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.35), plate); fin.position.set(sx * r, r * 0.6, 0); fin.rotation.z = sx * 0.5; s.add(fin); }
+      g.add(s); this.segs.push(s);
+    }
+    // head
+    const head = new THREE.Group();
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), plate);
+    skull.scale.set(1, 0.85, 1.2); skull.castShadow = true; head.add(skull);
+    const eyeM = new THREE.MeshBasicMaterial({ color: 0xffb347 });
+    for (const sx of [-1, 1]) {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), eyeM); e.position.set(sx * 0.32, 0.22, 0.72); head.add(e);
+      const jaw = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.6, 6), ring2); jaw.position.set(sx * 0.3, -0.25, 0.85); jaw.rotation.x = Math.PI / 2; jaw.rotation.z = sx * 0.3; head.add(jaw);
+    }
+    g.add(head); this.head = head;
+    this.trail = [];
+    this.maxHp = hp; this.hp = hp;
+    this.alive = N;
+    this.g = g;
+    this.t = 0; this.rise = 0;
+    this.ang = Math.random() * Math.PI * 2; this.rad = 6 + Math.random() * 4;
+    this.falling = null;
+    this.flinch = 0;
+    this.headPos = new THREE.Vector3();
+    this.scene.add(g);
+    this.active = true;
+    this.update(0, 0, pile);
+  }
+
+  // head above the heap? only then the worm can be grabbed
+  get exposed() { return this.active && this.falling === null && this.above > -0.1; }
+
+  hit(dust) {
+    if (!this.exposed) return false;
+    this.hp--;
+    this.flinch = 0.3;
+    const shouldRemain = Math.max(2, Math.ceil((this.hp / this.maxHp) * this.segs.length));
+    while (this.alive > shouldRemain) {
+      const s = this.segs[this.alive - 1];
+      s.visible = false; this.alive--;
+      if (dust) dust(s.getWorldPosition(new THREE.Vector3()));
+    }
+    if (this.hp <= 0) { this.falling = 0; return true; }
+    return false;
+  }
+
+  update(dt, t, pile) {
+    if (!this.g) return;
+    this.t += dt;
+    if (this.falling !== null) {
+      this.falling += dt;
+      this.segs.forEach((s, k) => { s.position.y -= dt * (1 + k * 0.2); s.rotation.z += dt * (k % 2 ? 2 : -2); });
+      this.head.position.y += dt * (2 - this.falling * 4);
+      this.head.rotation.x += dt * 3;
+      if (this.falling > 1.8) this.remove();
+      return;
+    }
+    this.rise = Math.min(1, this.rise + dt * 0.5);
+    const sp = this.flinch > 0 ? 0.25 : 0.32;
+    this.ang += dt * sp;
+    this.rad = 7 + Math.sin(this.t * 0.13) * 3.5;
+    const x = Math.cos(this.ang) * this.rad, z = Math.sin(this.ang) * this.rad;
+    const ground = Math.max(0, pile.heightAt(x, z));
+    // arcs: long time above the surface, short dives
+    const wave = Math.sin(this.t * 0.55);
+    this.above = (wave + 0.35) * 1.8 * this.rise - (1 - this.rise) * 3;
+    const y = ground + this.above;
+    this.headPos.set(x, y, z);
+    this.trail.unshift(this.headPos.clone());
+    if (this.trail.length > 400) this.trail.pop();
+    this.head.position.copy(this.headPos);
+    const dx = -Math.sin(this.ang), dz = Math.cos(this.ang);
+    this.head.rotation.set(-Math.cos(this.t * 0.55) * 0.5, Math.atan2(dx, dz), 0);
+    if (this.flinch > 0) { this.flinch -= dt; this.head.position.x += Math.sin(t * 60) * 0.06; }
+    // body follows the head along its trail, spaced by distance
+    let idx = 0, acc = 0;
+    for (let k = 0; k < this.segs.length; k++) {
+      const want = 0.62 * (k + 1);
+      while (idx < this.trail.length - 1 && acc < want) { acc += this.trail[idx].distanceTo(this.trail[idx + 1]); idx++; }
+      const p = this.trail[Math.min(idx, this.trail.length - 1)];
+      const s = this.segs[k];
+      s.position.copy(p);
+      const q = this.trail[Math.max(0, idx - 2)];
+      s.lookAt(q);
+      // segments below the surface are hidden by the heap itself; hide deep ones to avoid poking through the deck
+      s.visible = k < this.alive && p.y > -0.6;
+    }
+  }
+
+  get position() { return this.g ? this.headPos : null; }
 
   remove() {
     if (this.g) this.scene.remove(this.g);

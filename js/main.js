@@ -4,7 +4,7 @@ import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
 import { startIconObserver } from './icons.js';
-import { Golem } from './golem.js';
+import { Golem, Worm } from './golem.js';
 import { StationView, MODULES_ST, RANKS, stationRank, moduleCost, stationBonus, freeCells, STATION_POS, TONS_PER_PART, EXPEDITIONS, expSlots, makeTraderDeals } from './station.js';
 import { BaseView, BUILDINGS, baseStats, buildCost, SITE_COSTS, SITE_ANGLES, MAX_BLD_LEVEL, BUILD_UNLOCK_LEVEL, sitePos, bldValue } from './buildings.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
@@ -100,6 +100,8 @@ const capsules = new Capsules(scene);
 const baseView = new BaseView(scene);
 const stationView = new StationView(scene);
 const golem = new Golem(scene);
+const worm = new Worm(scene);
+let boss = golem;
 const dust = new Dust(scene);
 let shake = 0;
 const events = new Events(scene, {
@@ -669,8 +671,8 @@ function doGrab(x, z) {
   if (met) openMeteor(met);
   const al = events.catchAlien(x, z, pickR + 0.4);
   if (al) catchAlien(al);
-  if (golem.active && golem.falling === null && golem.position && Math.hypot(golem.position.x - bot.group.position.x, golem.position.z - bot.group.position.z) < 4.5 + grabRadius()) {
-    const down = golem.hit((pp) => { spawnDebris(pp.x, pp.y, pp.z, 5, 0, 0, 1.4); dust.puff(pp.x, pp.y, pp.z, 2, 1.2); });
+  if (boss.exposed && boss.position && Math.hypot(boss.position.x - bot.group.position.x, boss.position.z - bot.group.position.z) < (boss === worm ? 3.2 : 4.5) + grabRadius()) {
+    const down = boss.hit((pp) => { spawnDebris(pp.x, pp.y, pp.z, 5, 0, 0, 1.4); dust.puff(pp.x, pp.y, pp.z, 2, 1.2); });
     sfx.grab(4); shake = Math.max(shake, 0.12);
     if (down) golemDefeated();
   }
@@ -746,7 +748,7 @@ function golemDefeated() {
   sfx.core(); vibrate([60, 40, 100]); shake = 0.8;
   bot.setMood('love', 4);
   say('Geschafft! Der Golem ist zerlegt. Was für ein Haufen Beute!', 4);
-  achvQueue.push({ kicker: 'Deck-Stern', name: 'Schrottgolem zerlegt!', desc: `+${fmt(cr)} ⬡ · +${60 + (S.deck || 0) * 20} t Metall · 3 Platin · 1 Alien-Artefakt (ins Lager)`, reward: 0 });
+  achvQueue.push({ kicker: 'Deck-Stern', name: `${boss.name} zerlegt!`, desc: `+${fmt(cr)} ⬡ · +${60 + (S.deck || 0) * 20} t Metall · 3 Platin · 1 Alien-Artefakt (ins Lager)`, reward: 0 });
   $('golem-bar').classList.add('hidden');
   save();
 }
@@ -1272,10 +1274,13 @@ function checkMilestones() {
   S.milestone = S.milestone || 0;
   const gAt = twist('nest') ? [25, 75] : [50];
   if (S.golemDone && !S.golemN) S.golemN = 1;
-  if (!golem.active && (S.golemN || 0) < gAt.length && pct >= gAt[S.golemN || 0]) {
-    golem.spawn(pile, 25 + (S.deck || 0) * 10);
+  if (!boss.active && (S.golemN || 0) < gAt.length && pct >= gAt[S.golemN || 0]) {
+    const useWorm = twist('nest') ? (S.golemN || 0) === 1 : (S.deck || 0) % 2 === 1;
+    boss = useWorm ? worm : golem;
+    boss.spawn(pile, 25 + (S.deck || 0) * 10);
     sfx.meteor(0.8); shake = 0.6;
-    say('Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!', 5);
+    say(useWorm ? 'Der Haufen bewegt sich … ein Schrottwurm! Pack ihn, wenn er auftaucht!' : 'Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!', 5);
+    $('golem-name').textContent = boss.name;
     $('golem-bar').classList.remove('hidden');
   }
   if (reached > S.milestone && reached > 0) {
@@ -1928,7 +1933,7 @@ function setupWorld(state) {
   if (pileView) pileView.dispose(scene);
   capsules.clear();
   events.clear();
-  golem.remove();
+  golem.remove(); worm.remove(); boss = golem;
   $('golem-bar').classList.add('hidden');
   $('event').classList.add('hidden');
   env.setStorm(false);
@@ -2803,8 +2808,8 @@ function animate() {
   }
   if (S) baseView.update(dt, t, baseFlow, baseCache.eff, (S.buffer || 0) / Math.max(1, baseCache.buffer));
   stationView.update(dt, t);
-  if (pile) golem.update(dt, t, pile);
-  if (golem.active) $('golem-fill').style.width = `${Math.max(0, golem.hp / golem.maxHp) * 100}%`;
+  if (pile) boss.update(dt, t, pile);
+  if (boss.active) $('golem-fill').style.width = `${Math.max(0, boss.hp / boss.maxHp) * 100}%`;
   { const p = bot.group.position; contactShadow.position.set(p.x, Math.max(0, pile.heightAt(p.x, p.z)) + 0.03, p.z); contactShadow.visible = bot.group.visible; }
   updateDebris(dt);
   dust.update(dt);
@@ -2835,4 +2840,4 @@ $('splash').addEventListener('click', () => {
 });
 
 // test hook
-window.__nx = { golem, playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { golem, worm, get boss() { return boss; }, playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
