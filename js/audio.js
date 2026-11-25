@@ -228,6 +228,13 @@ export const sfx = {
   deny() { tone(150, 0.15, 0.1, 'sawtooth'); },
   capsule() { tone(523, 0.1, 0.12, 'square'); tone(784, 0.1, 0.12, 'square', 0.08); tone(1047, 0.35, 0.12, 'square', 0.16); noise(0.4, 2500, 0.15, 'bandpass'); },
   achievement() { [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.4, 0.1, 'triangle', k * 0.09)); tone(392, 0.8, 0.08, 'sine', 0); },
+  meteor(vol = 1) {
+    noise(0.9, 800, 0.5 * vol, 'lowpass');
+    tone(110, 0.7, 0.25 * vol, 'sine', 0, 35);
+    noise(0.25, 3000, 0.15 * vol, 'highpass');
+  },
+  event() { [0, 0.25, 0.5].forEach((d) => { tone(880, 0.15, 0.08, 'square', d); tone(660, 0.15, 0.08, 'square', d + 0.12); }); },
+  turbo() { tone(200, 0.5, 0.15, 'sawtooth', 0, 900); noise(0.5, 2000, 0.2, 'bandpass'); },
   click() { tone(1200, 0.03, 0.04, 'square'); },
   beep() { tone(1400, 0.05, 0.04, 'sine'); tone(1800, 0.05, 0.03, 'sine', 0.06); },
 };

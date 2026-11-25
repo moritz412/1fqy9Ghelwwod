@@ -202,8 +202,9 @@ export class Pile {
 
 // ------------------------------------------------------------------ view
 export class PileView {
-  constructor(pile, scene) {
+  constructor(pile, scene, theme = null) {
     this.pile = pile;
+    this.theme = theme || { base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] };
     this.scene = scene;
 
     const size = N * CELL;
@@ -274,10 +275,9 @@ export class PileView {
       this.pebByCell.get(c).push(k);
       const g = 0.16 + rnd() * 0.22;
       const kind = rnd();
-      if (kind < 0.18) col.setRGB(g * 1.9, g * 0.9, g * 0.5);        // rust
-      else if (kind < 0.3) col.setRGB(g * 1.6, g * 1.1, g * 0.6);    // copper
-      else if (kind < 0.45) col.setRGB(g * 1.4, g * 1.5, g * 1.65);  // steel
-      else col.setRGB(g * 1.05, g, g * 0.95);                         // rock
+      const pal = this.theme.pebbles;
+      const tint = kind < 0.18 ? pal[0] : kind < 0.3 ? pal[1] : kind < 0.45 ? pal[2] : pal[3];
+      col.setRGB(g * tint[0], g * tint[1], g * tint[2]);
       mesh.setColorAt(d.i, col);
       this.updatePebble(k);
     }
@@ -310,7 +310,8 @@ export class PileView {
     if (h < 0) col.setXYZ(v, 0.45 * t, 0.47 * t, 0.5 * t);           // exposed crater floor
     else {
       const k = Math.min(1, h / 12);
-      col.setXYZ(v, (0.24 - k * 0.04) * t, (0.22 - k * 0.04) * t, (0.21 - k * 0.02) * t);
+      const b = this.theme.base;
+      col.setXYZ(v, (b[0] - k * 0.04) * t, (b[1] - k * 0.04) * t, (b[2] - k * 0.02) * t);
     }
   }
 

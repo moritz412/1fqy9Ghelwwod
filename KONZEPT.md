@@ -158,6 +158,7 @@ Die Perspektive ist Ego-Sicht wie in der Vorlage. Optional gibt es eine Schulter
 | 0.2 ✅  | Hangardeck, 5 Mio. Teile, Nexus-Bot, Greifen, Funde, Markt, Upgrades, Helfer, Speichern, Modus Pur |
 | 0.3 ✅  | Einführung in Sprechblasen, schnellerer Start, Zoom-Schutz für iOS       |
 | 0.4 ✅  | Schrottformen, Staub, Credit-Anzeigen, Frachtkapseln, 16 Erfolge, 6 Bot-Skins, Musik/Motor/Stationsbrummen |
-| 0.5     | Weitere Decks (andere Schrottarten), Ereignisse (Meteoritenschauer), PC-Modelle |
+| 0.5 ✅  | Ereignisse (Meteoritenschauer, Glückswelle), Turbo, Decks mit Sternen (Eiswrack, Goldmine, Alienschrott), Tagesbonus, mitlaufende Kamera |
+| 0.6     | PC-Modelle (Bot, Schrott, Funde), Bestenliste, Koop-Versuch              |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

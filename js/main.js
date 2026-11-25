@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS } from './config.js';
+import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO } from './config.js';
+import { Events, EVENT_TYPES } from './events.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
@@ -17,7 +18,7 @@ function freshState(mode = 'career') {
     levels: { hands: 0, speed: 0, drive: 0, cargo: 0, scanner: 0, link: 0 },
     helpers: {},
     stats: { removed: 0, found: {}, earned: 0, time: 0, grabs: 0, capsules: 0 },
-    skins: ['classic'], skin: 'classic', achievements: [],
+    skins: ['classic'], skin: 'classic', achievements: [], deck: 0, stars: 0, daily: null,
     coreFound: false, coreTime: 0, lastSave: Date.now(), pile: null, tutorial: 0,
   };
 }
@@ -54,6 +55,28 @@ const bot = new NexusBot();
 scene.add(bot.group);
 const capsules = new Capsules(scene);
 const dust = new Dust(scene);
+let shake = 0;
+const events = new Events(scene, {
+  onImpact(pos) {
+    dust.puff(pos.x, pos.y, pos.z, 8, 2.2, 0xff9a5c);
+    spawnDebris(pos.x, pos.y, pos.z, 14, 0, 0, 1);
+    const d = Math.hypot(pos.x - bot.group.position.x, pos.z - bot.group.position.z);
+    shake = Math.max(shake, Math.max(0.05, 0.5 - d * 0.02));
+    sfx.meteor(Math.max(0.2, 1 - d / 40));
+    vibrate(30);
+  },
+  onStart(type) {
+    const e = EVENT_TYPES[type];
+    const el = $('event');
+    el.style.setProperty('--c', e.color);
+    el.querySelector('b').textContent = e.name;
+    el.querySelector('small').textContent = e.desc;
+    el.classList.remove('hidden');
+    sfx.event();
+    say(type === 'meteor' ? 'Achtung, Meteoriten! Die sind voller Schätze! ☄️' : 'Ich spüre eine Glückswelle! Schnell greifen! ✨', 4);
+  },
+  onEnd() { $('event').classList.add('hidden'); },
+});
 
 // ================================================================ debris
 const DMAX = 400;
@@ -181,7 +204,9 @@ function hint(text, color = '#fff') {
 }
 
 const lv = (k) => BOT_UPGRADES[k].levels[S.levels[k]].value;
-const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0);
+const starMult = () => 1 + (S.stars || 0) * STAR_BONUS.finds;
+const valueOf = (f) => Math.round(f.value * starMult());
+const helperRate = () => HELPERS.reduce((a, h) => a + (S.helpers[h.id] || 0) * h.rate, 0) * (1 + (S.stars || 0) * STAR_BONUS.helpers);
 
 let hudCache = {};
 function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
@@ -190,6 +215,7 @@ function updateHud() {
   setText('remaining', fmt(pile.total));
   const pct = ((TOTAL_STONES - pile.total) / TOTAL_STONES) * 100;
   setText('progress', `${pct.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} %`);
+  setText('deck-line', `${DECKS[(S.deck || 0) % DECKS.length].name}${S.stars ? ` · ⭐ ${S.stars}` : ''}`);
   setText('credits', fmt(S.credits));
   const cap = lv('cargo');
   setText('cargo', S.levels.link ? 'Nexus-Link' : `${fmt(S.cargoCount)}/${fmt(cap)}`);
@@ -223,7 +249,7 @@ function handleFinds(list, byPlayer) {
   for (const { f, k, tier } of list) {
     S.stats.found[f.id] = (S.stats.found[f.id] || 0) + k;
     if (!byPlayer || S.levels.link || S.mode === 'pure') {
-      if (S.mode !== 'pure') { S.credits += f.value * k; S.stats.earned += f.value * k; }
+      if (S.mode !== 'pure') { S.credits += valueOf(f) * k; S.stats.earned += valueOf(f) * k; }
       if (byPlayer) { feed(`+${fmt(k)} ${f.name}`, f.color); best = Math.max(best, tier); }
       else if (tier >= 3) feed(`Helfer: ${f.name}!`, f.color);
       continue;
@@ -254,7 +280,7 @@ function handleFinds(list, byPlayer) {
 }
 
 function cargoValue() {
-  return FINDS.reduce((a, f) => a + (S.cargo[f.id] || 0) * f.value, 0);
+  return FINDS.reduce((a, f) => a + (S.cargo[f.id] || 0) * valueOf(f), 0);
 }
 function sellCargo() {
   const v = cargoValue();
@@ -285,9 +311,11 @@ function doGrab(x, z) {
   const radius = GRAB_RADIUS[S.levels.hands];
   const cap = S.mode !== 'pure' && capsules.take(x, z);
   if (cap) openCapsule(cap.position);
+  const met = events.take(x, z);
+  if (met) openMeteor(met);
   const res = pile.grab(x, z, amount, Math.max(radius, 0.8));
   bot.grab();
-  if (cap && !res.removed) return;
+  if ((cap || met) && !res.removed) return;
   S.stats.grabs++;
   if (!res.removed && !res.ring) {
     sfx.empty();
@@ -303,12 +331,12 @@ function doGrab(x, z) {
   spawnDebris(x, h, z, Math.min(2 + size * 3, Math.max(1, Math.round(res.removed / 3))), -Math.sin(a) * 0.4, -Math.cos(a) * 0.4, 1 + size * 0.15);
   dust.puff(x, h, z, 1 + Math.min(4, size), 0.8 + size * 0.25);
   const lucky = S.stats.grabs <= LUCK.grabs ? LUCK.factor : 1;
-  const finds = rollFinds(res.removed, lucky);
+  const finds = rollFinds(res.removed, lucky * events.luckFactor);
   // guaranteed early highlights
   if (S.stats.grabs === 3) finds.push({ f: FINDS[1], k: 1, tier: 1 });
   if (S.stats.grabs === 25) finds.push({ f: FINDS[2], k: 1, tier: 2 });
   handleFinds(finds, true);
-  const worth = finds.reduce((a, q) => a + q.f.value * q.k, 0);
+  const worth = finds.reduce((a, q) => a + valueOf(q.f) * q.k, 0);
   if (worth && S.mode !== 'pure') {
     const best = finds.reduce((a, q) => (q.tier > a.tier ? q : a), finds[0]);
     floatLabel(camera, tmpV2.set(x, h + 0.8, z), `+${fmt(worth)} ⬡`, best.f.color, worth >= 60);
@@ -323,6 +351,18 @@ const tmpV2 = new THREE.Vector3();
 function capsuleReward() {
   const perSec = lv('hands') * lv('speed') * 0.37 + helperRate() * 0.37;
   return Math.max(25, Math.round(perSec * 25));
+}
+function openMeteor(pos) {
+  const list = [{ f: FINDS[3], k: 1 + Math.floor(Math.random() * 3), tier: 3 }];
+  if (Math.random() < 0.3) list.push({ f: FINDS[4], k: 1, tier: 4 });
+  if (Math.random() < 0.03) list.push({ f: FINDS[5], k: 1, tier: 5 });
+  handleFinds(list, true);
+  const worth = list.reduce((a, q) => a + valueOf(q.f) * q.k, 0);
+  floatLabel(camera, tmpV2.copy(pos).setY(pos.y + 1), `☄️ +${fmt(worth)} ⬡`, '#ff9a5c', true);
+  dust.puff(pos.x, pos.y, pos.z, 6, 1.5, 0xff9a5c);
+  spawnDebris(pos.x, pos.y, pos.z, 10, 0, 0, 0.8);
+  S.stats.meteors = (S.stats.meteors || 0) + 1;
+  bot.setMood('love', 1.5);
 }
 function openCapsule(pos) {
   const reward = capsuleReward();
@@ -355,7 +395,7 @@ function checkAchievements(dt) {
 }
 function showAchievement(a) {
   const el = $('achv');
-  el.innerHTML = `<small>Erfolg freigeschaltet</small><b>🏆 ${a.name}</b><span>${a.desc}${S.mode !== 'pure' ? ` · +${fmt(a.reward)} ⬡` : ''}</span>`;
+  el.innerHTML = `<small>${a.kicker || 'Erfolg freigeschaltet'}</small><b>${a.kicker ? '' : '🏆 '}${a.name}</b><span>${a.desc}${S.mode !== 'pure' && a.reward ? ` · +${fmt(a.reward)} ⬡` : ''}</span>`;
   el.classList.add('show');
   sfx.achievement();
   setTimeout(() => {
@@ -394,6 +434,31 @@ function updateScannerHud() {
   setText('heat-text', txt);
 }
 
+// ================================================================ turbo ability
+const turbo = { t: 0, cd: 0 };
+function useTurbo() {
+  if (!playing || turbo.cd > 0) { if (turbo.cd > 0) sfx.deny(); return; }
+  initAudio();
+  turbo.t = TURBO.duration;
+  turbo.cd = TURBO.cooldown;
+  sfx.turbo();
+  vibrate(40);
+  bot.setMood('work', TURBO.duration);
+  say('TURBO! 💨', 1.5);
+  grabState.holding = true; grabState.timer = 0;
+  setTimeout(() => { if (!grabBtn.classList.contains('active')) grabState.holding = false; }, TURBO.duration * 1000);
+}
+function updateTurbo(dt) {
+  turbo.t = Math.max(0, turbo.t - dt);
+  turbo.cd = Math.max(0, turbo.cd - dt);
+  const btn = $('btn-turbo');
+  const frac = turbo.t > 0 ? turbo.t / TURBO.duration : 1 - turbo.cd / TURBO.cooldown;
+  btn.style.setProperty('--p', `${Math.round(frac * 360)}deg`);
+  btn.classList.toggle('active', turbo.t > 0);
+  btn.classList.toggle('ready', turbo.t <= 0 && turbo.cd <= 0);
+  bot.glowMat.color.setHex(turbo.t > 0 ? 0xffb347 : (bot.linkGlow ? 0xb48cff : (bot.skinGlow || 0x6ff3f0)));
+}
+
 // ================================================================ automation
 let autoAcc = 0;
 function automationTick(dt) {
@@ -405,7 +470,7 @@ function automationTick(dt) {
   autoAcc -= take;
   const r = pile.removeRandom(take);
   S.stats.removed += r.removed;
-  handleFinds(rollFinds(r.removed), false);
+  handleFinds(rollFinds(r.removed, events.luckFactor), false);
   if (r.ring) coreFound(false);
 }
 
@@ -426,7 +491,7 @@ function offlineProgress() {
   const removed = before - pile.total;
   S.stats.removed += removed;
   let credits = 0;
-  for (const { f, k } of rollFinds(removed)) { S.stats.found[f.id] = (S.stats.found[f.id] || 0) + k; credits += f.value * k; }
+  for (const { f, k } of rollFinds(removed)) { S.stats.found[f.id] = (S.stats.found[f.id] || 0) + k; credits += valueOf(f) * k; }
   S.credits += credits; S.stats.earned += credits;
   showMessage('Willkommen zurück!',
     `<p class="lead">Deine Helfer haben in <b>${Math.round(secs / 60)} Minuten</b> weitergearbeitet.</p>
@@ -459,9 +524,10 @@ function coreFound(byPlayer) {
          <span>Griffe</span><span>${fmt(S.stats.grabs)}</span>
          <span>Verdient</span><span>${fmt(S.stats.earned)} ⬡</span>
        </div>
-       <p class="lead">Du kannst weiter sortieren, bis das Deck komplett leer ist.</p>`,
+       <p class="lead">Weiter aufräumen – oder mit einem Stern auf das nächste Deck wechseln. Skins und Erfolge nimmst du mit, Upgrades und Helfer beginnen neu.</p>`,
       'Weiter aufräumen', () => {},
-      'Neues Spiel', () => newGame(S.mode));
+      S.mode === 'pure' ? 'Neues Spiel' : `Nächstes Deck ⭐ (+${Math.round(STAR_BONUS.finds * 100)} % Fundwert)`,
+      () => (S.mode === 'pure' ? newGame('pure') : nextDeck()));
   }, 1600);
 }
 
@@ -604,8 +670,17 @@ function renderShop() {
        <span>Verdient gesamt</span><span>${fmt(S.stats.earned)} ⬡</span>
        <span>Spielzeit</span><span>${formatTime(S.stats.time)}</span>
        <span>Frachtkapseln</span><span>${fmt(S.stats.capsules)}</span>
-       <span>Nexus-Kern</span><span>${S.coreFound ? '✔ gefunden' : 'verschollen'}</span>`;
+       <span>Nexus-Kern</span><span>${S.coreFound ? '✔ gefunden' : 'verschollen'}</span>
+       <span>Meteoriten</span><span>${fmt(S.stats.meteors || 0)}</span>
+       <span>Sterne</span><span>⭐ ${S.stars || 0} (+${(S.stars || 0) * 25} % Fundwert)</span>`;
     list.appendChild(el);
+    if (S.coreFound && S.mode !== 'pure') {
+      const b = document.createElement('button');
+      b.className = 'big'; b.style.marginTop = '12px';
+      b.textContent = 'Zum nächsten Deck ⭐';
+      b.onclick = () => { closeShop(); nextDeck(); };
+      list.appendChild(b);
+    }
   }
 }
 
@@ -632,9 +707,11 @@ function setupWorld(state) {
   S = state;
   if (pileView) pileView.dispose(scene);
   capsules.clear();
+  events.clear();
+  $('event').classList.add('hidden');
   pile = new Pile(S.seed, S.pile);
   if (S.coreFound) pile.ring.found = true;
-  pileView = new PileView(pile, scene);
+  pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);
   bot.group.position.set(WORLD.dock.x, 0, WORLD.dock.z - 1);
@@ -650,11 +727,13 @@ function startGame(state, offline) {
   state.skin = state.skin || 'classic';
   state.achievements = state.achievements || [];
   state.stats.capsules = state.stats.capsules || 0;
+  state.deck = state.deck || 0; state.stars = state.stars || 0;
   setupWorld(state);
   $('overlay-start').classList.add('hidden');
   hud.classList.remove('hidden');
   playing = true;
   updateHud();
+  dailyBonus();
   if (offline) offlineProgress();
   else if (S.stats.grabs === 0) {
     setTimeout(() => bot.setMood('curious', 2), 400);
@@ -664,6 +743,34 @@ function startGame(state, offline) {
 }
 
 function newGame(mode = 'career') { startGame(freshState(mode), false); }
+
+function dailyBonus() {
+  if (S.mode === 'pure') return;
+  const today = new Date().toDateString();
+  if (S.daily && S.daily.date === today) return;
+  const yesterday = new Date(Date.now() - 864e5).toDateString();
+  const streak = S.daily && S.daily.date === yesterday ? Math.min(7, S.daily.streak + 1) : 1;
+  const first = !S.daily;
+  S.daily = { date: today, streak };
+  if (first) return; // no bonus on the very first day of a save
+  const reward = Math.max(50, capsuleReward()) * streak;
+  S.credits += reward;
+  achvQueue.push({ kicker: `Tagesbonus · Serie ${streak}/7`, name: `+${fmt(reward)} ⬡`, desc: streak < 7 ? 'Komm morgen wieder, der Bonus wächst!' : 'Maximale Serie – stark!', reward: 0 });
+}
+
+function nextDeck() {
+  const old = S;
+  const st = freshState('career');
+  Object.assign(st, {
+    deck: (old.deck || 0) + 1, stars: (old.stars || 0) + 1,
+    skins: old.skins, skin: old.skin, achievements: old.achievements, daily: old.daily,
+    stats: { ...old.stats, grabs: Math.max(old.stats.grabs, LUCK.grabs + 1) }, tutorial: 99,
+  });
+  st.credits = 100 * st.stars;
+  startGame(st, false);
+  const d = DECKS[st.deck % DECKS.length];
+  setTimeout(() => say(`Willkommen auf ${d.name}: ${d.title}! ⭐ ${st.stars} = +${st.stars * 25} % Fundwert.`, 6), 600);
+}
 
 function showStart() {
   save();
@@ -748,13 +855,14 @@ grabBtn.addEventListener('pointerdown', (e) => {
   grabBtn.classList.add('active');
 });
 const grabEnd = () => { grabState.holding = false; grabBtn.classList.remove('active'); };
+$('btn-turbo').addEventListener('pointerdown', (e) => { e.preventDefault(); useTurbo(); });
 grabBtn.addEventListener('pointerup', grabEnd);
 grabBtn.addEventListener('pointercancel', grabEnd);
 
 // camera drag / pinch / tap on canvas
 const canvas = renderer.domElement;
 const ptrs = new Map();
-let tapInfo = null, pinchDist = 0;
+let tapInfo = null, pinchDist = 0, lastCamDrag = 0;
 canvas.addEventListener('pointerdown', (e) => {
   initAudio();
   canvas.setPointerCapture(e.pointerId);
@@ -768,6 +876,7 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   p.x = e.clientX; p.y = e.clientY;
   if (ptrs.size === 1) {
+    lastCamDrag = performance.now();
     cam.yaw -= dx * 0.006;
     cam.pitch = Math.max(0.08, Math.min(1.35, cam.pitch + dy * 0.005));
     if (tapInfo && Math.hypot(e.clientX - tapInfo.x, e.clientY - tapInfo.y) > 10) tapInfo.moved = true;
@@ -810,6 +919,7 @@ function tapGrab(cx, cy) {
 window.addEventListener('keydown', (e) => {
   input.keys.add(e.code);
   if (e.code === 'Space') { grabState.holding = true; e.preventDefault(); }
+  if (e.code === 'KeyT') useTurbo();
   if (e.code === 'KeyE' && playing && nearDock()) openShop();
   if (e.code === 'Escape') closeShop();
 });
@@ -892,23 +1002,29 @@ function updateBubble(dt) {
 }
 
 // ================================================================ adaptive quality
-const quality = { level: 2, t: 0, frames: 0, checks: 0 };
+const quality = { level: 2, t: 0, frames: 0, checks: 0, warm: 5, low: 0 };
 function adaptQuality(dt) {
-  if (quality.checks >= 3) return;
+  if (quality.checks >= 8) return;
+  if (quality.warm > 0) { quality.warm -= dt; return; } // skip shader-compile hiccups after start
   quality.t += dt; quality.frames++;
   if (quality.t < 3) return;
   const fps = quality.frames / quality.t;
   quality.t = 0; quality.frames = 0; quality.checks++;
-  if (fps < 42 && quality.level === 2) {
+  quality.low = fps < (quality.level === 2 ? 42 : 30) ? quality.low + 1 : 0;
+  if (quality.low < 2) return;
+  quality.low = 0;
+  if (quality.level === 2) {
     quality.level = 1;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-    env.sun.shadow.mapSize.set(1024, 1024);
-    env.sun.shadow.map?.dispose(); env.sun.shadow.map = null;
     onResize();
-  } else if (fps < 30 && quality.level === 1) {
+  } else if (quality.level === 1) {
     quality.level = 0;
     renderer.setPixelRatio(1);
-    env.sun.castShadow = false;
+    renderer.shadowMap.enabled = false;
+    scene.traverse((o) => {
+      if (!o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; });
+    });
     onResize();
   }
 }
@@ -954,6 +1070,12 @@ function updateBot(dt) {
     const r = Math.hypot(p.x, p.z);
     if (r > WORLD.botLimit) { p.x *= WORLD.botLimit / r; p.z *= WORLD.botLimit / r; }
     const target = Math.atan2(mx, mz);
+    // gently swing the camera behind the bot while driving forward
+    if (jy < -0.3 && performance.now() - lastCamDrag > 1500) {
+      let dy = (bot.group.rotation.y + Math.PI) - cam.yaw;
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      cam.yaw += dy * Math.min(1, dt * 1.2);
+    }
     let diff = target - bot.group.rotation.y;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     bot.group.rotation.y += diff * Math.min(1, dt * 10);
@@ -971,7 +1093,7 @@ function updateBot(dt) {
   if (grabState.holding && playing) {
     grabState.timer -= dt;
     if (grabState.timer <= 0) {
-      grabState.timer = 1 / lv('speed');
+      grabState.timer = 1 / (lv('speed') * (turbo.t > 0 ? TURBO.factor : 1));
       const [x, z] = frontPoint();
       doGrab(x, z);
     }
@@ -1011,6 +1133,9 @@ function animate() {
       updateDockArrow();
       checkAchievements(dt);
       if (S.mode !== 'pure') capsules.update(dt, t, pile);
+      events.update(dt, t, pile, camera);
+      updateTurbo(dt);
+      if (events.active) setText('event-t', `${Math.ceil(events.active.t)} s`);
       adaptQuality(dt);
     } else {
       bubbleEl.classList.add('hidden');
@@ -1028,6 +1153,13 @@ function animate() {
   }
   updateDebris(dt);
   dust.update(dt);
+  let shaken = false;
+  if (shake > 0 && playing) {
+    shaken = true;
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+    shake = Math.max(0, shake - dt * 1.5);
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -1039,4 +1171,4 @@ showStart();
 animate();
 
 // test hook
-window.__nx = { get S() { return S; }, get pile() { return pile; }, doGrab, coreFound, openShop, sellCargo, bot, capsules };
+window.__nx = { get S() { return S; }, get pile() { return pile; }, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };

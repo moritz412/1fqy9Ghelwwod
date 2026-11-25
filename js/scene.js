@@ -153,12 +153,13 @@ export function buildEnvironment(scene, renderer) {
   padRing.rotation.x = Math.PI / 2; padRing.position.y = 0.2;
   dock.add(padRing);
   const terminal = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.2, 0.6), white);
-  terminal.position.set(0, 1.1, WORLD.dock.r + 0.6);
+  terminal.position.set(WORLD.dock.r + 0.6, 1.1, 0);
+  terminal.rotation.y = Math.PI / 2;
   terminal.castShadow = true;
   dock.add(terminal);
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), new THREE.MeshBasicMaterial({ map: labelTexture('NEXUS', 'MARKT') }));
-  screen.position.set(0, 1.4, WORLD.dock.r + 0.29);
-  screen.rotation.y = Math.PI;
+  screen.position.set(WORLD.dock.r + 0.29, 1.4, 0);
+  screen.rotation.y = -Math.PI / 2;
   dock.add(screen);
   const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(0.5, 1.6, 40, 24, 1, true),

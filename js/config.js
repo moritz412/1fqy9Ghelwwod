@@ -137,3 +137,14 @@ export const ACHIEVEMENTS = [
 ];
 
 export const CAPSULE = { max: 3, respawn: 40, reach: 2.6 };
+
+// Decks (prestige): after finding the core you can move on to the next deck.
+// Each star = +25 % find value and +10 % helper speed, permanently.
+export const DECKS = [
+  { name: 'Hangardeck 7',  title: 'Schrottberg',     base: [0.24, 0.22, 0.21], pebbles: [[1.9, 0.9, 0.5], [1.6, 1.1, 0.6], [1.4, 1.5, 1.65], [1.05, 1, 0.95]] },
+  { name: 'Kühldeck 3',    title: 'Eiswrack',        base: [0.3, 0.36, 0.43],  pebbles: [[1.6, 2.1, 2.6], [2.2, 2.4, 2.6], [1.2, 1.5, 2.0], [1.4, 1.6, 1.8]] },
+  { name: 'Frachtdeck 12', title: 'Goldmine',        base: [0.33, 0.26, 0.16], pebbles: [[2.6, 2.0, 0.7], [2.2, 1.4, 0.5], [1.6, 1.4, 1.2], [1.2, 0.9, 0.6]] },
+  { name: 'Labordeck X',   title: 'Alienschrott',    base: [0.2, 0.17, 0.26],  pebbles: [[1.4, 0.8, 2.4], [0.7, 2.2, 1.3], [1.9, 1.0, 1.9], [1.0, 1.0, 1.2]] },
+];
+export const STAR_BONUS = { finds: 0.25, helpers: 0.1 };
+export const TURBO = { duration: 8, cooldown: 40, factor: 2.5 };
