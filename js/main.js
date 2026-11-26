@@ -806,6 +806,7 @@ function golemDefeated() {
   S.stats.golems = (S.stats.golems || 0) + 1;
   const bk = boss === worm ? 'worm' : boss === kraken ? 'kraken' : boss === sentinel ? 'sentinel' : boss === hydra ? 'hydra' : 'golem';
   S.stats.bossKinds = { ...(S.stats.bossKinds || {}), [bk]: ((S.stats.bossKinds || {})[bk] || 0) + 1 };
+  env.setTrophies(S.stats.bossKinds);
   const cr = Math.round(2500 * ((S.deck || 0) + 1) * deckValueMult(S.deck || 0));
   S.credits += cr; S.stats.earned += cr;
   S.tonsBonus = (S.tonsBonus || 0) + 60 + (S.deck || 0) * 20;
@@ -2027,6 +2028,7 @@ function setupWorld(state) {
   pileView = new PileView(pile, scene, DECKS[(S.deck || 0) % DECKS.length]);
   env.setTheme(S.deck || 0);
   env.setDim(twist('dark'));
+  env.setTrophies(S.stats.bossKinds || {});
   setDeckAudio();
   bot.setSkin(SKINS.find((k) => k.id === S.skin) || SKINS[0]);
   bot.applyUpgrades(S.levels);

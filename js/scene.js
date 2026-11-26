@@ -279,6 +279,7 @@ export function buildEnvironment(scene, renderer) {
 
   // ---- small outposts scattered around the deck edge (decor, some animated)
   const outposts = buildOutposts(scene, { white, dark, glow, postMat });
+  const trophies = buildTrophies(scene, { white, dark });
   const gantry = buildGantry(scene);
 
   // ---- landing pad for the lander
@@ -586,17 +587,20 @@ export function buildEnvironment(scene, renderer) {
       lamp.position.set(x, 9, z + 2);
     },
     setDim(on) { dimTarget = dim = on ? 1 : 0; },
+    setTrophies(kinds) { trophies.sync(kinds); },
     setStorm(on) { stormTarget = on ? 1 : 0; },
     shuttle,
     update(dt, t) {
       station.rotation.y += dt * 0.02;
       planet.rotation.y += dt * 0.004;
-      ablage.ring.material.color.setHSL(0.5, 1, 0.55 + Math.sin(t * 3) * 0.1);
-      ablage.beam.material.opacity = 0.1 + Math.sin(t * 2) * 0.03;
-      shopSt.ring.material.color.setHSL(0.09, 1, 0.6 + Math.sin(t * 3 + 1) * 0.1);
-      shopSt.beam.material.opacity = 0.1 + Math.sin(t * 2 + 1) * 0.03;
+      // calm, steady station lights (no pulsing)
+      ablage.ring.material.color.setHSL(0.5, 1, 0.58);
+      ablage.beam.material.opacity = 0.1;
+      shopSt.ring.material.color.setHSL(0.09, 1, 0.62);
+      shopSt.beam.material.opacity = 0.1;
+      trophies.update(dt);
       ship.position.y = 26 + Math.sin(t * 0.4) * 0.6;
-      guide.material.color.setHSL(0.5, 1, 0.45 + Math.sin(t * 2.5) * 0.15);
+      guide.material.color.setHSL(0.5, 1, 0.5);
       const mp = moteGeo.attributes.position;
       for (let k = 0; k < MOTES; k++) {
         const sd = moteSeed[k];
@@ -1009,6 +1013,56 @@ function buildOutposts(scene, m) {
     anim.push((dt, t) => { wings.rotation.x = -0.5 + Math.sin(t * 0.05) * 0.15; });
   }
   return { update(dt, t) { anim.forEach((f) => f(dt, t)); } };
+}
+
+// ------------------------------------------------------------------ boss trophies: hologram busts on pedestals
+function buildTrophies(scene, m) {
+  const KINDS = ['golem', 'worm', 'kraken', 'sentinel', 'hydra'];
+  const holo = new THREE.MeshBasicMaterial({ color: 0x8fe9ff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
+  const ringOff = new THREE.MeshBasicMaterial({ color: 0x3a4250 });
+  const ringOn = new THREE.MeshBasicMaterial({ color: 0x8fe9ff });
+  const items = [];
+  const mesh = (geo, x, y, z, rx = 0, rz = 0) => { const o = new THREE.Mesh(geo, holo); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); return o; };
+  const figure = (kind) => {
+    const f = new THREE.Group();
+    if (kind === 'golem') {
+      f.add(mesh(new THREE.BoxGeometry(0.5, 0.45, 0.35), 0, 0.55, 0), mesh(new THREE.BoxGeometry(0.32, 0.26, 0.28), 0, 0.92, 0));
+      for (const sx of [-1, 1]) { f.add(mesh(new THREE.BoxGeometry(0.14, 0.42, 0.14), sx * 0.34, 0.5, 0)); f.add(mesh(new THREE.BoxGeometry(0.16, 0.3, 0.16), sx * 0.13, 0.17, 0)); }
+    } else if (kind === 'worm') {
+      for (let k = 0; k < 6; k++) { const a = k * 0.5; f.add(mesh(new THREE.TorusGeometry(0.14 - k * 0.012, 0.05, 6, 12), Math.sin(a) * 0.25, 0.25 + k * 0.14, Math.cos(a) * 0.1 - 0.05, 0.3, a * 0.3)); }
+    } else if (kind === 'kraken') {
+      f.add(mesh(new THREE.SphereGeometry(0.26, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), 0, 0.55, 0));
+      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; const t = mesh(new THREE.CylinderGeometry(0.02, 0.05, 0.55, 6), Math.cos(a) * 0.22, 0.32, Math.sin(a) * 0.22); t.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); f.add(t); }
+    } else if (kind === 'sentinel') {
+      f.add(mesh(new THREE.SphereGeometry(0.2, 14, 10), 0, 0.6, 0));
+      const r = mesh(new THREE.TorusGeometry(0.34, 0.02, 6, 24), 0, 0.6, 0, Math.PI / 2 - 0.3); f.add(r);
+      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; f.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.015, 6), Math.cos(a) * 0.36, 0.6 + Math.sin(a) * 0.1, Math.sin(a) * 0.36, Math.PI / 2)); }
+    } else if (kind === 'hydra') {
+      for (const [x, h] of [[-0.22, 0.6], [0, 0.78], [0.22, 0.6]]) { f.add(mesh(new THREE.CylinderGeometry(0.05, 0.07, h, 8), x, h / 2 + 0.1, 0)); f.add(mesh(new THREE.BoxGeometry(0.12, 0.09, 0.2), x, h + 0.14, 0.05)); }
+    }
+    f.scale.setScalar(1.8);
+    return f;
+  };
+  KINDS.forEach((kind, i) => {
+    const ang = 1.82 + (i - 2) * 0.095, r = 27.6;
+    const g = new THREE.Group();
+    g.position.set(Math.cos(ang) * r, 0, Math.sin(ang) * r);
+    g.rotation.y = -ang - Math.PI / 2;     // face the deck centre
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 0.7, 8), m.white); ped.position.y = 0.35; ped.castShadow = true;
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.06, 20), m.dark); top.position.y = 0.73;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.025, 4, 24), ringOff); ring.rotation.x = Math.PI / 2; ring.position.y = 0.77;
+    const fig = figure(kind); fig.position.y = 0.8; fig.visible = false;
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.36, 1.9, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0x8fe9ff, transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    cone.position.y = 1.72; cone.visible = false;
+    fig.userData.cone = cone;
+    g.add(ped, top, ring, fig, cone);
+    scene.add(g);
+    items.push({ kind, ring, fig });
+  });
+  return {
+    sync(kinds = {}) { for (const it of items) { const on = !!kinds[it.kind]; it.fig.visible = on; it.fig.userData.cone.visible = on; it.ring.material = on ? ringOn : ringOff; } },
+    update(dt) { for (const it of items) if (it.fig.visible) it.fig.rotation.y += dt * 0.3; },
+  };
 }
 
 // ------------------------------------------------------------------ lander for cutscenes (lunar-module style)
