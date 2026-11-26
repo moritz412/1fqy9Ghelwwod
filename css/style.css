@@ -214,12 +214,12 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
   pointer-events: none !important; font-size: 12px;
 }
 #goal small { display: block; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-#goal b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#goal .bar { height: 6px; margin: 4px 0 2px; }
-#goal-fill { background: linear-gradient(90deg, #ffd08a, #ffb347); }
-#goal span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-#goal.ready { border-color: #ffb347;  }
-#goal.ready b, #goal.ready span { color: #ffb347; }
+#goal b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#goal .gl + .gl { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.06); }
+#goal .bar { height: 4px; margin: 3px 0 1px; }
+#goal .fill { background: linear-gradient(90deg, #ffd08a, #ffb347); }
+#goal span { display: block; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#goal .gl.ready b, #goal .gl.ready span { color: #ffb347; }
 
 #combo {
   position: absolute; right: calc(36px + var(--safe-r)); bottom: calc(176px + var(--safe-b));

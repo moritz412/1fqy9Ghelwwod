@@ -623,29 +623,63 @@ function contractsReady() {
 }
 
 // ================================================================ next goal widget
-function nextGoal() {
-  if (S.mode === 'pure') return null;
+// ---- goals panel: a short, prioritised list of open challenges (finished ones drop out at once)
+function upgradeGoal() {
   const opts = [];
+  // core upgrades first; chassis and modules only matter later, so they weigh more
   for (const [key, up] of Object.entries(BOT_UPGRADES)) {
     const nx = up.levels[S.levels[key] + 1];
-    if (nx) opts.push({ name: `${up.title}: ${nx.name}`, cost: nx.cost });
+    if (nx && !(key === 'link' && S.levels.link)) opts.push({ name: `${up.title}: ${nx.name}`, cost: nx.cost, w: ['hands', 'speed', 'cargo', 'drive'].includes(key) ? 1 : 1.5 });
   }
-  for (const c of CHASSIS) if (!S.chassisOwned.includes(c.id)) opts.push({ name: `Fahrwerk: ${c.name}`, cost: c.cost });
-  for (const m of MODULES) if (!S.modules.includes(m.id)) opts.push({ name: `${m.icon} ${m.name}`, cost: m.cost });
-  opts.sort((a, b) => a.cost - b.cost);
-  // aim for the cheapest thing that isn't trivially cheap compared to credits, or the next one
-  return opts.find((o) => o.cost > S.credits) ? (opts.filter((o) => o.cost <= S.credits)[0] || opts.find((o) => o.cost > S.credits)) : opts[0];
+  for (const c of CHASSIS) if (!S.chassisOwned.includes(c.id)) opts.push({ name: `Fahrwerk: ${c.name}`, cost: c.cost, w: 2 });
+  for (const tl of TOOLS) if (!(S.toolsOwned || ['arms']).includes(tl.id)) opts.push({ name: `Werkzeug: ${tl.name}`, cost: tl.cost, w: 1.8 });
+  for (const m of MODULES) if (!S.modules.includes(m.id)) opts.push({ name: `Modul: ${m.name}`, cost: m.cost, w: 3 });
+  if (!opts.length) return null;
+  opts.sort((a, b) => a.cost * a.w - b.cost * b.w);
+  const o = opts[0];
+  const ready = S.credits >= o.cost;
+  return { prio: ready ? 1 : 6, icon: '🛒', name: o.name, prog: Math.min(1, S.credits / o.cost), sub: ready ? 'kaufbar – ab zum Shop' : `${fmt(S.credits)} / ${fmt(o.cost)} ⬡`, ready };
 }
+function goalList() {
+  if (S.mode === 'pure') return [];
+  const out = [];
+  const n = S.deck || 0;
+  // boss fight
+  if (boss.active) out.push({ prio: 0, icon: '💥', name: `${boss.name} zerlegen`, prog: 1 - boss.hp / boss.maxHp, sub: 'Fahr hin und greif zu' });
+  // contracts ready to claim
+  const cr = S.level >= UNLOCKS.contracts ? contractsReady() : 0;
+  if (cr) out.push({ prio: 1, icon: '📋', name: `${cr} Auftrag${cr > 1 ? 'e' : ''} erfüllt`, prog: 1, sub: 'Im Archiv abholen', ready: true });
+  // deck stars still open
+  if (!S.coreFound) {
+    const left = deckMinutes(n) * 60 - deckTime();
+    out.push({ prio: 2, icon: '💠', name: 'Nexus-Kern finden', prog: Math.min(1, ((S.total || TOTAL_STONES) - pile.total) / (S.total || TOTAL_STONES) * 1.6), sub: left > 0 ? `noch ${Math.ceil(left / 60)} min für den Zeit-Stern` : 'Scanner hilft beim Suchen' });
+  }
+  const gt = deckGoalTarget(n), gp = deckGoalProgress();
+  if (gp < gt) out.push({ prio: 3, icon: '⭐', name: deckDef(n).goal.label.replace(/\d[\d.]*/, fmt(gt)), prog: gp / gt, sub: `${fmt(gp)} / ${fmt(gt)}` });
+  // next evolution step
+  const ev = EVOLUTION[S.evo || 1];
+  if (ev) {
+    const p = Math.min(S.level / ev.level, tonsAvail() / ev.tons, S.credits / ev.credits);
+    const ready = p >= 1;
+    out.push({ prio: ready ? 1 : 5, icon: '🤖', name: `Evolution: ${ev.name}`, prog: Math.min(1, p), sub: ready ? 'bereit – im Shop entwickeln' : `Lv ${S.level}/${ev.level} · ${fmt(tonsAvail())}/${fmt(ev.tons)} t`, ready });
+  }
+  const ug = upgradeGoal();
+  if (ug) out.push(ug);
+  // deck cleared -> next deck
+  if (S.cleared || (S.coreFound && deckStarBits() === 7)) out.push({ prio: 1, icon: '🚀', name: `Nächstes Deck: ${deckName(n + 1)}`, prog: 1, sub: 'Archiv → Deck', ready: true });
+  out.sort((a, b) => a.prio - b.prio);
+  return out.slice(0, window.innerWidth < 520 ? 2 : 3);
+}
+let goalKey = '';
 function updateGoal() {
-  const g = nextGoal();
   const el = $('goal');
-  if (!g || S.tutorial < 5) { el.classList.add('hidden'); return; }
+  const list = S.tutorial < 5 ? [] : goalList();
+  if (!list.length) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
-  const ready = S.credits >= g.cost;
-  el.classList.toggle('ready', ready);
-  setText('goal-name', ready ? `${g.name} – kaufbar!` : g.name);
-  setText('goal-cost', ready ? 'Ab zum Shop 🛒' : `${fmt(S.credits)} / ${fmt(g.cost)} ⬡`);
-  $('goal-fill').style.width = `${Math.min(100, (S.credits / g.cost) * 100)}%`;
+  const key = list.map((g) => `${g.name}|${g.sub}|${Math.round(g.prog * 50)}`).join('#');
+  if (key === goalKey) return;
+  goalKey = key;
+  $('goal-list').innerHTML = list.map((g) => `<div class="gl ${g.ready ? 'ready' : ''}"><b>${g.name}</b><div class="bar"><div class="fill" style="width:${Math.round(Math.min(1, Math.max(0, g.prog)) * 100)}%"></div></div><span>${g.sub}</span></div>`).join('');
 }
 
 // ================================================================ grabbing
