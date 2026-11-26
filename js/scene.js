@@ -588,6 +588,7 @@ export function buildEnvironment(scene, renderer) {
     },
     setDim(on) { dimTarget = dim = on ? 1 : 0; },
     setTrophies(kinds) { trophies.sync(kinds); },
+    clearView(cam, target) { gantry.clearView(cam, target); },
     setStorm(on) { stormTarget = on ? 1 : 0; },
     shuttle,
     update(dt, t) {
@@ -846,8 +847,21 @@ function buildGantry(scene) {
   }
   const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), lightM); eye.position.y = -0.2; claw.add(eye);
   scene.add(g);
+  // meshes that may block the camera: hidden while they sit between camera and bot
+  const occl = [];
+  g.traverse((o) => { if (o.isMesh) { o.geometry.computeBoundingBox(); occl.push(o); } });
+  const box = new THREE.Box3(), ray = new THREE.Ray(), hit = new THREE.Vector3();
   return {
     group: g,
+    clearView(cam, target) {
+      ray.origin.copy(cam); ray.direction.copy(target).sub(cam);
+      const len = ray.direction.length(); ray.direction.divideScalar(len || 1);
+      for (const o of occl) {
+        box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).expandByScalar(1.5);
+        const blocks = box.containsPoint(cam) || (ray.intersectBox(box, hit) && hit.distanceTo(cam) < len);
+        o.visible = !blocks;
+      }
+    },
     update(dt, t) {
       bridge.position.z = (Z0 + Z1) / 2 + Math.sin(t * 0.045) * ((Z1 - Z0) / 2 - 2);
       trolley.position.x = Math.sin(t * 0.07 + 1) * (X - 4);

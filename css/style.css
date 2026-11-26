@@ -378,6 +378,12 @@ h2 { margin: 0 0 10px; font-size: 24px; }
   #btn-grab { width: 100px; height: 100px; }
   #btn-dock { bottom: calc(136px + var(--safe-b)); }
   #scanner { top: calc(8px + var(--safe-t)); left: auto; right: calc(70px + var(--safe-r)); transform: none; width: 200px; }
+  /* goals sit below the level/credit chips instead of growing up into them */
+  #goal { top: calc(122px + var(--safe-t)); bottom: auto; width: min(220px, 30vw); padding: 5px 9px; }
+  #goal b { font-size: 11px; }
+  #goal span { font-size: 10px; }
+  #goal .gl + .gl span { display: none; }
+  #goal .gl + .gl { margin-top: 3px; padding-top: 3px; }
 }
 
 /* start menu must scroll on touch devices */

@@ -670,7 +670,7 @@ function goalList() {
   // deck cleared -> next deck
   if (S.cleared || (S.coreFound && deckStarBits() === 7)) out.push({ prio: 1, icon: '🚀', name: `Nächstes Deck: ${deckName(n + 1)}`, prog: 1, sub: 'Archiv → Deck', ready: true });
   out.sort((a, b) => a.prio - b.prio);
-  return out.slice(0, window.innerWidth < 520 ? 2 : 3);
+  return out.slice(0, window.innerWidth < 520 || window.innerHeight < 500 ? 2 : 3);
 }
 let goalKey = '';
 function updateGoal() {
@@ -2827,6 +2827,7 @@ function updateCamera(dt) {
   }
   const o = window.__camOverride;
   if (o) { camera.position.set(...o.pos); camera.lookAt(...o.look); }
+  env.clearView(camera.position, bossCam > 0 && boss.position ? boss.position : camTarget);
 }
 const BOSS_CAM = 3.5;
 let bossCam = 0;
