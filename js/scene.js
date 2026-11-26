@@ -613,7 +613,6 @@ export function buildEnvironment(scene, renderer) {
         mp.setZ(k, mp.getZ(k) + Math.cos(t * 0.17 + sd) * dt * 0.25);
       }
       mp.needsUpdate = true;
-      blinkers.forEach((b, i) => { b.scale.setScalar(0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.9))); });
       sunCore.material.opacity = 0.9 + Math.sin(t * 0.7) * 0.1;
       storm += (stormTarget - storm) * Math.min(1, dt * 0.8);
       dim += (dimTarget - dim) * Math.min(1, dt * 0.6);
@@ -1149,7 +1148,7 @@ export function makeShuttle() {
     flame.scale.set(1, 0.2 + th * (1 + Math.sin(t * 45) * 0.12), 1);
     flame.material.opacity = 0.3 + th * 0.55;
     core.scale.set(1, 0.3 + th * (1 + Math.sin(t * 60) * 0.2), 1);
-    beacon.scale.setScalar(0.7 + 0.3 * Math.sin(t * 2));
+    beacon.scale.setScalar(0.85);
   };
   return g;
 }

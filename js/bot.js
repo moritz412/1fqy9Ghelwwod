@@ -567,6 +567,6 @@ export class NexusBot {
       }
       this.upper.position.y = this.lift + (moving ? Math.sin(w * 2) * 0.012 : Math.sin(t * 2) * 0.006);
     }
-    if (this.hover.visible) this.hover.material.opacity = 0.25 + Math.sin(t * 6) * 0.1;
+    if (this.hover.visible) this.hover.material.opacity = 0.28;
   }
 }

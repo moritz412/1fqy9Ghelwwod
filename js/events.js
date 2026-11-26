@@ -111,7 +111,7 @@ export class Events {
         m.life -= dt;
         m.grp.position.y = ground + Math.sin(t * 3 + k) * 0.03;
         m.mesh.rotation.y += dt * 0.6;
-        this.rockMat.emissiveIntensity = 0.8 + Math.sin(t * 5) * 0.3;
+        this.rockMat.emissiveIntensity = 0.85 + Math.sin(t * 1.1) * 0.12;
         if (m.life <= 0) { this.scene.remove(m.grp); this.meteors.splice(k, 1); }
       }
     }

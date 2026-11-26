@@ -593,7 +593,7 @@ function updatePulse(dt, t) {
   pulse.t -= dt;
   const g = pulse.group;
   g.userData.ring.position.y = Math.max(0, pile.heightAt(g.position.x, g.position.z)) + 0.2;
-  g.userData.ring.scale.setScalar(1 + Math.sin(t * 4) * 0.05);
+  g.userData.ring.scale.setScalar(1 + Math.sin(t * 1.4) * 0.04);
   if (pulse.t <= 0 || S.coreFound) { scene.remove(g); pulse.group = null; }
 }
 

@@ -190,7 +190,7 @@ export class StationView {
       if (u.spin) u.spin.rotation.z += dt * 0.3;
       if (u.spin2) u.spin2.rotation.y += dt * 0.4;
       if (u.spinAll) g.rotation.y += dt * 0.5;
-      if (u.pulse) u.pulse.scale.setScalar(0.9 + Math.sin(t * 1.5) * 0.1);
+      if (u.pulse) u.pulse.scale.setScalar(0.95 + Math.sin(t * 0.6) * 0.05);
       if (u.bob) u.bob.position.y = 1.4 + Math.sin(t * 1.2) * 0.4;
     }
     for (const m of this.markers.children) m.rotation.y += dt * 0.6;
