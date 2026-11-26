@@ -46,3 +46,25 @@ export function mergeStatic(group) {
   }
   return saved;
 }
+
+// Bake several [geometry, matrix4?] parts into one non-indexed geometry (position, normal, uv),
+// e.g. to build multi-part pieces for an InstancedMesh.
+export function mergeGeos(parts) {
+  const geos = parts.map(([g, m]) => { const q = g.index ? g.toNonIndexed() : g.clone(); if (m) q.applyMatrix4(m); return q; });
+  let n = 0; for (const g of geos) n += g.attributes.position.count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  let off = 0;
+  for (const g of geos) {
+    const c = g.attributes.position.count;
+    pos.set(g.attributes.position.array, off * 3);
+    if (g.attributes.normal) nor.set(g.attributes.normal.array, off * 3);
+    if (g.attributes.uv) uv.set(g.attributes.uv.array, off * 2);
+    off += c; g.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.computeBoundingSphere();
+  return out;
+}

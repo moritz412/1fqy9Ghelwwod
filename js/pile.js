@@ -1,6 +1,7 @@
 // The heap: 5,000,000 moon stones stored as a count per column.
 // Only the surface is drawn (deformable terrain + instanced pebbles).
 import * as THREE from 'three';
+import { mergeGeos } from './merge.js';
 import { PILE, TOTAL_STONES } from './config.js';
 import { mulberry32, makeNoise3 } from './noise.js';
 import { texMat } from './textures.js';
@@ -350,12 +351,48 @@ export class PileView {
     }
     const tyre = new THREE.TorusGeometry(0.75, 0.3, 8, 18);
     const panel = new THREE.BoxGeometry(2.2, 0.12, 1.4, 1, 1, 1);
+    const M4 = (x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
+    // pipe elbow with two flanges
+    const elbow = mergeGeos([
+      [new THREE.TorusGeometry(0.6, 0.18, 8, 10, Math.PI / 2)],
+      [new THREE.CylinderGeometry(0.27, 0.27, 0.08, 12), M4(0.6, 0, 0)],
+      [new THREE.CylinderGeometry(0.27, 0.27, 0.08, 12), M4(0, 0.6, 0, 0, 0, Math.PI / 2)],
+    ]);
+    // dish antenna on a stub mast
+    const dish = mergeGeos([
+      [new THREE.SphereGeometry(0.85, 14, 5, 0, Math.PI * 2, 0, Math.PI / 3.2), M4(0, -0.6, 0)],
+      [new THREE.CylinderGeometry(0.03, 0.03, 0.75, 6), M4(0, -0.05, 0)],
+      [new THREE.SphereGeometry(0.06, 8, 6), M4(0, 0.34, 0)],
+      [new THREE.CylinderGeometry(0.07, 0.1, 0.45, 8), M4(0, -0.55, 0)],
+    ]);
+    // broken robot head: box with two eye sockets and an antenna
+    const head = mergeGeos([
+      [new THREE.BoxGeometry(0.9, 0.62, 0.72)],
+      [new THREE.CylinderGeometry(0.12, 0.12, 0.12, 10), M4(-0.22, 0.06, 0.38, Math.PI / 2)],
+      [new THREE.CylinderGeometry(0.12, 0.12, 0.12, 10), M4(0.22, 0.06, 0.38, Math.PI / 2)],
+      [new THREE.BoxGeometry(0.5, 0.06, 0.05), M4(0, -0.16, 0.37)],
+      [new THREE.CylinderGeometry(0.025, 0.025, 0.5, 5), M4(0.28, 0.5, 0, 0, 0, -0.3)],
+      [new THREE.SphereGeometry(0.06, 8, 6), M4(0.35, 0.74, 0)],
+    ]);
+    // reinforced crate: box with edge frames
+    const crate = mergeGeos([
+      [new THREE.BoxGeometry(1, 1, 1)],
+      ...[-0.5, 0.5].flatMap((a) => [-0.5, 0.5].flatMap((b) => [
+        [new THREE.BoxGeometry(1.06, 0.08, 0.08), M4(0, a, b)],
+        [new THREE.BoxGeometry(0.08, 1.06, 0.08), M4(a, 0, b)],
+        [new THREE.BoxGeometry(0.08, 0.08, 1.06), M4(a, b, 0)],
+      ])),
+    ]);
     const kinds = [
       { geo: gear,   mat: texMat('metal', 0xffffff, { roughness: 0.45, metalness: 0.8 }), n: 170, s: [0.28, 0.6], cols: [[0.75, 0.62, 0.45], [0.6, 0.62, 0.66], [0.8, 0.5, 0.3]] },
       { geo: barrel, mat: texMat('hull', 0xffffff, { roughness: 0.5, metalness: 0.4 }),   n: 130, s: [0.28, 0.5], cols: [[0.75, 0.3, 0.2], [0.2, 0.4, 0.6], [0.85, 0.7, 0.25], [0.35, 0.5, 0.35]] },
       { geo: tyre,   mat: new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 }), n: 100, s: [0.28, 0.52], cols: [[0.12, 0.12, 0.13]] },
       { geo: beam,   mat: texMat('metal', 0xffffff, { roughness: 0.55, metalness: 0.75 }), n: 130, s: [0.22, 0.42], cols: [[0.7, 0.45, 0.3], [0.55, 0.57, 0.6]] },
       { geo: panel,  mat: texMat('hull', 0xffffff, { roughness: 0.55, metalness: 0.35 }), n: 150, s: [0.3, 0.62], cols: [[0.8, 0.82, 0.85], [0.5, 0.55, 0.6], [0.75, 0.6, 0.3]] },
+      { geo: elbow,  mat: texMat('metal', 0xffffff, { roughness: 0.5, metalness: 0.6 }), n: 90, s: [0.3, 0.55], cols: [[0.6, 0.62, 0.65], [0.7, 0.5, 0.35], [0.35, 0.45, 0.55]] },
+      { geo: dish,   mat: new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.3, side: THREE.DoubleSide }), n: 45, s: [0.35, 0.6], cols: [[0.92, 0.93, 0.95], [0.8, 0.82, 0.86]] },
+      { geo: head,   mat: texMat('hull', 0xffffff, { roughness: 0.5, metalness: 0.3 }), n: 60, s: [0.3, 0.5], cols: [[0.85, 0.87, 0.9], [0.55, 0.6, 0.65], [0.3, 0.55, 0.5]] },
+      { geo: crate,  mat: texMat('metal', 0xffffff, { roughness: 0.6, metalness: 0.35 }), n: 90, s: [0.35, 0.65], cols: [[0.45, 0.55, 0.4], [0.3, 0.42, 0.55], [0.6, 0.45, 0.3]] },
     ];
     // deck flavour: extra glowing pieces on the special decks
     const sp = this.theme.special;
