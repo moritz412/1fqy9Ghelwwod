@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 import { TOTAL_STONES, WORLD, FINDS, BOT_UPGRADES, HELPERS, helperCost, fmt, LUCK, SKINS, ACHIEVEMENTS, DECKS, STAR_BONUS, TURBO, CHASSIS, MODULES, MODULE_SLOTS, ATOMAR_CORE, TOOLS, deckDef, deckName, deckTotal, deckValueMult, deckEventSpeed, deckGoalTarget, deckMinutes, EVOLUTION, deckTwist } from './config.js';
 import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
@@ -229,8 +230,8 @@ function makeDrone(look) {
   const s = look.size;
   const d = new THREE.Group();
   const accent = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.4, metalness: 0.3, emissive: look.color, emissiveIntensity: 0.25 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(s * 0.5, s * 0.16, s * 0.6), droneMats.white);
-  const top = new THREE.Mesh(new THREE.BoxGeometry(s * 0.36, s * 0.08, s * 0.4), accent);
+  const body = new THREE.Mesh(new RoundedBoxGeometry(s * 0.5, s * 0.16, s * 0.6, 2, s * 0.05), droneMats.white);
+  const top = new THREE.Mesh(new RoundedBoxGeometry(s * 0.36, s * 0.08, s * 0.4, 2, s * 0.03), accent);
   top.position.y = s * 0.11;
   const eye = new THREE.Mesh(new THREE.SphereGeometry(s * 0.07, 12, 8), droneMats.eye);
   eye.position.set(0, -s * 0.02, s * 0.31);
@@ -250,6 +251,10 @@ function makeDrone(look) {
     const blade = new THREE.Mesh(new THREE.BoxGeometry(s * 0.5, s * 0.01, s * 0.05), droneMats.dark);
     const blade2 = blade.clone(); blade2.rotation.y = Math.PI / 2;
     rotor.add(disc, blade, blade2);
+    // rotor guard ring
+    const guard = new THREE.Mesh(new THREE.TorusGeometry(s * 0.28, s * 0.009 + 0.003, 4, 28), droneMats.white);
+    guard.rotation.x = Math.PI / 2; guard.position.set(sx * s * 0.45, s * 0.11, sz * s * 0.45);
+    d.add(guard);
     const led = new THREE.Mesh(new THREE.SphereGeometry(s * 0.025, 6, 4), new THREE.MeshBasicMaterial({ color: sz > 0 ? 0xffffff : 0xff4040 }));
     led.position.set(sx * s * 0.45, -s * 0.02, sz * s * 0.45);
     d.add(arm, motor, rotor, led);
@@ -262,6 +267,11 @@ function makeDrone(look) {
     leg.position.set(sx * s * 0.18, -s * 0.13, 0);
     d.add(skid, leg);
   }
+  // camera gimbal under the nose and side light strips
+  const gimbal = new THREE.Mesh(new THREE.SphereGeometry(s * 0.07, 10, 8), droneMats.dark); gimbal.position.set(0, -s * 0.11, s * 0.2);
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(s * 0.035, 10), droneMats.eye); lens.position.set(0, -s * 0.11, s * 0.271);
+  d.add(gimbal, lens);
+  for (const sx of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(s * 0.01, s * 0.03, s * 0.4), droneMats.eye); st.position.set(sx * s * 0.252, 0, 0); d.add(st); }
   // atom emblem on top (the "Atomar" brand)
   const atom = new THREE.Group();
   atom.position.y = s * 0.24;
