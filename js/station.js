@@ -82,9 +82,16 @@ function moduleMesh(type, lvl) {
     for (const x of [-1.5, 1.5]) { const r = add(new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.12, 6, 20), metal)); r.rotation.y = Math.PI / 2; r.position.x = x; }
     const strip = add(new THREE.Mesh(new THREE.BoxGeometry(3, 0.08, 0.1), glow)); strip.position.set(0, 0.6, 0.85);
   } else if (type === 'refinery') {
-    add(new THREE.Mesh(new THREE.BoxGeometry(4, 3, 4), hull));
-    for (const [x, z] of [[-1, -1], [1, 1], [1, -1]]) { const c = add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 2.5, 10), metal)); c.position.set(x, 2.6, z); }
-    const fire = add(new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff8a3a }))); fire.position.set(0, 0, 2.05); fire.scale.z = 0.2;
+    // orbital smelter: octagonal drum with a glowing furnace band and heat radiator wings
+    add(new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 3.2, 8), hull));
+    for (const y of [-1.5, 1.5]) { const cap = add(new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.95, 0.3, 8), metal)); cap.position.y = y + Math.sign(y) * 0.2; }
+    const fire = add(new THREE.Mesh(new THREE.CylinderGeometry(1.93, 1.93, 0.35, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xff8a3a, side: THREE.DoubleSide })));
+    const radM = new THREE.MeshStandardMaterial({ color: 0xdfe6ef, metalness: 0.5, roughness: 0.35 });
+    for (const sx of [-1, 1]) {
+      const arm = add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 0.2), metal)); arm.position.x = sx * 2.4;
+      const fin = add(new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.06, 3.2), radM)); fin.position.x = sx * 4.1;
+      const line = add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.07, 0.08), new THREE.MeshBasicMaterial({ color: 0xffb070 }))); line.position.x = sx * 4.1;
+    }
     g.userData.pulse = fire;
   } else if (type === 'habitat') {
     const ring = add(new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.9, 12, 40), hull)); ring.rotation.x = Math.PI / 2;
@@ -98,10 +105,19 @@ function moduleMesh(type, lvl) {
     for (const x of [-3, 3]) for (const zz of [-1.6, 1.6]) { const p = add(new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 2.8), panel)); p.position.set(x, 0, zz); }
     add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), hull));
   } else if (type === 'dock') {
-    const frame = texMat('metal', 0xffb347);
-    for (const [x, y] of [[-2, -1.5], [2, -1.5], [-2, 1.5], [2, 1.5]]) { const b = add(new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 5), frame)); b.position.set(x, y, 0); }
-    const cols = [0x2f6fa0, 0xb04a3a, 0xd0a030];
-    for (let k = 0; k < 3; k++) { const c = add(new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.4), texMat('metal', cols[k]))); c.position.set(-1 + k, -0.8 + (k % 2) * 1.2, -1 + k); }
+    // cargo dock: white truss frame with light strips, holding banded cargo pods
+    for (const [x, y] of [[-2, -1.5], [2, -1.5], [-2, 1.5], [2, 1.5]]) { const b = add(new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 5), hull)); b.position.set(x, y, 0); }
+    for (const z of [-2.4, 2.4]) {
+      for (const y of [-1.5, 1.5]) { const r = add(new THREE.Mesh(new THREE.BoxGeometry(4.25, 0.22, 0.22), hull)); r.position.set(0, y, z); }
+      const ls = add(new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.06, 0.06), glow)); ls.position.set(0, 1.36, z);
+    }
+    const podGeo = new THREE.CapsuleGeometry(0.55, 1.6, 4, 12); podGeo.rotateX(Math.PI / 2);
+    const bandGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.4, 14); bandGeo.rotateX(Math.PI / 2);
+    const cols = [0x2f6fa0, 0xff8a3a, 0x3a8a5a, 0xd0a030];
+    [[-0.9, -0.75], [0.9, -0.75], [-0.9, 0.6], [0.9, 0.6]].forEach(([x, y], k) => {
+      const p = add(new THREE.Mesh(podGeo, hull)); p.position.set(x, y, 0);
+      const b = add(new THREE.Mesh(bandGeo, new THREE.MeshStandardMaterial({ color: cols[k], roughness: 0.5 }))); b.position.set(x, y, 0);
+    });
   } else if (type === 'drones') {
     add(new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 1.6, 6), hull));
     const door = add(new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 1.65, 6), new THREE.MeshStandardMaterial({ color: 0x16181c }))); door.position.y = 0.01;
@@ -119,8 +135,10 @@ function moduleMesh(type, lvl) {
     const portal = add(new THREE.Mesh(new THREE.CircleGeometry(2.1, 32), new THREE.MeshBasicMaterial({ color: 0xb48cff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })));
     g.userData.pulse = portal; g.userData.spin = ring;
   } else if (type === 'lab') {
-    add(new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.2, 3.4), hull));
-    const core = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.8), new THREE.MeshBasicMaterial({ color: 0x7cff9a }))); core.position.y = 2;
+    add(new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 2.2, 16), hull));
+    const ringL = add(new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.07, 6, 32), glow)); ringL.rotation.x = Math.PI / 2; ringL.position.y = 0.5;
+    const cap = add(new THREE.Mesh(new THREE.SphereGeometry(1.2, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb6ffd0, transparent: true, opacity: 0.35, roughness: 0.05 }))); cap.position.y = 1.1;
+    const core = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.6), new THREE.MeshBasicMaterial({ color: 0x7cff9a }))); core.position.y = 1.7;
     const ant = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5, 6), metal)); ant.position.set(1.2, 2.3, 1.2);
     g.userData.spin = core;
   } else if (type === 'gravcore') {
