@@ -321,12 +321,32 @@ export function buildEnvironment(scene, renderer) {
 
   // freighter that dumped the scrap (decor)
   const ship = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 5), dark);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(2.6, 5, 4), white);
-  nose.rotation.z = -Math.PI / 2; nose.rotation.x = Math.PI / 4; nose.position.x = 9.4;
-  const eng = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.6, 2, 12), new THREE.MeshBasicMaterial({ color: 0xff9a5c }));
-  eng.rotation.z = Math.PI / 2; eng.position.x = -7.8;
-  ship.add(body, nose, eng);
+  {
+    // long-haul freighter: spine, cargo pods, command section, engine block with calm blue glow
+    const hull = texMat('hull', 0xe4e8ee, { metalness: 0.35 });
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(16, 1.0, 1.0), dark);
+    const cmd = new THREE.Mesh(new THREE.CapsuleGeometry(1.5, 2.6, 6, 16), hull); cmd.rotation.z = Math.PI / 2; cmd.position.x = 9.6;
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 1.6), new THREE.MeshBasicMaterial({ color: 0x9fe8ff })); bridge.position.set(10.4, 0.9, 0);
+    ship.add(spine, cmd, bridge);
+    const podGeo = new THREE.CapsuleGeometry(1.1, 2.0, 4, 14); podGeo.rotateZ(Math.PI / 2);
+    const bandCols = [0x2f6fa0, 0xff8a3a, 0x3a8a5a, 0xd0a030];
+    for (let k = 0; k < 4; k++) for (const sy of [-1, 1]) {
+      const pod = new THREE.Mesh(podGeo, hull); pod.position.set(-4.5 + k * 3.4, sy * 1.25, 0);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(1.13, 1.13, 0.5, 16), new THREE.MeshStandardMaterial({ color: bandCols[(k + (sy > 0 ? 1 : 0)) % 4], roughness: 0.5 }));
+      band.rotation.z = Math.PI / 2; band.position.copy(pod.position);
+      ship.add(pod, band);
+    }
+    const engBlock = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.4, 2.6, 8), hull); engBlock.rotation.z = Math.PI / 2; engBlock.position.x = -8.4;
+    ship.add(engBlock);
+    const glowM = new THREE.MeshBasicMaterial({ color: 0x8fd8ff });
+    for (const [y, z] of [[0.9, 0.9], [-0.9, 0.9], [0.9, -0.9], [-0.9, -0.9]]) {
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.8, 1.0, 14, 1, true), dark); bell.rotation.z = Math.PI / 2; bell.position.set(-10.1, y, z);
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(0.6, 14), glowM); glow.rotation.y = -Math.PI / 2; glow.position.set(-10.45, y, z);
+      ship.add(bell, glow);
+    }
+    const rad = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.06, 4.5), new THREE.MeshStandardMaterial({ color: 0xdfe6ef, metalness: 0.5, roughness: 0.35 })); rad.position.set(6.2, 0, 0);
+    ship.add(rad);
+  }
   ship.position.set(40, 26, 30);
   ship.rotation.y = -0.7;
   scene.add(ship);
@@ -597,7 +617,7 @@ function deckTexture() {
       }
     } else if (r < 0.2) { // hatch
       g.strokeStyle = 'rgba(30,33,40,0.7)'; g.lineWidth = 2; g.strokeRect(x + 12, y + 12, step - 24, step - 24);
-      g.fillStyle = 'rgba(255,190,60,0.7)'; g.fillRect(x + 12, y + 12, 8, 3);
+      g.fillStyle = 'rgba(160,232,255,0.6)'; g.fillRect(x + 12, y + 12, 8, 3);
     } else if (r < 0.26) { // plate number
       g.fillStyle = 'rgba(30,33,40,0.55)'; g.font = 'bold 12px monospace';
       g.fillText(`${String.fromCharCode(65 + Math.floor(rnd() * 8))}-${10 + Math.floor(rnd() * 89)}`, x + 10, y + 22);
@@ -626,7 +646,7 @@ function deckTexture() {
   g.save(); g.translate(512, 512);
   for (const a of [Math.PI / 2, Math.PI, 0.86, -Math.PI / 2, -0.4]) {
     g.save(); g.rotate(a);
-    g.fillStyle = 'rgba(255,200,70,0.55)';
+    g.fillStyle = 'rgba(170,230,255,0.42)';
     for (const off of [-26, 26]) for (let r = 300; r < 470; r += 22) g.fillRect(r, off - 2, 14, 4);
     g.fillStyle = 'rgba(255,255,255,0.28)';
     g.beginPath(); g.moveTo(330, -10); g.lineTo(350, 0); g.lineTo(330, 10); g.closePath(); g.fill();
@@ -644,10 +664,10 @@ function deckTexture() {
   // weld seams: long darker lines every 4 plates
   g.strokeStyle = 'rgba(30,32,38,0.35)'; g.lineWidth = 2;
   for (let k = 256; k < 1024; k += 256) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 1024); g.moveTo(0, k); g.lineTo(1024, k); g.stroke(); }
-  // hazard ring + markings
-  g.strokeStyle = 'rgba(255,190,60,0.85)';
-  g.lineWidth = 10;
-  g.setLineDash([40, 30]);
+  // landing ring + markings
+  g.strokeStyle = 'rgba(200,236,255,0.55)';
+  g.lineWidth = 6;
+  g.setLineDash([60, 24]);
   g.beginPath(); g.arc(512, 512, 410, 0, Math.PI * 2); g.stroke();
   g.setLineDash([]);
   g.strokeStyle = 'rgba(102,230,255,0.5)';
@@ -755,7 +775,7 @@ function buildOutposts(scene, m) {
   const anim = [];
   const tankMat = texMat('hull', 0xd8dde4, { metalness: 0.45 });
   const orange = new THREE.MeshStandardMaterial({ color: 0xff8a3a, metalness: 0.3, roughness: 0.5 });
-  const teal = new THREE.MeshStandardMaterial({ color: 0x2fc9a8, metalness: 0.3, roughness: 0.45 });
+  const strip = new THREE.MeshBasicMaterial({ color: 0x9fe8ff });
   const cont = [0x2f6fa0, 0xb04a3a, 0xd0a030, 0x3a8a5a, 0x6a6f7a].map((c) => texMat('metal', c, { metalness: 0.35, roughness: 0.6 }));
   const place = (g, angle, r) => { g.position.set(Math.cos(angle) * r, 0, Math.sin(angle) * r); g.rotation.y = -angle + Math.PI / 2; scene.add(g); return g; };
   const shadowAll = (g) => g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -763,17 +783,21 @@ function buildOutposts(scene, m) {
   // 1) radar mast with rotating dish
   {
     const g = new THREE.Group();
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 5, 8), m.postMat); mast.position.y = 2.5;
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 5, 10), m.postMat); mast.position.y = 2.5;
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 0.4, 8), tankMat); foot.position.y = 0.2;
+    const mStrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 3.6, 0.04), strip); mStrip.position.set(0, 2.4, 0.2);
+    g.add(foot, mStrip);
+    for (const y of [1.4, 2.8, 4.2]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.14, 10), m.dark); c.position.y = y; g.add(c); }
     const head = new THREE.Group(); head.position.y = 5.1;
     const dish = new THREE.Mesh(new THREE.SphereGeometry(1.1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2.6), new THREE.MeshStandardMaterial({ color: 0xeef1f5, metalness: 0.4, roughness: 0.3, side: THREE.DoubleSide }));
     dish.rotation.x = -1.2;
     const feed = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 6), m.dark); feed.position.set(0, 0.3, 0.45); feed.rotation.x = 1.2;
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff4040 })); lamp.position.y = 5.6;
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), strip); lamp.position.y = 5.6;
     head.add(dish, feed);
     g.add(mast, head, lamp);
     shadowAll(g);
     place(g, 0.55, 27);
-    anim.push((dt, t) => { head.rotation.y += dt * 0.6; lamp.scale.setScalar(0.7 + 0.3 * Math.sin(t * 1.2)); });
+    anim.push((dt) => { head.rotation.y += dt * 0.4; });
   }
   // 2) fuel tank farm
   {
@@ -781,12 +805,16 @@ function buildOutposts(scene, m) {
     for (let k = 0; k < 3; k++) {
       const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 2.2, 6, 16), tankMat);
       tank.position.set(k * 1.9 - 1.9, 1.9, 0);
-      const band = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.06, 6, 24), orange);
-      band.rotation.x = Math.PI / 2; band.position.set(k * 1.9 - 1.9, 1.6 + k * 0.3, 0);
-      g.add(tank, band);
+      const x = k * 1.9 - 1.9;
+      for (const y of [1.2, 2.6]) { const band = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.12, 24), m.dark); band.position.set(x, y, 0); g.add(band); }
+      const ls = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.0, 0.03), strip); ls.position.set(x, 1.9, 0.81);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.25, 8), m.dark); cap.position.set(x, 3.6, 0);
+      g.add(tank, ls, cap);
+      for (const sx of [-0.55, 0.55]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.0, 6), m.postMat); leg.position.set(x + sx, 0.5, 0); g.add(leg); }
     }
     const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4.2, 8), m.dark); pipe.rotation.z = Math.PI / 2; pipe.position.y = 0.4;
-    g.add(pipe);
+    const pipeGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 4.2, 6), strip); pipeGlow.rotation.z = Math.PI / 2; pipeGlow.position.set(0, 0.52, 0);
+    g.add(pipe, pipeGlow);
     shadowAll(g);
     place(g, 4.75, 27.5);
   }
@@ -840,18 +868,21 @@ function buildOutposts(scene, m) {
   {
     const g = new THREE.Group();
     const floor = new THREE.Mesh(new THREE.BoxGeometry(4, 0.12, 3), m.dark); floor.position.y = 0.06;
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.14, 8, 24, Math.PI), teal); arch.position.y = 0.1;
+    const arch = new THREE.Group(); arch.position.y = 0.1;
+    arch.add(new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.16, 8, 28, Math.PI), m.white));
+    const archGlow = new THREE.Mesh(new THREE.TorusGeometry(1.62, 0.03, 4, 28, Math.PI), strip); arch.add(archGlow);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(4.02, 0.03, 0.06), strip); edge.position.set(0, 0.12, 1.5);
     const arm = new THREE.Group(); arm.position.set(1.4, 0, -0.8);
     const a1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.6, 8), m.postMat); a1.position.y = 0.8;
     const a2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 8), m.postMat); a2.position.set(-0.4, 1.6, 0); a2.rotation.z = 1.1;
-    const spark = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe080 })); spark.position.set(-0.9, 1.35, 0);
+    const spark = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), strip); spark.position.set(-0.9, 1.35, 0);
     arm.add(a1, a2, spark);
     const mini = new THREE.Group();
     const mb = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.5), m.white); mb.position.y = 0.35;
     const mh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.38, 0.35), m.white); mh.position.y = 0.8;
     const ms = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.25), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 })); ms.position.set(0, 0.8, 0.18);
     mini.add(mb, mh, ms);
-    g.add(floor, arch, arm, mini);
+    g.add(floor, arch, edge, arm, mini);
     shadowAll(g);
     place(g, 4.3, 26.5);
     anim.push((dt, t) => { arm.rotation.y = Math.sin(t * 1.5) * 0.3; mh.rotation.y = Math.sin(t * 0.7) * 0.4; });
@@ -871,13 +902,23 @@ function buildOutposts(scene, m) {
   {
     const g = new THREE.Group();
     const panelMat = new THREE.MeshStandardMaterial({ color: 0x1b2a5a, metalness: 0.8, roughness: 0.25, emissive: 0x0a1030 });
+    const truss = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.16, 0.16), m.postMat); truss.position.y = 1.5;
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.4, 8), tankMat); ped.position.y = 0.7;
+    const joint = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.4, 12), m.dark); joint.rotation.z = Math.PI / 2; joint.position.y = 1.5;
+    g.add(truss, ped, joint);
+    const wings = new THREE.Group(); wings.position.y = 1.5;
+    const gridMat = new THREE.MeshStandardMaterial({ color: 0xc8cfd8, metalness: 0.5, roughness: 0.4 });
     for (let k = 0; k < 4; k++) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), m.postMat); leg.position.set(k * 1.6 - 2.4, 0.6, 0);
-      const pan = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 1.8), panelMat); pan.position.set(k * 1.6 - 2.4, 1.25, 0); pan.rotation.x = -0.5;
-      g.add(leg, pan);
+      const x = k < 2 ? -3.1 + k * 1.5 : 1.6 + (k - 2) * 1.5;
+      const pan = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.05, 2.2), panelMat); pan.position.set(x, 0, 0);
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 2.2), gridMat); rib.position.set(x, 0, 0);
+      wings.add(pan, rib);
     }
+    wings.rotation.x = -0.5;
+    g.add(wings);
     shadowAll(g);
     place(g, 3.9, 28.5);
+    anim.push((dt, t) => { wings.rotation.x = -0.5 + Math.sin(t * 0.05) * 0.15; });
   }
   return { update(dt, t) { anim.forEach((f) => f(dt, t)); } };
 }
