@@ -646,7 +646,7 @@ function goalList() {
   const out = [];
   const n = S.deck || 0;
   // boss fight
-  if (boss.active) out.push({ prio: 0, icon: '💥', name: `${boss.name} zerlegen`, prog: 1 - boss.hp / boss.maxHp, sub: boss === sentinel && !boss.exposed ? 'Warte, bis sie zum Scannen herabsinkt' : boss.platesLeft ? `Erst die Schilde: noch ${boss.platesLeft}` : boss.armsLeft ? `Erst die Arme: noch ${boss.armsLeft} Glieder` : 'Fahr hin und greif zu' });
+  if (boss.active && boss.falling === null) out.push({ prio: 0, icon: '💥', name: `${boss.name} zerlegen`, prog: 1 - boss.hp / boss.maxHp, sub: boss === sentinel && !boss.exposed ? 'Warte, bis sie zum Scannen herabsinkt' : boss.platesLeft ? `Erst die Schilde: noch ${boss.platesLeft}` : boss.armsLeft ? `Erst die Arme: noch ${boss.armsLeft} Glieder` : 'Fahr hin und greif zu' });
   // contracts ready to claim
   const cr = S.level >= UNLOCKS.contracts ? contractsReady() : 0;
   if (cr) out.push({ prio: 1, icon: '📋', name: `${cr} Auftrag${cr > 1 ? 'e' : ''} erfüllt`, prog: 1, sub: 'Im Archiv abholen', ready: true });
@@ -773,7 +773,34 @@ function openMeteor(pos) {
   addXp(25);
   bot.setMood('love', 1.5);
 }
+// calm expanding shock rings (boss defeat)
+const fxRings = [];
+function ringFx(pos, color = 0x9fe8ff, delay = 0) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+  m.rotation.x = -Math.PI / 2; m.position.copy(pos);
+  scene.add(m);
+  fxRings.push({ m, t: -delay });
+}
+function updateRingFx(dt) {
+  for (let i = fxRings.length - 1; i >= 0; i--) {
+    const r = fxRings[i];
+    r.t += dt;
+    if (r.t < 0) continue;
+    const k = r.t / 1.6;
+    r.m.scale.setScalar(1 + k * 9);
+    r.m.material.opacity = 0.55 * (1 - k);
+    if (k >= 1) { scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); fxRings.splice(i, 1); }
+  }
+}
 function golemDefeated() {
+  if (boss.position) {
+    const bp = boss.position.clone();
+    const gy = Math.max(0.2, pile.heightAt(bp.x, bp.z) + 0.2);
+    ringFx(new THREE.Vector3(bp.x, gy, bp.z), 0x9fe8ff, 0);
+    ringFx(new THREE.Vector3(bp.x, gy, bp.z), 0xffd9a0, 0.35);
+    spawnDebris(bp.x, bp.y + 0.5, bp.z, 24, 0, 0, 1.6);
+    dust.puff(bp.x, bp.y, bp.z, 10, 2.5);
+  }
   S.golemN = (S.golemN || 0) + 1;
   S.stats.golems = (S.stats.golems || 0) + 1;
   const bk = boss === worm ? 'worm' : boss === kraken ? 'kraken' : boss === sentinel ? 'sentinel' : 'golem';
@@ -2869,6 +2896,7 @@ function animate() {
   if (S) baseView.update(dt, t, baseFlow, baseCache.eff, (S.buffer || 0) / Math.max(1, baseCache.buffer));
   stationView.update(dt, t);
   if (pile) boss.update(dt, t, pile);
+  updateRingFx(dt);
   if (boss.active) $('golem-fill').style.width = `${Math.max(0, boss.hp / boss.maxHp) * 100}%`;
   { const p = bot.group.position; contactShadow.position.set(p.x, Math.max(0, pile.heightAt(p.x, p.z)) + 0.03, p.z); contactShadow.visible = bot.group.visible; }
   updateDebris(dt);
