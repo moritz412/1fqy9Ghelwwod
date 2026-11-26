@@ -884,14 +884,24 @@ function buildGantry(scene) {
   const beamMat = new THREE.MeshBasicMaterial({ color: 0xe8f4ff, transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.9, 1, 20, 1, true), beamMat); trolley.add(beam);
   const claw = new THREE.Group(); trolley.add(claw);
-  const core = sh(new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), hull)); core.scale.y = 0.7; claw.add(core);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 6, 20), accent); ring.rotation.x = Math.PI / 2; claw.add(ring);
+  // grapple drone: rounded body with a dark mid section, light ring, side thrusters and jointed fingers
+  const core = sh(new THREE.Mesh(new THREE.SphereGeometry(0.5, 18, 12), hull)); core.scale.y = 0.62; claw.add(core);
+  const mid = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.14, 20), dark); claw.add(mid);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.53, 0.035, 6, 24), lightM); ring.rotation.x = Math.PI / 2; ring.position.y = 0.08; claw.add(ring);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.14, 12), dark); cap.position.y = 0.34; claw.add(cap);
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    const th = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.18, 8), dark); th.position.set(Math.cos(a) * 0.55, 0, Math.sin(a) * 0.55); th.rotation.set(Math.sin(a) * Math.PI / 2, 0, -Math.cos(a) * Math.PI / 2); claw.add(th);
+  }
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2;
-    const f = sh(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.18), dark));
-    f.position.set(Math.cos(a) * 0.45, -0.4, Math.sin(a) * 0.45); f.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35); claw.add(f);
+    const fing = new THREE.Group(); fing.position.set(Math.cos(a) * 0.38, -0.2, Math.sin(a) * 0.38); fing.rotation.y = -a; claw.add(fing);
+    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), accent); fing.add(knuckle);
+    const up = sh(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.14), dark)); up.position.set(0.08, -0.2, 0); up.rotation.z = 0.35; fing.add(up);
+    const lo = sh(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.36, 0.12), hull)); lo.position.set(0.1, -0.52, 0); lo.rotation.z = -0.3; fing.add(lo);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), dark); tip.position.set(0.04, -0.74, 0); tip.rotation.z = Math.PI - 0.5; fing.add(tip);
   }
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), lightM); eye.position.y = -0.2; claw.add(eye);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), lightM); eye.position.y = -0.3; claw.add(eye);
   scene.add(g);
   // meshes that may block the camera: hidden while they sit between camera and bot
   const occl = [];
