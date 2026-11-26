@@ -754,6 +754,7 @@ function golemDefeated() {
   say(`Geschafft! ${boss.name} ist zerlegt. Was für ein Haufen Beute!`, 4);
   achvQueue.push({ kicker: 'Deck-Stern', name: `${boss.name} zerlegt!`, desc: `+${fmt(cr)} ⬡ · +${60 + (S.deck || 0) * 20} t Metall · 3 Platin · 1 Alien-Artefakt (ins Lager)`, reward: 0 });
   $('golem-bar').classList.add('hidden');
+  setTimeout(() => { if (!events.active) setMusicIntensity(0); }, 2500);
   save();
 }
 function catchAlien(pos) {
@@ -1283,6 +1284,7 @@ function checkMilestones() {
     boss = [golem, worm, kraken][kind];
     boss.spawn(pile, 25 + (S.deck || 0) * 10);
     bossCam = BOSS_CAM;
+    setMusicIntensity(1);
     sfx.meteor(0.8); shake = 0.6;
     say([
       'Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!',
