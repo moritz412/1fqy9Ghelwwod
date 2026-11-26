@@ -35,8 +35,25 @@ export class Golem {
       box(0.8, 0.9, 0.8, 0, -0.4, 0, 0, leg); box(0.7, 0.8, 0.7, 0, -1.2, 0.1, 3, leg);
       g.add(leg); this.legs.push(leg);
     }
-    // torso made of stacked scrap
-    for (let k = 0; k < 9; k++) box(0.6 + Math.random() * 0.8, 0.5 + Math.random() * 0.4, 0.6 + Math.random() * 0.6, (Math.random() - 0.5) * 1.2, 2.0 + Math.floor(k / 3) * 0.55, (Math.random() - 0.5) * 0.6, k);
+    // torso made of stacked scrap: crates, barrels, tyres and gears
+    const tyreM = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.9 });
+    const add = (geo, mat, x, y, z, rx = 0, rz = 0) => {
+      const b = new THREE.Mesh(geo, mat); b.position.set(x, y, z); b.rotation.set(rx + (Math.random() - 0.5) * 0.3, Math.random() * 6, rz + (Math.random() - 0.5) * 0.3);
+      b.castShadow = true; g.add(b); chunks.push(b); return b;
+    };
+    for (let k = 0; k < 9; k++) {
+      const x = (Math.random() - 0.5) * 1.2, y = 2.0 + Math.floor(k / 3) * 0.55, z = (Math.random() - 0.5) * 0.6;
+      const r = k % 4;
+      if (r === 0) box(0.6 + Math.random() * 0.8, 0.5 + Math.random() * 0.4, 0.6 + Math.random() * 0.6, x, y, z, k);
+      else if (r === 1) add(new THREE.CylinderGeometry(0.32, 0.32, 0.75, 12), mats[k % 2 ? 1 : 0], x, y, z, 0, Math.PI / 2);
+      else if (r === 2) add(new THREE.TorusGeometry(0.34, 0.14, 8, 16), tyreM, x, y, z + 0.25, 0.2);
+      else add(new THREE.CylinderGeometry(0.42, 0.42, 0.12, 10), mats[3], x, y, z + 0.3, Math.PI / 2);
+    }
+    // glowing reactor core in the chest (steady, no flicker)
+    const coreM = new THREE.MeshStandardMaterial({ color: 0x331a05, emissive: 0xff9a3a, emissiveIntensity: 1.4, roughness: 0.4 });
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.26, 1), coreM); core.position.set(0, 2.55, 0.42); g.add(core);
+    const cage = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 6, 14), mats[3]); cage.position.copy(core.position); cage.position.z += 0.05; g.add(cage);
+    this.core = core;
     // head with glowing eyes
     const head = new THREE.Group(); head.position.set(0, 3.9, 0.05);
     box(1.1, 0.8, 0.9, 0, 0, 0, 2, head);
@@ -107,6 +124,7 @@ export class Golem {
     this.legs[0].rotation.x = walk * 0.4; this.legs[1].rotation.x = -walk * 0.4;
     this.arms[0].rotation.x = -walk * 0.3 + Math.sin(t * 0.7) * 0.1; this.arms[1].rotation.x = walk * 0.3 - Math.sin(t * 0.7) * 0.1;
     this.head.rotation.y = Math.sin(t * 0.5) * 0.4;
+    if (this.core) this.core.rotation.y += dt * 0.6;
     if (this.flinch > 0) { this.flinch -= dt; g.position.x += Math.sin(t * 60) * 0.05; }
   }
 

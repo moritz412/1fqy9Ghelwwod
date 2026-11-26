@@ -741,6 +741,8 @@ function openMeteor(pos) {
 function golemDefeated() {
   S.golemN = (S.golemN || 0) + 1;
   S.stats.golems = (S.stats.golems || 0) + 1;
+  const bk = boss === worm ? 'worm' : boss === kraken ? 'kraken' : 'golem';
+  S.stats.bossKinds = { ...(S.stats.bossKinds || {}), [bk]: ((S.stats.bossKinds || {})[bk] || 0) + 1 };
   const cr = Math.round(2500 * ((S.deck || 0) + 1) * deckValueMult(S.deck || 0));
   S.credits += cr; S.stats.earned += cr;
   S.tonsBonus = (S.tonsBonus || 0) + 60 + (S.deck || 0) * 20;
@@ -749,7 +751,7 @@ function golemDefeated() {
   addXp(150);
   sfx.core(); vibrate([60, 40, 100]); shake = 0.8;
   bot.setMood('love', 4);
-  say('Geschafft! Der Golem ist zerlegt. Was für ein Haufen Beute!', 4);
+  say(`Geschafft! ${boss.name} ist zerlegt. Was für ein Haufen Beute!`, 4);
   achvQueue.push({ kicker: 'Deck-Stern', name: `${boss.name} zerlegt!`, desc: `+${fmt(cr)} ⬡ · +${60 + (S.deck || 0) * 20} t Metall · 3 Platin · 1 Alien-Artefakt (ins Lager)`, reward: 0 });
   $('golem-bar').classList.add('hidden');
   save();
