@@ -70,6 +70,33 @@ export class Golem {
       box(0.5, 0.9, 0.5, 0, -0.4, 0, 1, arm); box(0.45, 0.8, 0.45, 0, -1.2, 0.1, 0, arm); box(0.6, 0.5, 0.6, 0, -1.8, 0.15, 3, arm);
       g.add(arm); this.arms.push(arm);
     }
+    // ---- detail pass: claws, shoulder armour, cables, exhausts, feet, visor
+    const detM = mats[3], glowM = new THREE.MeshBasicMaterial({ color: 0xffb347 });
+    const cableM = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.7 });
+    this.arms.forEach((arm, i) => {
+      const sx = i === 0 ? -1 : 1;
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.22, 0.7), mats[2]); pad.position.set(sx * 0.05, 0.12, 0); pad.rotation.z = sx * -0.25; pad.castShadow = true; arm.add(pad);
+      for (let k = 0; k < 3; k++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 6), detM); r.position.set(sx * 0.05 + (k - 1) * 0.22, 0.24, 0.3); r.rotation.x = Math.PI / 2; arm.add(r); }
+      // three-finger claw
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2;
+        const f = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.42, 6), detM);
+        f.position.set(Math.cos(a) * 0.18, -2.18, 0.15 + Math.sin(a) * 0.18); f.rotation.set(Math.PI + Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.4); f.castShadow = true; arm.add(f);
+      }
+      // cable from torso into the arm
+      const cab = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.05, 6, 14, Math.PI), cableM);
+      cab.position.set(-sx * 0.3, -0.1, -0.3); cab.rotation.set(0, Math.PI / 2, sx * 0.4); arm.add(cab);
+    });
+    for (const leg of this.legs) {
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.16, 1.15), detM); foot.position.set(0, -1.62, 0.18); foot.castShadow = true; leg.add(foot);
+      const knee = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mats[2]); knee.position.set(0, -0.8, 0.32); leg.add(knee);
+    }
+    for (const sx of [-0.35, 0.35]) {
+      const ex = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.1, 10), detM); ex.position.set(sx, 3.6, -0.55); ex.rotation.x = -0.25; ex.castShadow = true; g.add(ex);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 6, 12), cableM); rim.position.set(sx, 4.13, -0.69); rim.rotation.x = Math.PI / 2 - 0.25; g.add(rim);
+    }
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.05), glowM); visor.position.set(0, 0.2, 0.47); head.add(visor);
+    for (let k = 0; k < 4; k++) { const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.06), detM); tooth.position.set(-0.27 + k * 0.18, -0.3, 0.47); head.add(tooth); }
     this.chunks = chunks.sort(() => Math.random() - 0.5);
     this.maxHp = hp; this.hp = hp;
     this.g = g;
@@ -178,6 +205,19 @@ export class Worm {
       const e = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), eyeM); e.position.set(sx * 0.32, 0.22, 0.72); head.add(e);
       const jaw = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.6, 6), ring2); jaw.position.set(sx * 0.3, -0.25, 0.85); jaw.rotation.x = Math.PI / 2; jaw.rotation.z = sx * 0.3; head.add(jaw);
     }
+    // detail: drill-tooth ring around the mouth, armour ridge with plates, sensor brows, rivets on each segment
+    const mouth = new THREE.Group(); mouth.position.set(0, -0.05, 0.86); head.add(mouth);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.07, 8, 20), ring2); mouth.add(lip);
+    const throat = new THREE.Mesh(new THREE.CircleGeometry(0.3, 18), new THREE.MeshBasicMaterial({ color: 0x2a0c04 })); throat.position.z = -0.02; mouth.add(throat);
+    const glowIn = new THREE.Mesh(new THREE.CircleGeometry(0.12, 14), new THREE.MeshBasicMaterial({ color: 0xff8a3a })); glowIn.position.z = -0.01; mouth.add(glowIn);
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; const t = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 5), plate); t.position.set(Math.cos(a) * 0.3, Math.sin(a) * 0.3, 0.06); t.rotation.z = a - Math.PI / 2; mouth.add(t); }
+    this.mouth = mouth;
+    for (let k = 0; k < 4; k++) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.42 - k * 0.06, 0.06, 0.3), ring2); pl.position.set(0, 0.62 - k * 0.04, 0.45 - k * 0.32); pl.rotation.x = -0.3 + k * 0.22; head.add(pl); }
+    for (const sx of [-1, 1]) { const brow = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.12), ring2); brow.position.set(sx * 0.32, 0.36, 0.7); brow.rotation.z = sx * 0.3; head.add(brow); }
+    this.segs.forEach((sg, k) => {
+      const r = 0.62 - (k / N) * 0.3;
+      for (let j = 0; j < 6; j++) { const a = (j / 6) * Math.PI * 2; const rv = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), ring2); rv.position.set(Math.cos(a) * r * 1.06, Math.sin(a) * r * 1.06, 0.12); sg.add(rv); }
+    });
     g.add(head); this.head = head;
     this.trail = [];
     this.maxHp = hp; this.hp = hp;
@@ -238,6 +278,7 @@ export class Worm {
     this.head.position.copy(this.headPos);
     const dx = -Math.sin(this.ang), dz = Math.cos(this.ang);
     this.head.rotation.set(-Math.cos(this.t * 0.55) * 0.5, Math.atan2(dx, dz), 0);
+    if (this.mouth) this.mouth.rotation.z += dt * 1.2;
     if (this.flinch > 0) { this.flinch -= dt; this.head.position.x += Math.sin(t * 60) * 0.06; }
     // body follows the head along its trail, spaced by distance
     let idx = 0, acc = 0;
@@ -290,6 +331,15 @@ export class Kraken {
     for (let k = 0; k < 8; k++) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.7), link2); const a = (k / 8) * Math.PI * 2; pl.position.set(Math.cos(a) * 0.75, 1.35, Math.sin(a) * 0.75); pl.rotation.set(0, -a, 0.55); head.add(pl); }
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 10), eyeM); eye.position.set(0, 0.95, 1.0); head.add(eye);
     const lid = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.06, 6, 16), link2); lid.position.copy(eye.position); lid.position.z += 0.02; head.add(lid);
+    // detail: rivet ring on the dome, two sensor stalks, glowing vents and a mouth grille
+    for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; const r = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), link2); r.position.set(Math.cos(a) * 1.22, 0.62, Math.sin(a) * 1.22); head.add(r); }
+    for (const sx of [-1, 1]) {
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.7, 6), link2); st.position.set(sx * 0.45, 1.75, 0.2); st.rotation.z = -sx * 0.35; head.add(st);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), eyeM); bulb.position.set(sx * 0.58, 2.08, 0.2); head.add(bulb);
+    }
+    const ventM = new THREE.MeshBasicMaterial({ color: 0xff9a3a });
+    for (let k = 0; k < 3; k++) { const v = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.04), ventM); v.position.set(0, 0.55 + k * 0.1, -1.08 + k * 0.08); v.rotation.x = 0.5; head.add(v); }
+    for (let k = 0; k < 5; k++) { const gr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.05), link2); gr.position.set(-0.2 + k * 0.1, 0.55, 1.16); head.add(gr); }
     g.add(head); this.head = head;
     // tentacles
     this.tents = [];
@@ -305,6 +355,7 @@ export class Kraken {
         const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.9, 0.62, 10), s % 2 ? link : link2);
         m.rotation.x = Math.PI / 2; m.position.z = 0.31; m.castShadow = true; seg.add(m);
         const band = new THREE.Mesh(new THREE.TorusGeometry(r * 1.05, 0.04, 5, 12), link2); band.position.z = 0.05; seg.add(band);
+        const cup = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.45, 0.06, 10), shell); cup.position.set(0, -r * 0.92, 0.31); seg.add(cup);
         parent.add(seg); segs.push(seg); parent = seg;
       }
       this.tents.push({ root, segs, alive: L, a, ph: Math.random() * 6 });
