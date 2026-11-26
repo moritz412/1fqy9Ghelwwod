@@ -157,7 +157,7 @@ export class NexusBot {
     this.faceTex = new THREE.CanvasTexture(this.faceCanvas);
     this.faceTex.colorSpace = THREE.SRGBColorSpace;
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.34), new THREE.MeshBasicMaterial({ map: this.faceTex }));
-    screen.position.set(0, -0.02, 0.172);
+    screen.position.set(0, -0.02, 0.177);     // in front of the bezel (bezel front face is at 0.173)
     head.add(screen);
     const bezel = new THREE.Mesh(new RoundedBoxGeometry(0.58, 0.38, 0.02, 3, 0.03), dark);
     bezel.position.set(0, -0.02, 0.163);
