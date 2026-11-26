@@ -588,6 +588,11 @@ function deckTexture() {
     if (r < 0.12) { // vent grille
       g.fillStyle = 'rgba(30,33,40,0.85)';
       for (let k = 0; k < 6; k++) g.fillRect(x + 14, y + 14 + k * 6, step - 28, 3);
+      if (rnd() < 0.6) { // rust streak running out of the grille
+        const gr = g.createLinearGradient(0, y + 48, 0, y + 48 + 30);
+        gr.addColorStop(0, 'rgba(120,62,30,0.35)'); gr.addColorStop(1, 'rgba(120,62,30,0)');
+        g.fillStyle = gr; g.fillRect(x + 18 + rnd() * 20, y + 48, 4 + rnd() * 6, 30);
+      }
     } else if (r < 0.2) { // hatch
       g.strokeStyle = 'rgba(30,33,40,0.7)'; g.lineWidth = 2; g.strokeRect(x + 12, y + 12, step - 24, step - 24);
       g.fillStyle = 'rgba(255,190,60,0.7)'; g.fillRect(x + 12, y + 12, 8, 3);
@@ -609,6 +614,34 @@ function deckTexture() {
     gr.addColorStop(0, 'rgba(20,18,15,0.22)'); gr.addColorStop(1, 'rgba(20,18,15,0)');
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
+  // fine grain so the plates don't look flat up close
+  for (let k = 0; k < 9000; k++) {
+    const v = rnd() < 0.5 ? 255 : 0;
+    g.fillStyle = `rgba(${v},${v},${v},${0.03 + rnd() * 0.05})`;
+    g.fillRect(rnd() * 1024, rnd() * 1024, 1 + rnd(), 1 + rnd());
+  }
+  // painted lanes from the edge towards the heap (dock, shop, landing pad, outposts)
+  g.save(); g.translate(512, 512);
+  for (const a of [Math.PI / 2, Math.PI, 0.86, -Math.PI / 2, -0.4]) {
+    g.save(); g.rotate(a);
+    g.fillStyle = 'rgba(255,200,70,0.55)';
+    for (const off of [-26, 26]) for (let r = 300; r < 470; r += 22) g.fillRect(r, off - 2, 14, 4);
+    g.fillStyle = 'rgba(255,255,255,0.28)';
+    g.beginPath(); g.moveTo(330, -10); g.lineTo(350, 0); g.lineTo(330, 10); g.closePath(); g.fill();
+    g.restore();
+  }
+  // big stencilled deck lettering around the ring
+  g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center';
+  const words = ['NEXUS', 'HANGAR 07', 'ZONE B', 'NUR FÜR BOTS'];
+  words.forEach((w, k) => {
+    g.save(); g.rotate(k * Math.PI / 2 + Math.PI / 4); g.translate(0, -452);
+    g.fillStyle = 'rgba(235,238,242,0.22)'; g.fillText(w, 0, 0);
+    g.restore();
+  });
+  g.restore();
+  // weld seams: long darker lines every 4 plates
+  g.strokeStyle = 'rgba(30,32,38,0.35)'; g.lineWidth = 2;
+  for (let k = 256; k < 1024; k += 256) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 1024); g.moveTo(0, k); g.lineTo(1024, k); g.stroke(); }
   // hazard ring + markings
   g.strokeStyle = 'rgba(255,190,60,0.85)';
   g.lineWidth = 10;

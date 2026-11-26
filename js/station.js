@@ -26,7 +26,14 @@ export const RANKS = [
   { name: 'Megastation', modules: 18 },
 ];
 export const stationRank = (mods) => { let r = 0; RANKS.forEach((k, i) => { if (mods.length >= k.modules) r = i; }); return r; };
-export const moduleCost = (type, lvl) => { const c = MODULES_ST[type].cost; return [Math.round(c[0] * Math.pow(2.6, lvl)), Math.round(c[1] * Math.pow(3, lvl))]; };
+// Cost grows with the station size and with every module of the same type, so stacking one bonus gets pricey.
+export const moduleCost = (type, lvl, mods = []) => {
+  const c = MODULES_ST[type].cost;
+  const size = lvl === 0 ? Math.pow(1.18, mods.length) : 1;
+  const same = lvl === 0 ? Math.pow(1.6, mods.filter((m) => m.type === type).length) : 1;
+  const f = size * same;
+  return [Math.round(c[0] * Math.pow(2.6, lvl) * f), Math.round(c[1] * Math.pow(3, lvl) * f)];
+};
 
 export function stationBonus(mods) {
   const b = { value: 0, xp: 0, power: 0, cargo: 0, start: 0, drones: 0, events: 0, glitter: 0, teleport: 0, rare: 0, all: 0 };

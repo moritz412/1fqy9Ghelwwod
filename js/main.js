@@ -1098,7 +1098,7 @@ $('btn-trader').addEventListener('click', () => { initAudio(); $('trader').class
 $('trader-close').addEventListener('click', () => $('trader').classList.add('hidden'));
 
 function canPayModule(type, lvl) {
-  const [tons, cr] = moduleCost(type, lvl);
+  const [tons, cr] = moduleCost(type, lvl, S.station || []);
   const rare = lvl === 0 ? (MODULES_ST[type].rare || {}) : {};
   const rareOk = Object.entries(rare).every(([id, n]) => (S.vault[id] || 0) >= n);
   return { tons, cr, rare, ok: tonsAvail() >= tons && S.credits >= cr && rareOk };
