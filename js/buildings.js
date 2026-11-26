@@ -1,6 +1,6 @@
 // Base building: build sites around the heap, production chain (extract -> buffer -> sort), power grid.
 import * as THREE from 'three';
-import { texMat, hazardTexture } from './textures.js';
+import { texMat } from './textures.js';
 
 export const SITE_ANGLES = [15, 32, 72, 112, 135, 158, 202, 225, 248, 275, 300, 325, 345].map((d) => (d * Math.PI) / 180);
 export const SITE_R = 21;
@@ -53,93 +53,179 @@ const M = {
   white: texMat('hull', 0xeef1f5),
   grey: texMat('metal', 0x9aa0a8),
   dark: new THREE.MeshStandardMaterial({ color: 0x2c2f35, metalness: 0.6, roughness: 0.35 }),
-  orange: texMat('metal', 0xffb347, { metalness: 0.35 }),
   teal: new THREE.MeshStandardMaterial({ color: 0x2fc9a8, metalness: 0.3, roughness: 0.45 }),
   glow: new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }),
   hot: new THREE.MeshBasicMaterial({ color: 0x7cff9a }),
   pad: new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.5, roughness: 0.5 }),
 };
 
+const STRIP = new THREE.MeshBasicMaterial({ color: 0x9fe8ff });
+const ACCENT = {
+  extractor: 0xffb347, sorter: 0x7cc7ff, silo: 0xc9a0ff, reactor: 0x7cff9a,
+  lab: 0x6ff3f0, fab: 0xff8f70, hangar: 0xffd36a, beacon: 0x9fb8ff,
+};
+const accentMats = {};
+const accentMat = (type) => accentMats[type] || (accentMats[type] = new THREE.MeshStandardMaterial({ color: ACCENT[type], metalness: 0.3, roughness: 0.4 }));
+
+// small helpers for space-hull details
+function box(w, h, d, mat, x, y, z) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; }
+function cyl(rt, rb, h, seg, mat, x, y, z) { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat); m.position.set(x, y, z); return m; }
+// rounded hull block: box body with a chamfer band, an accent stripe and light strips on the front
+function hullBlock(w, h, d, type) {
+  const g = new THREE.Group();
+  g.add(box(w, h * 0.82, d, M.white, 0, h * 0.41, 0));
+  g.add(box(w * 0.92, h * 0.18, d * 0.92, M.white, 0, h * 0.91, 0));
+  g.add(box(w + 0.04, 0.12, d + 0.04, accentMat(type), 0, h * 0.62, 0));
+  g.add(box(w * 0.6, 0.05, 0.02, STRIP, 0, h * 0.3, d / 2 + 0.01));
+  g.add(box(0.02, 0.05, d * 0.6, STRIP, w / 2 + 0.01, h * 0.3, 0));
+  g.add(box(w + 0.06, 0.08, d + 0.06, M.dark, 0, 0.04, 0));
+  return g;
+}
+// radiator fin panels (space stations dump heat through these)
+function radiator(len, mat) {
+  const g = new THREE.Group();
+  for (let k = 0; k < 3; k++) g.add(box(0.03, 0.5, len, mat, k * 0.12 - 0.12, 0, 0));
+  return g;
+}
+const finMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ef, metalness: 0.5, roughness: 0.35 });
+
 function model(type, lvl) {
   const g = new THREE.Group();
   const anim = {};
   const s = 0.85 + lvl * 0.08;
+  const acc = accentMat(type);
   if (type === 'extractor') {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 1.8), M.white); body.position.y = 0.7;
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.6, 12), M.orange); top.position.y = 1.7;
-    // boom reaching towards the heap (local -z faces the heap)
+    g.add(hullBlock(1.8, 1.4, 1.8, type));
+    const turret = cyl(0.55, 0.7, 0.45, 16, M.white, 0, 1.6, 0);
+    const sensor = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.dark); sensor.position.y = 1.82;
+    const spin = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.035, 6, 24), STRIP); spin.rotation.x = Math.PI / 2; spin.position.y = 1.6;
+    // articulated arm reaching towards the heap (local -z faces the heap)
     const boom = new THREE.Group(); boom.position.set(0, 1.8, -0.6);
-    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 4.2, 10), M.grey); pipe.rotation.x = Math.PI / 2 - 0.35; pipe.position.set(0, -0.6, -1.9);
-    const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.2, 0.5, 12, 1, true), M.dark); mouth.position.set(0, -1.35, -3.9); mouth.rotation.x = -0.35;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.04, 6, 18), M.glow); ring.position.set(0, -1.45, -4.05); ring.rotation.x = Math.PI / 2 - 0.35;
-    boom.add(pipe, mouth, ring);
-    g.add(body, top, boom);
-    anim.update = (dt, t, on) => { boom.rotation.y = Math.sin(t * 0.6) * 0.25; ring.scale.setScalar(on ? 1 + Math.sin(t * 1.5) * 0.08 : 0.85); top.rotation.y += dt * (on ? 3 : 0.3); };
+    const seg1 = cyl(0.16, 0.2, 2.2, 10, M.white, 0, -0.3, -1.0); seg1.rotation.x = Math.PI / 2 - 0.25;
+    const joint = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), M.dark); joint.position.set(0, -0.55, -2.05);
+    const seg2 = cyl(0.14, 0.17, 2.0, 10, M.white, 0, -0.95, -2.95); seg2.rotation.x = Math.PI / 2 - 0.45;
+    const band = cyl(0.19, 0.19, 0.12, 10, acc, 0, -0.75, -2.5); band.rotation.x = Math.PI / 2 - 0.45;
+    const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.2, 0.45, 14, 1, true), M.dark); mouth.position.set(0, -1.38, -3.9); mouth.rotation.x = -0.45;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 6, 20), STRIP); ring.position.set(0, -1.48, -4.02); ring.rotation.x = Math.PI / 2 - 0.45;
+    boom.add(seg1, joint, seg2, band, mouth, ring);
+    g.add(turret, sensor, spin, boom);
+    anim.update = (dt, t, on) => { boom.rotation.y = Math.sin(t * 0.5) * 0.22; spin.rotation.z += dt * (on ? 1.5 : 0.2); };
   } else if (type === 'sorter') {
-    const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.8, 1.6), M.white); base.position.y = 0.4;
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 2.0, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a909a, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide, wireframe: false }));
+    g.add(hullBlock(2.4, 0.8, 1.6, type));
+    // glass separation drum with rotating energy rings
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 1.9, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.32, metalness: 0.2, roughness: 0.05, side: THREE.DoubleSide }));
     drum.rotation.z = Math.PI / 2; drum.position.y = 1.5;
+    const caps = new THREE.Group();
+    for (const x of [-1.0, 1.0]) { const c = cyl(0.7, 0.7, 0.14, 20, M.white, x, 1.5, 0); c.rotation.z = Math.PI / 2; caps.add(c); }
     const ribs = new THREE.Group();
-    for (let k = 0; k < 5; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.67, 0.05, 6, 20), M.orange); r.rotation.y = Math.PI / 2; r.position.x = -0.8 + k * 0.4; ribs.add(r); }
+    for (let k = 0; k < 4; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.03, 6, 20), k % 2 ? STRIP : acc); r.rotation.y = Math.PI / 2; r.position.x = -0.6 + k * 0.4; ribs.add(r); }
     ribs.position.y = 1.5;
-    const chute = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 1.2), M.grey); chute.position.set(1.4, 0.9, 0); chute.rotation.z = -0.5;
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), M.hot); lamp.position.set(-1.1, 1.0, 0.8);
-    g.add(base, drum, ribs, chute, lamp);
-    anim.update = (dt, t, on) => { drum.rotation.x += dt * (on ? 4 : 0); ribs.rotation.x += dt * (on ? 4 : 0); lamp.scale.setScalar(on ? 0.85 + Math.sin(t * 1.4) * 0.15 : 0.5); };
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.9, 8), M.dark); core.rotation.z = Math.PI / 2; core.position.y = 1.5;
+    const port = box(0.5, 0.4, 0.9, M.white, 1.35, 0.7, 0);
+    const portGlow = box(0.02, 0.24, 0.6, STRIP, 1.61, 0.7, 0);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), M.hot); lamp.position.set(-1.0, 0.95, 0.7);
+    g.add(drum, caps, ribs, core, port, portGlow, lamp);
+    anim.update = (dt, t, on) => { ribs.rotation.x += dt * (on ? 2.5 : 0); };
   } else if (type === 'silo') {
-    const tank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.2, 20), M.white); tank.position.y = 1.9;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(1, 0.6, 20), M.white); cone.position.y = 3.8;
+    // pressurised cargo tank on landing struts
+    const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.95, 2.2, 8, 20), M.white); tank.position.y = 2.15;
+    const bands = new THREE.Group();
+    for (const y of [1.25, 2.15, 3.05]) bands.add(cyl(0.97, 0.97, 0.12, 24, y === 2.15 ? acc : M.grey, 0, y, 0));
     const legs = new THREE.Group();
-    for (let k = 0; k < 4; k++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6), M.grey); const a = k * Math.PI / 2 + 0.78; l.position.set(Math.cos(a) * 0.8, 0.4, Math.sin(a) * 0.8); legs.add(l); }
-    const gauge = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 0.05), M.dark); gauge.position.set(0, 1.9, 1.02);
-    const fill = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1, 0.06), M.glow); fill.position.set(0, 0.45, 1.04);
-    g.add(tank, cone, legs, gauge, fill);
-    anim.update = (dt, t, on, fillLevel) => { const f = Math.max(0.02, fillLevel || 0); fill.scale.y = f * 2.9; fill.position.y = 0.45 + (f * 2.9) / 2; };
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2 + 0.78;
+      const l = cyl(0.06, 0.08, 1.1, 6, M.grey, Math.cos(a) * 0.85, 0.5, Math.sin(a) * 0.85); l.rotation.z = Math.cos(a) * 0.25; l.rotation.x = -Math.sin(a) * 0.25;
+      const foot = cyl(0.18, 0.2, 0.06, 10, M.dark, Math.cos(a) * 0.98, 0.03, Math.sin(a) * 0.98);
+      legs.add(l, foot);
+    }
+    const valve = cyl(0.12, 0.12, 0.3, 10, M.dark, 0, 4.2, 0);
+    const gauge = box(0.2, 2.6, 0.05, M.dark, 0, 2.15, 0.97);
+    const fill = box(0.14, 1, 0.06, STRIP, 0, 0.85, 0.99);
+    g.add(tank, bands, legs, valve, gauge, fill);
+    anim.update = (dt, t, on, fillLevel) => { const f = Math.max(0.02, fillLevel || 0); fill.scale.y = f * 2.5; fill.position.y = 0.85 + (f * 2.5) / 2; };
   } else if (type === 'reactor') {
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 0.6, 8), M.dark); base.position.y = 0.3;
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.7, 20, 14), new THREE.MeshStandardMaterial({ color: 0x7cff9a, emissive: 0x3aff7a, emissiveIntensity: 2, roughness: 0.2 }));
-    core.position.y = 1.5;
-    const cage = new THREE.Group(); cage.position.y = 1.5;
-    for (let k = 0; k < 3; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.06, 8, 32), M.grey); r.rotation.set(Math.PI / 2 + k * 1.05, k * 0.6, 0); cage.add(r); }
+    const base = cyl(1.3, 1.5, 0.6, 8, M.dark, 0, 0.3, 0);
+    const deck = cyl(1.25, 1.3, 0.1, 8, acc, 0, 0.62, 0);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 14), new THREE.MeshStandardMaterial({ color: 0x7cff9a, emissive: 0x3aff7a, emissiveIntensity: 1.6, roughness: 0.2 }));
+    core.position.y = 1.55;
+    const cage = new THREE.Group(); cage.position.y = 1.55;
+    for (let k = 0; k < 3; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 8, 32), k === 1 ? STRIP : M.white); r.rotation.set(Math.PI / 2 + k * 1.05, k * 0.6, 0); cage.add(r); }
     const pylons = new THREE.Group();
-    for (let k = 0; k < 4; k++) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 0.2), M.white); const a = k * Math.PI / 2; p.position.set(Math.cos(a) * 1.25, 1.3, Math.sin(a) * 1.25); pylons.add(p); }
-    g.add(base, core, cage, pylons);
-    anim.update = (dt, t) => { cage.rotation.y += dt * 0.8; cage.rotation.x += dt * 0.3; core.scale.setScalar(1 + Math.sin(t * 3) * 0.06); };
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2;
+      pylons.add(box(0.22, 2.6, 0.22, M.white, Math.cos(a) * 1.25, 1.3, Math.sin(a) * 1.25));
+      pylons.add(box(0.04, 1.6, 0.04, STRIP, Math.cos(a) * 1.13, 1.4, Math.sin(a) * 1.13));
+      const fin = radiator(0.9, finMat); fin.position.set(Math.cos(a + 0.78) * 1.6, 0.9, Math.sin(a + 0.78) * 1.6); fin.rotation.y = -(a + 0.78);
+      pylons.add(fin);
+    }
+    const cap = cyl(1.35, 1.35, 0.12, 8, M.white, 0, 2.65, 0);
+    g.add(base, deck, core, cage, pylons, cap);
+    anim.update = (dt) => { cage.rotation.y += dt * 0.5; cage.rotation.x += dt * 0.2; };
   } else if (type === 'lab') {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 1.8), M.white); body.position.y = 0.75;
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9ff3ff, transparent: true, opacity: 0.45, metalness: 0.2, roughness: 0.05 }));
+    g.add(hullBlock(2.2, 1.5, 1.8, type));
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9ff3ff, transparent: true, opacity: 0.4, metalness: 0.2, roughness: 0.05 }));
     dome.position.y = 1.5;
+    const domeRing = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.05, 6, 28), M.white); domeRing.rotation.x = Math.PI / 2; domeRing.position.y = 1.5;
     const probe = new THREE.Mesh(new THREE.OctahedronGeometry(0.25), M.hot); probe.position.y = 1.9;
-    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6), M.grey); ant.position.set(0.8, 2.1, -0.6);
-    g.add(body, dome, probe, ant);
-    anim.update = (dt, t, on) => { probe.rotation.y += dt * (on ? 2 : 0.3); probe.position.y = 1.9 + Math.sin(t * 2) * 0.08; };
+    const mast = cyl(0.03, 0.04, 1.2, 6, M.grey, 0.8, 2.1, -0.6);
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2.6), new THREE.MeshStandardMaterial({ color: 0xeef1f5, side: THREE.DoubleSide, metalness: 0.4, roughness: 0.3 }));
+    dish.position.set(0.8, 2.7, -0.6); dish.rotation.x = -0.6;
+    // small solar wings
+    const wing = new THREE.MeshStandardMaterial({ color: 0x1d3c78, metalness: 0.6, roughness: 0.25, emissive: 0x0a1a3a, emissiveIntensity: 0.5 });
+    const w1 = box(0.9, 0.03, 0.6, wing, -1.65, 1.2, 0), w2 = box(0.9, 0.03, 0.6, wing, 1.65, 1.2, 0.4);
+    g.add(dome, domeRing, probe, mast, dish, w1, w2);
+    anim.update = (dt, t, on) => { probe.rotation.y += dt * (on ? 1.2 : 0.3); probe.position.y = 1.9 + Math.sin(t * 1.2) * 0.06; dish.rotation.z += dt * 0.3; };
   } else if (type === 'fab') {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.8, 2), M.white); body.position.y = 0.9;
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 2.2), M.orange); roof.position.y = 1.9;
-    const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.2, 10), M.grey); chimney.position.set(0.7, 2.5, -0.5);
-    const arm = new THREE.Group(); arm.position.set(-0.6, 2.0, 0.4);
-    const a1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.8, 0.12), M.teal); a1.position.y = 0.4;
-    const a2 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.1), M.teal); a2.position.set(0.3, 0.8, 0);
-    arm.add(a1, a2);
-    g.add(body, roof, chimney, arm);
-    anim.update = (dt, t, on) => { arm.rotation.y = on ? Math.sin(t * 2) * 1.2 : 0; };
+    g.add(hullBlock(2.4, 1.8, 2, type));
+    // heat radiators instead of a chimney
+    const rad = radiator(1.4, finMat); rad.position.set(0.75, 2.15, -0.2);
+    const radGlow = box(0.4, 0.03, 1.4, STRIP, 0.75, 1.88, -0.2);
+    // print bay window
+    const bay = box(1.3, 0.6, 0.04, new THREE.MeshStandardMaterial({ color: 0x0e1622, emissive: 0x1a3a55, emissiveIntensity: 0.8, roughness: 0.2 }), -0.3, 1.0, 1.01);
+    // robot arm with tool head
+    const arm = new THREE.Group(); arm.position.set(-0.6, 1.8, 0.4);
+    const base = cyl(0.18, 0.22, 0.14, 12, M.dark, 0, 0.07, 0);
+    const a1 = box(0.12, 0.7, 0.12, M.white, 0, 0.45, 0);
+    const j = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), acc); j.position.y = 0.82;
+    const a2 = box(0.7, 0.1, 0.1, M.white, 0.32, 0.82, 0);
+    const head = cyl(0.06, 0.1, 0.18, 8, M.dark, 0.66, 0.72, 0);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), STRIP); tip.position.set(0.66, 0.61, 0);
+    arm.add(base, a1, j, a2, head, tip);
+    g.add(rad, radGlow, bay, arm);
+    anim.update = (dt, t, on) => { arm.rotation.y = on ? Math.sin(t * 1.2) * 1.0 : 0; };
   } else if (type === 'hangar') {
-    const shell = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 2.6, 16, 1, false, 0, Math.PI), M.white); shell.rotation.z = Math.PI / 2; shell.rotation.y = Math.PI / 2; shell.position.y = 0.05;
-    const door = new THREE.Mesh(new THREE.CircleGeometry(1.3, 16, 0, Math.PI), M.dark); door.position.set(0, 0.05, 1.31);
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.05, 16), M.glow); pad.position.set(0, 1.45, 0);
-    const mini = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.12, 0.4), M.orange); mini.position.set(0, 1.7, 0);
-    g.add(shell, door, pad, mini);
-    anim.update = (dt, t, on) => { mini.position.y = 1.7 + (on ? Math.abs(Math.sin(t * 1.2)) * 0.8 : 0); mini.rotation.y += dt * 2; };
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 2.6, 20, 1, false, 0, Math.PI), M.white); shell.rotation.z = Math.PI / 2; shell.rotation.y = Math.PI / 2; shell.position.y = 0.05;
+    const door = new THREE.Mesh(new THREE.CircleGeometry(1.3, 20, 0, Math.PI), M.dark); door.position.set(0, 0.05, 1.31);
+    const doorRim = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.04, 6, 24, Math.PI), STRIP); doorRim.position.set(0, 0.05, 1.32);
+    const ribs = new THREE.Group();
+    for (const z of [-0.8, 0, 0.8]) { const r = new THREE.Mesh(new THREE.TorusGeometry(1.42, 0.05, 6, 20, Math.PI), z === 0 ? acc : M.grey); r.position.z = z; ribs.add(r); }
+    ribs.position.y = 0.05;
+    const pad = cyl(0.6, 0.6, 0.05, 16, M.dark, 0, 1.45, 0);
+    const padRing = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.025, 4, 20), STRIP); padRing.rotation.x = Math.PI / 2; padRing.position.y = 1.48;
+    // little drone: body + four glowing rotors
+    const mini = new THREE.Group();
+    mini.add(box(0.3, 0.1, 0.3, M.white, 0, 0, 0));
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.78; const r = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 4, 12), STRIP); r.rotation.x = Math.PI / 2; r.position.set(Math.cos(a) * 0.24, 0.02, Math.sin(a) * 0.24); mini.add(r); }
+    mini.position.y = 1.65;
+    g.add(shell, door, doorRim, ribs, pad, padRing, mini);
+    anim.update = (dt, t, on) => { mini.position.y = 1.65 + (on ? (1 - Math.cos(t * 0.9)) * 0.4 : 0); mini.rotation.y += dt * 0.8; };
   } else if (type === 'beacon') {
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.3, 4, 8), M.white); mast.position.y = 2;
-    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), new THREE.MeshStandardMaterial({ color: 0xffb347, side: THREE.DoubleSide, metalness: 0.4, roughness: 0.3 }));
-    dish.position.y = 4.1; dish.rotation.x = -0.9;
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), M.glow); orb.position.y = 4.4;
-    g.add(mast, dish, orb);
-    anim.update = (dt, t, on) => { dish.rotation.z += dt * (on ? 1.2 : 0.2); orb.scale.setScalar(0.85 + Math.sin(t * 1.2) * 0.15); };
+    const foot = cyl(0.5, 0.6, 0.3, 8, M.dark, 0, 0.15, 0);
+    const mast = cyl(0.1, 0.22, 3.8, 10, M.white, 0, 2.1, 0);
+    const bands = new THREE.Group();
+    for (const y of [1.2, 2.4]) bands.add(cyl(0.2, 0.2, 0.1, 10, acc, 0, y, 0));
+    const strip = box(0.03, 2.8, 0.03, STRIP, 0, 2.0, 0.17);
+    const head = new THREE.Group(); head.position.y = 4.1;
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.8, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), new THREE.MeshStandardMaterial({ color: 0xeef1f5, side: THREE.DoubleSide, metalness: 0.4, roughness: 0.3 }));
+    dish.rotation.x = -0.9;
+    const feed = cyl(0.02, 0.02, 0.7, 6, M.grey, 0, 0.25, 0.25); feed.rotation.x = -0.9;
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), STRIP); orb.position.set(0, 0.5, 0.5);
+    head.add(dish, feed, orb);
+    g.add(foot, mast, bands, strip, head);
+    anim.update = (dt, t, on) => { head.rotation.y += dt * (on ? 0.5 : 0.1); };
   }
   g.scale.setScalar(s);
-  g.traverse((o) => { if (o.isMesh && !(o.material && o.material.transparent)) o.castShadow = true; });
+  g.traverse((o) => { if (o.isMesh && !(o.material && o.material.transparent) && o.material !== STRIP) o.castShadow = true; });
   g.userData.anim = anim;
   return g;
 }
@@ -161,18 +247,21 @@ export class BaseView {
       padMesh.position.y = 0.06; padMesh.receiveShadow = true;
       const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.04, 4, 6), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
       ring.rotation.x = Math.PI / 2; ring.position.y = 0.14;
-      const hz = hazardTexture().clone(); hz.needsUpdate = true; hz.repeat.set(12, 1);
-      const hazard = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.1, 0.1, 6, 1, true), new THREE.MeshStandardMaterial({ map: hz, roughness: 0.7 }));
-      hazard.position.y = 0.05;
-      site.add(padMesh, ring, hazard);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.1, 0.1, 6, 1, true), M.white);
+      rim.position.y = 0.05;
+      // landing-pad marker lights at the corners instead of hazard stripes
+      const dots = new THREE.Group();
+      for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; const d = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 8), STRIP); d.position.set(Math.cos(a) * 1.7, 0.135, Math.sin(a) * 1.7); dots.add(d); }
+      site.add(padMesh, ring, rim, dots);
       this.group.add(site);
       this.sites.push({ site, ring, building: null, key: '' });
     }
     // conveyor ring around the heap
     const c = document.createElement('canvas'); c.width = 64; c.height = 16;
-    const g2 = c.getContext('2d'); g2.fillStyle = '#2c2f35'; g2.fillRect(0, 0, 64, 16);
-    g2.fillStyle = '#4a505c'; for (let x = 0; x < 64; x += 8) g2.fillRect(x, 0, 3, 16);
-    g2.fillStyle = '#ffb347'; g2.fillRect(0, 0, 64, 2); g2.fillRect(0, 14, 64, 2);
+    const g2 = c.getContext('2d'); g2.fillStyle = '#262a31'; g2.fillRect(0, 0, 64, 16);
+    g2.fillStyle = '#353b45'; for (let x = 0; x < 64; x += 16) g2.fillRect(x, 3, 1, 10);
+    g2.fillStyle = '#9fe8ff'; g2.fillRect(0, 7, 64, 2);
+    g2.fillStyle = '#d9dee6'; g2.fillRect(0, 0, 64, 2); g2.fillRect(0, 14, 64, 2);
     this.beltTex = new THREE.CanvasTexture(c);
     this.beltTex.wrapS = this.beltTex.wrapT = THREE.RepeatWrapping;
     this.beltTex.repeat.set(60, 1);
@@ -183,14 +272,14 @@ export class BaseView {
     for (let k = 0; k < uv.count; k++) {
       const x = pos.getX(k), y = pos.getY(k);
       const r = Math.hypot(x, y);
-      uv.setXY(k, (Math.atan2(y, x) / (Math.PI * 2) + 0.5), (r - 17.6) / 0.8);
+      uv.setXY(k, (k % 129) / 128, (r - 17.6) / 0.8);   // index-based u: no seam where the ring closes
     }
     belt.receiveShadow = true;
     belt.visible = false;
     this.belt = belt;
     this.group.add(belt);
     // items travelling on the belt
-    this.items = new THREE.InstancedMesh(new THREE.BoxGeometry(0.28, 0.2, 0.28), new THREE.MeshStandardMaterial({ color: 0x9a8a7a, roughness: 0.7, metalness: 0.3 }), 48);
+    this.items = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.11, 0.22, 4, 10).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xeef1f5, roughness: 0.4, metalness: 0.4 }), 48);
     this.items.visible = false;
     this.group.add(this.items);
     this.tmp = new THREE.Matrix4();
@@ -231,7 +320,7 @@ export class BaseView {
     for (let k = 0; k < 48; k++) {
       const a = ((k / 48) + this.flow) * Math.PI * 2;
       const show = flowRate > 0 && (k % (flowRate > 500 ? 1 : flowRate > 100 ? 2 : 4) === 0);
-      this.tmp.makeRotationY(-a + k).setPosition(Math.cos(a) * 18, show ? 0.15 : -5, Math.sin(a) * 18);
+      this.tmp.makeRotationY(-a - Math.PI / 2).setPosition(Math.cos(a) * 18, show ? 0.3 : -5, Math.sin(a) * 18);
       this.items.setMatrixAt(k, this.tmp);
     }
     this.items.instanceMatrix.needsUpdate = true;
