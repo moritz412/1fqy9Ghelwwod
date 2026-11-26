@@ -127,7 +127,7 @@ const events = new Events(scene, {
     setDeckAudio();
     say({ eruption: 'Eruption! Die glühenden Brocken sind voller Platin! 🌋', resonance: 'Hörst du das? Die Kristalle zeigen uns den Kern! 💎', meteor: 'Achtung, Meteoriten! Die sind voller Schätze! ☄️', luck: 'Ich spüre eine Glückswelle! Schnell greifen! ✨', storm: 'Schneesturm! Ich sehe kaum was – aber hier glitzert es! 🌨️', gold: 'GOLDRAUSCH! Jetzt zählt jeder Griff doppelt! 💰', swarm: 'Aliens! Fahr hin und schnapp sie dir! 👽' }[type], 4);
   },
-  onEnd(type) { $('event').classList.add('hidden'); if (type === 'storm') env.setStorm(false); setMusicIntensity(0); setDeckAudio(); },
+  onEnd(type) { $('event').classList.add('hidden'); if (type === 'storm') env.setStorm(false); setMusicIntensity(boss.active ? 1 : 0); setDeckAudio(); },
 });
 
 // ================================================================ debris
