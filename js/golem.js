@@ -463,7 +463,7 @@ export class Sentinel {
   spawn(pile, hp) {
     this.remove();
     const g = new THREE.Group();
-    const chrome = new THREE.MeshStandardMaterial({ color: 0x7a8090, metalness: 0.85, roughness: 0.28 });
+    const chrome = new THREE.MeshStandardMaterial({ color: 0x9aa2b2, metalness: 0.45, roughness: 0.32, emissive: 0x181a22 });
     const hull = texMat('hull', 0xdfe3ea, { metalness: 0.4 });
     const glow = new THREE.MeshBasicMaterial({ color: 0xb48cff });
     const body = new THREE.Group(); g.add(body); this.body = body;
@@ -476,6 +476,17 @@ export class Sentinel {
     for (let k = 0; k < 4; k++) { const sm = new THREE.Mesh(new THREE.TorusGeometry(1.005, 0.02, 4, 40), seamM); sm.rotation.y = (k / 4) * Math.PI; body.add(sm); }
     const eyeRing = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 8, 24), glow); eyeRing.rotation.x = Math.PI / 2; eyeRing.position.y = -0.92; body.add(eyeRing);
     const eye = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), new THREE.MeshBasicMaterial({ color: 0xe8dcff })); eye.rotation.x = Math.PI / 2; eye.position.y = -0.97; body.add(eye);
+    // hover thrusters around the underside, sensor windows on the band
+    const nozM = new THREE.MeshStandardMaterial({ color: 0x2a2e36, metalness: 0.7, roughness: 0.35 });
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + 0.26;
+      const n = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.22, 10), nozM); n.position.set(Math.cos(a) * 0.62, -0.72, Math.sin(a) * 0.62); n.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); body.add(n);
+      const f = new THREE.Mesh(new THREE.CircleGeometry(0.09, 10), glow); f.position.set(Math.cos(a) * 0.68, -0.84, Math.sin(a) * 0.68); f.rotation.x = Math.PI / 2; body.add(f);
+    }
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.02), new THREE.MeshBasicMaterial({ color: 0xe8dcff })); w.position.set(Math.cos(a) * 1.13, 0, Math.sin(a) * 1.13); w.lookAt(0, 0, 0); body.add(w);
+    }
     // top antenna crown
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2;
@@ -619,10 +630,17 @@ export class Hydra {
       // neck: stacked plated rings
       const neck = new THREE.Group(); root.add(neck);
       const N = 7;
+      const cableM = new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.6 });
       for (let s = 0; s < N; s++) {
         const rad = 0.55 - s * 0.04;
         const seg = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.92, rad, 0.5, 10), s % 2 ? plate : plate2);
         seg.position.y = s * 0.48; seg.castShadow = true; neck.add(seg);
+        // back spine plate, side cables and bolts
+        const spine = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.36, 0.12), plate2); spine.position.set(0, s * 0.48, -rad * 0.98); spine.rotation.x = 0.2; neck.add(spine);
+        for (const sx of [-1, 1]) {
+          const cb = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.5, 6), cableM); cb.position.set(sx * rad * 0.95, s * 0.48, rad * 0.25); neck.add(cb);
+          const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), plate2); bolt.position.set(sx * rad * 0.6, s * 0.48 + 0.2, rad * 0.75); neck.add(bolt);
+        }
       }
       // head: wedge skull with jaw and a glowing visor
       const head = new THREE.Group(); head.position.y = N * 0.48 + 0.2; neck.add(head);
