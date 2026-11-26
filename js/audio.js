@@ -376,6 +376,27 @@ function ambienceTick() {
 }
 
 // ---------------------------------------------------------------- effects
+// orchestral stingers over the running score (only when music is on)
+export function bossFanfare() {
+  if (!ctx || !hall || !settings.music) return;
+  const t = ctx.currentTime + 0.05;
+  // ominous low brass call in D minor with a timpani roll underneath
+  const call = [[50, 0, 0.5], [57, 0.5, 0.5], [62, 1.0, 1.3], [58, 2.4, 0.4], [57, 2.8, 1.6]];
+  for (const [m, at, len] of call) { brass(midi(m), t + at, len, 0.052); brass(midi(m - 12), t + at, len, 0.038); }
+  for (let k = 0; k < 14; k++) timpHit(midi(38), t + k * 0.09, 0.02 + k * 0.004);
+  timpHit(midi(38), t + 1.3, 0.13);
+}
+export function victoryFanfare() {
+  if (!ctx || !hall || !settings.music) return;
+  const t = ctx.currentTime + 0.05;
+  // heroic "da-da-da daaa" in C major, rising to a held chord
+  const line = [[60, 0, 0.18], [60, 0.2, 0.18], [60, 0.4, 0.18], [67, 0.6, 0.9], [65, 1.55, 0.18], [64, 1.75, 0.18], [62, 1.95, 0.18], [72, 2.15, 1.8]];
+  for (const [m, at, len] of line) brass(midi(m), t + at, len, 0.058);
+  for (const m of [48, 55, 64]) brass(midi(m), t + 2.15, 1.8, 0.034);
+  strings([60, 64, 67], t + 2.1, 2.4);
+  timpHit(midi(36), t + 0.6, 0.12); timpHit(midi(43), t + 2.15, 0.14);
+}
+
 export const sfx = {
   grab(size) {
     noise(0.1 + size * 0.05, 1900 - size * 250, 0.35 + size * 0.06, 'bandpass');

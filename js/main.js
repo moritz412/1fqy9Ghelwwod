@@ -15,7 +15,7 @@ import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
 import { Pile, PileView } from './pile.js';
 import { NexusBot } from './bot.js';
 import { buildEnvironment } from './scene.js';
-import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings, setMusicTheme, pauseAudio, setMusicIntensity, setAmbience } from './audio.js';
+import { initAudio, sfx, vibrate, setEngine, setSfx, setMusic, settings, setMusicTheme, pauseAudio, setMusicIntensity, setAmbience, bossFanfare, victoryFanfare } from './audio.js';
 
 // ================================================================ save state
 const SAVE_KEY = 'nexus-schrottberg.v1';
@@ -812,7 +812,7 @@ function golemDefeated() {
   S.vault.platinum = (S.vault.platinum || 0) + 3;
   S.vault.artifact = (S.vault.artifact || 0) + 1;
   addXp(150);
-  sfx.core(); vibrate([60, 40, 100]); shake = 0.8;
+  sfx.core(); victoryFanfare(); vibrate([60, 40, 100]); shake = 0.8;
   bot.setMood('love', 4);
   say(`Geschafft! ${boss.name} ist zerlegt. Was für ein Haufen Beute!`, 4);
   achvQueue.push({ kicker: 'Deck-Stern', name: `${boss.name} zerlegt!`, desc: `+${fmt(cr)} ⬡ · +${60 + (S.deck || 0) * 20} t Metall · 3 Platin · 1 Alien-Artefakt (ins Lager)`, reward: 0 });
@@ -1348,6 +1348,7 @@ function checkMilestones() {
     boss.spawn(pile, 25 + (S.deck || 0) * 10);
     bossCam = BOSS_CAM;
     setMusicIntensity(1);
+    bossFanfare();
     sfx.meteor(0.8); shake = 0.6;
     say([
       'Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!',
