@@ -15,6 +15,12 @@ export class Capsules {
     this.bodyMat = new THREE.MeshStandardMaterial({ color: 0xffb347, metalness: 0.4, roughness: 0.35, emissive: 0x6a3000, emissiveIntensity: 0.4 });
     this.capMat = new THREE.MeshStandardMaterial({ color: 0xf3f4f2, metalness: 0.3, roughness: 0.4 });
     this.bandMat = new THREE.MeshBasicMaterial({ color: 0x6ff3f0 });
+    this.darkMat = new THREE.MeshStandardMaterial({ color: 0x2c2f35, metalness: 0.6, roughness: 0.4 });
+    this.ringGeo = new THREE.TorusGeometry(0.285, 0.025, 6, 20).rotateY(Math.PI / 2);
+    this.finGeo = new THREE.BoxGeometry(0.18, 0.02, 0.14);
+    this.nozGeo = new THREE.CylinderGeometry(0.08, 0.13, 0.12, 12).rotateZ(Math.PI / 2);
+    this.handleGeo = new THREE.TorusGeometry(0.08, 0.015, 4, 10, Math.PI);
+    this.winGeo = new THREE.BoxGeometry(0.1, 0.06, 0.02);
     this.beamMat = new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   }
 
@@ -36,6 +42,12 @@ export class Capsules {
     beam.position.y = 4;
     b.castShadow = true;
     g.add(b, c1, c2, band, beam);
+    // detail: dark ribs, stabiliser fins and a nozzle at the tail, a carry handle and lit windows
+    for (const x of [-0.22, 0.22]) { const r = new THREE.Mesh(this.ringGeo, this.darkMat); r.position.x = x; g.add(r); }
+    for (let k = 0; k < 4; k++) { const f = new THREE.Mesh(this.finGeo, this.capMat); const a = k * Math.PI / 2; f.position.set(-0.46, Math.sin(a) * 0.2, Math.cos(a) * 0.2); f.rotation.x = a; g.add(f); }
+    const noz = new THREE.Mesh(this.nozGeo, this.darkMat); noz.position.x = -0.55; g.add(noz);
+    const hd = new THREE.Mesh(this.handleGeo, this.darkMat); hd.position.set(0, 0.28, 0); g.add(hd);
+    for (const x of [-0.1, 0.1]) { const w = new THREE.Mesh(this.winGeo, this.bandMat); w.position.set(x, 0.05, 0.28); g.add(w); }
     g.userData = { x, z, phase: Math.random() * 6, age: 0 };
     g.rotation.y = Math.random() * Math.PI;
     this.scene.add(g);
