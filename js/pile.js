@@ -342,6 +342,13 @@ export class PileView {
       { geo: beam,   mat: texMat('metal', 0xffffff, { roughness: 0.55, metalness: 0.75 }), n: 130, s: [0.22, 0.42], cols: [[0.7, 0.45, 0.3], [0.55, 0.57, 0.6]] },
       { geo: panel,  mat: texMat('hull', 0xffffff, { roughness: 0.55, metalness: 0.35 }), n: 150, s: [0.3, 0.62], cols: [[0.8, 0.82, 0.85], [0.5, 0.55, 0.6], [0.75, 0.6, 0.3]] },
     ];
+    // deck flavour: extra glowing pieces on the special decks
+    const sp = this.theme.special;
+    if (sp === 'eruption') kinds.push({ geo: new THREE.DodecahedronGeometry(0.8, 0), mat: new THREE.MeshStandardMaterial({ color: 0x2a0d06, emissive: 0xff4a12, emissiveIntensity: 0.9, roughness: 0.8, flatShading: true }), n: 120, s: [0.2, 0.42], cols: [[1, 0.9, 0.8], [1, 0.7, 0.6]] });
+    if (sp === 'resonance') { const cg = new THREE.OctahedronGeometry(0.7, 0); cg.scale(0.6, 1.6, 0.6); kinds.push({ geo: cg, mat: new THREE.MeshStandardMaterial({ color: 0xb79cff, emissive: 0x6a3cff, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.85 }), n: 140, s: [0.25, 0.55], cols: [[1, 1, 1], [0.7, 0.9, 1], [1, 0.75, 1]] }); }
+    if (sp === 'storm') { const ig = new THREE.IcosahedronGeometry(0.8, 0); ig.scale(1, 0.55, 1); kinds.push({ geo: ig, mat: new THREE.MeshStandardMaterial({ color: 0xdff2ff, roughness: 0.2, metalness: 0, flatShading: true, transparent: true, opacity: 0.9 }), n: 120, s: [0.25, 0.5], cols: [[1, 1, 1], [0.85, 0.95, 1]] }); }
+    if (sp === 'swarm') { const eg = new THREE.SphereGeometry(0.55, 12, 10); eg.scale(1, 1.3, 1); kinds.push({ geo: eg, mat: new THREE.MeshStandardMaterial({ color: 0x86ff9e, emissive: 0x2a9a40, emissiveIntensity: 0.5, roughness: 0.3, transparent: true, opacity: 0.9 }), n: 90, s: [0.2, 0.38], cols: [[1, 1, 1], [0.8, 0.6, 1]] }); }
+    if (sp === 'gold') { const ing = new THREE.CylinderGeometry(0.55, 0.75, 0.45, 4, 1); ing.rotateY(Math.PI / 4); ing.scale(1.6, 1, 0.8); kinds.push({ geo: ing, mat: new THREE.MeshStandardMaterial({ color: 0xffc64a, metalness: 0.95, roughness: 0.25 }), n: 110, s: [0.18, 0.32], cols: [[1, 1, 1], [1, 0.9, 0.75]] }); }
     this.junk = []; this.junkByCell = new Map();
     const col = new THREE.Color();
     this.junkMeshes = kinds.map((kd, type) => {
