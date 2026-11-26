@@ -80,6 +80,17 @@ function hullBlock(w, h, d, type) {
   g.add(box(w * 0.6, 0.05, 0.02, STRIP, 0, h * 0.3, d / 2 + 0.01));
   g.add(box(0.02, 0.05, d * 0.6, STRIP, w / 2 + 0.01, h * 0.3, 0));
   g.add(box(w + 0.06, 0.08, d + 0.06, M.dark, 0, 0.04, 0));
+  // roof clutter: a vent unit with slats, a small antenna and a service hatch
+  g.add(box(w * 0.28, 0.16, d * 0.25, M.grey, -w * 0.28, h + 0.08, d * 0.22));
+  for (let k = 0; k < 3; k++) g.add(box(w * 0.26, 0.02, 0.03, M.dark, -w * 0.28, h + 0.17, d * 0.22 - 0.08 + k * 0.08));
+  g.add(cyl(0.02, 0.025, 0.5, 6, M.grey, w * 0.36, h + 0.25, -d * 0.3));
+  g.add(box(w * 0.22, 0.03, d * 0.2, M.dark, w * 0.15, h + 0.015, -d * 0.05));
+  // side conduit with brackets
+  const pipe = cyl(0.05, 0.05, h * 0.7, 8, M.grey, -w / 2 - 0.06, h * 0.45, -d * 0.3); g.add(pipe);
+  for (const y of [h * 0.2, h * 0.7]) g.add(box(0.1, 0.04, 0.1, M.dark, -w / 2 - 0.04, y, -d * 0.3));
+  // door on the back side
+  g.add(box(w * 0.26, h * 0.5, 0.03, M.dark, w * 0.2, h * 0.27, -d / 2 - 0.01));
+  g.add(box(w * 0.2, 0.04, 0.02, STRIP, w * 0.2, h * 0.55, -d / 2 - 0.02));
   g.userData.static = true;
   return g;
 }
@@ -141,6 +152,10 @@ function model(type, lvl) {
       legs.add(l, foot);
     }
     const valve = cyl(0.12, 0.12, 0.3, 10, M.dark, 0, 4.2, 0);
+    const ladder = new THREE.Group(); ladder.userData.static = true;
+    for (const sx of [-0.14, 0.14]) ladder.add(box(0.03, 3.2, 0.03, M.grey, sx, 2.0, -1.03));
+    for (let k = 0; k < 11; k++) ladder.add(box(0.28, 0.025, 0.025, M.grey, 0, 0.6 + k * 0.29, -1.03));
+    g.add(ladder);
     const gauge = box(0.2, 2.6, 0.05, M.dark, 0, 2.15, 0.97);
     const fill = box(0.14, 1, 0.06, STRIP, 0, 0.85, 0.99);
     g.add(tank, bands, legs, valve, gauge, fill);
