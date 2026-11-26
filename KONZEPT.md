@@ -204,7 +204,7 @@ Module haben bis zu 3 Stufen; seltene Module brauchen zusätzlich seltene Funde 
 | 1.2 ✅  | Nexus Prime (modulare eigene Raumstation, Ränge, Meta-Boni), Detail-Texturen (Panele, Nieten, Warnstreifen) |
 | 1.3 ✅  | Nexus-Evolution Mk I–V, Händler und Expeditionen, Schrottgolem (Boss), Deck-Regeln für Endlos-Decks (Schwerkraft, Notbeleuchtung, Schnellschicht, Golem-Nest), Deck-Abschluss „blitzblank“, ruhiges UI mit Linien-Icons |
 | 1.4 ✅  | Schrottwurm (2. Boss), Großschrott auf dem Haufen (Zahnräder, Fässer, Reifen, Träger) plus deck-eigene Teile (Goldbarren, Schlacke, Kristalle, Eis, Alien-Eier), Bot-Rückseite, Deck-Textur, gestaffelte Stationskosten |
-| 1.5 ✅  | Schrott-Krake und Wächter-Sonde (3. und 4. Boss), Orchester-Musik, priorisierte Ziel-Liste, alles im Space-Look (Portalkran mit Traktorstrahl, Frachtkapseln, Stationsmodule, Magnetschiene, Frachter) |
+| 1.5 ✅  | Schrott-Krake, Wächter-Sonde und Schrott-Hydra (3. bis 5. Boss), Schockwellen beim Boss-Sieg, Himmel je Deck, Orchester-Musik, priorisierte Ziel-Liste, alles im Space-Look (Portalkran mit Traktorstrahl, Frachtkapseln, Stationsmodule, Magnetschiene, Frachter) |
 | 1.6     | Online-Bestenliste, weitere Bosse, mehr Grafikdetails |
 | 0.5     | PC-Assets (Modelle, Texturen), Sound, Modi Pur und Schnellkrater        |
 | 0.6     | Koop-Versuch                                                            |

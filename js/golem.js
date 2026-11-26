@@ -537,3 +537,118 @@ export class Sentinel {
     this.falling = null;
   }
 }
+
+// ------------------------------------------------------------------ Schrott-Hydra: three heads take turns rising out of the heap.
+export class Hydra {
+  constructor(scene) {
+    this.scene = scene;
+    this.g = null;
+    this.active = false;
+    this.falling = null;
+    this.name = 'Schrott-Hydra';
+  }
+
+  spawn(pile, hp) {
+    this.remove();
+    const g = new THREE.Group();
+    const plate = texMat('metal', 0xa8b4a2, { roughness: 0.45 });
+    const plate2 = texMat('metal', 0x6e7a6a, { roughness: 0.5 });
+    const visorM = new THREE.MeshBasicMaterial({ color: 0x7cff9a });
+    this.heads = [];
+    const per = Math.max(6, Math.round(hp / 4) + 3);
+    const off = Math.random() * Math.PI * 2;
+    for (let k = 0; k < 3; k++) {
+      const a = off + (k / 3) * Math.PI * 2;
+      const r = 5.5 + Math.random() * 2;
+      const root = new THREE.Group(); root.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+      root.rotation.y = Math.PI / 2 - a;        // face and lean outwards
+      g.add(root);
+      // neck: stacked plated rings
+      const neck = new THREE.Group(); root.add(neck);
+      const N = 7;
+      for (let s = 0; s < N; s++) {
+        const rad = 0.55 - s * 0.04;
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.92, rad, 0.5, 10), s % 2 ? plate : plate2);
+        seg.position.y = s * 0.48; seg.castShadow = true; neck.add(seg);
+      }
+      // head: wedge skull with jaw and a glowing visor
+      const head = new THREE.Group(); head.position.y = N * 0.48 + 0.2; neck.add(head);
+      const skull = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 1.4), plate); skull.position.z = 0.25; skull.castShadow = true;
+      const snout = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 0.7), plate2); snout.position.set(0, -0.05, 1.15);
+      const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.18, 1.2), plate2); jaw.position.set(0, -0.42, 0.55);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.5), visorM); visor.position.set(0, 0.12, 0.75);
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.9), plate2); fin.position.set(0, 0.45, 0.0);
+      head.add(skull, snout, jaw, visor, fin);
+      this.heads.push({ root, neck, head, jaw, hp: per, max: per, up: 0, ph: Math.random() * 6 });
+    }
+    this.maxHp = per * 3; this.hp = this.maxHp;
+    this.g = g;
+    this.t = 0; this.turn = 0; this.turnT = 0;
+    this.falling = null; this.flinch = 0;
+    this.scene.add(g);
+    this.active = true;
+    this.update(0, 0, pile);
+  }
+
+  get cur() { return this.heads[this.turn]; }
+  get exposed() { return this.active && this.falling === null && this.cur && this.cur.up > 0.8; }
+  get reach() { return 3.4; }
+
+  targetNear() {
+    const h = this.cur;
+    return h ? h.head.getWorldPosition(new THREE.Vector3()) : null;
+  }
+
+  hit(dust) {
+    if (!this.exposed) return false;
+    const h = this.cur;
+    h.hp--; this.hp = Math.max(0, this.hp - 1);
+    this.flinch = 0.3;
+    if (dust) dust(h.head.getWorldPosition(new THREE.Vector3()));
+    h.head.scale.setScalar(0.6 + 0.4 * h.hp / h.max);
+    if (h.hp <= 0) this.turnT = 99;              // this head is done - next one rises
+    if (this.hp <= 0) { this.falling = 0; return true; }
+    return false;
+  }
+
+  update(dt, t, pile) {
+    if (!this.g) return;
+    this.t += dt;
+    if (this.falling !== null) {
+      this.falling += dt;
+      for (const h of this.heads) { h.root.position.y -= dt * 3; h.root.scale.setScalar(Math.max(0.01, 1 - this.falling / 1.8)); }
+      if (this.falling > 1.8) this.remove();
+      return;
+    }
+    // a head stays up 7 s, then the next living head takes over
+    this.turnT += dt;
+    if (this.turnT > 7 || this.cur.hp <= 0) {
+      const alive = this.heads.map((h, i) => (h.hp > 0 ? i : -1)).filter((i) => i >= 0);
+      if (alive.length) {
+        const next = alive.find((i) => i > this.turn);
+        this.turn = next !== undefined ? next : alive[0];
+      }
+      this.turnT = 0;
+    }
+    this.heads.forEach((h, i) => {
+      const want = i === this.turn && h.hp > 0 ? 1 : 0;
+      h.up += (want - h.up) * Math.min(1, dt * 1.6);
+      const ground = Math.max(0, pile.heightAt(h.root.position.x, h.root.position.z));
+      h.root.position.y = ground - 3.9 + h.up * 3.6;
+      h.neck.rotation.x = 0.25 + Math.sin(this.t * 0.7 + h.ph) * 0.08;
+      h.neck.rotation.z = Math.sin(this.t * 0.5 + h.ph) * 0.1;
+      h.head.rotation.x = -0.35 + Math.sin(this.t * 0.9 + h.ph) * 0.06;
+      h.jaw.rotation.x = Math.max(0, Math.sin(this.t * 1.3 + h.ph)) * 0.25;
+    });
+    if (this.flinch > 0) { this.flinch -= dt; this.cur.root.position.x += Math.sin(t * 60) * 0.04; }
+  }
+
+  get position() { return this.g ? this.targetNear() : null; }
+
+  remove() {
+    if (this.g) this.scene.remove(this.g);
+    this.g = null;
+    this.active = false;
+    this.falling = null;
+  }
+}

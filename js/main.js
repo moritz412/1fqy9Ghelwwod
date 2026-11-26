@@ -4,7 +4,7 @@ import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
 import { startIconObserver } from './icons.js';
-import { Golem, Worm, Kraken, Sentinel } from './golem.js';
+import { Golem, Worm, Kraken, Sentinel, Hydra } from './golem.js';
 import { StationView, MODULES_ST, RANKS, stationRank, moduleCost, stationBonus, freeCells, STATION_POS, TONS_PER_PART, EXPEDITIONS, expSlots, makeTraderDeals } from './station.js';
 import { BaseView, BUILDINGS, baseStats, buildCost, SITE_COSTS, SITE_ANGLES, MAX_BLD_LEVEL, BUILD_UNLOCK_LEVEL, sitePos, bldValue } from './buildings.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
@@ -103,6 +103,7 @@ const golem = new Golem(scene);
 const worm = new Worm(scene);
 const kraken = new Kraken(scene);
 const sentinel = new Sentinel(scene);
+const hydra = new Hydra(scene);
 let boss = golem;
 const dust = new Dust(scene);
 let shake = 0;
@@ -646,7 +647,7 @@ function goalList() {
   const out = [];
   const n = S.deck || 0;
   // boss fight
-  if (boss.active && boss.falling === null) out.push({ prio: 0, icon: '💥', name: `${boss.name} zerlegen`, prog: 1 - boss.hp / boss.maxHp, sub: boss === sentinel && !boss.exposed ? 'Warte, bis sie zum Scannen herabsinkt' : boss.platesLeft ? `Erst die Schilde: noch ${boss.platesLeft}` : boss.armsLeft ? `Erst die Arme: noch ${boss.armsLeft} Glieder` : 'Fahr hin und greif zu' });
+  if (boss.active && boss.falling === null) out.push({ prio: 0, icon: '💥', name: `${boss.name} zerlegen`, prog: 1 - boss.hp / boss.maxHp, sub: boss === sentinel && !boss.exposed ? 'Warte, bis sie zum Scannen herabsinkt' : boss === hydra ? `Kopf packen · noch ${boss.heads.filter((h) => h.hp > 0).length} von 3` : boss.platesLeft ? `Erst die Schilde: noch ${boss.platesLeft}` : boss.armsLeft ? `Erst die Arme: noch ${boss.armsLeft} Glieder` : 'Fahr hin und greif zu' });
   // contracts ready to claim
   const cr = S.level >= UNLOCKS.contracts ? contractsReady() : 0;
   if (cr) out.push({ prio: 1, icon: '📋', name: `${cr} Auftrag${cr > 1 ? 'e' : ''} erfüllt`, prog: 1, sub: 'Im Archiv abholen', ready: true });
@@ -803,7 +804,7 @@ function golemDefeated() {
   }
   S.golemN = (S.golemN || 0) + 1;
   S.stats.golems = (S.stats.golems || 0) + 1;
-  const bk = boss === worm ? 'worm' : boss === kraken ? 'kraken' : boss === sentinel ? 'sentinel' : 'golem';
+  const bk = boss === worm ? 'worm' : boss === kraken ? 'kraken' : boss === sentinel ? 'sentinel' : boss === hydra ? 'hydra' : 'golem';
   S.stats.bossKinds = { ...(S.stats.bossKinds || {}), [bk]: ((S.stats.bossKinds || {})[bk] || 0) + 1 };
   const cr = Math.round(2500 * ((S.deck || 0) + 1) * deckValueMult(S.deck || 0));
   S.credits += cr; S.stats.earned += cr;
@@ -1342,8 +1343,8 @@ function checkMilestones() {
   const gAt = twist('nest') ? [25, 75] : [50];
   if (S.golemDone && !S.golemN) S.golemN = 1;
   if (!boss.active && (S.golemN || 0) < gAt.length && pct >= gAt[S.golemN || 0]) {
-    const kind = twist('nest') ? ((S.golemN || 0) === 1 ? 1 : 0) : (S.deck || 0) % 4;
-    boss = [golem, worm, kraken, sentinel][kind];
+    const kind = twist('nest') ? ((S.golemN || 0) === 1 ? 1 : 0) : (S.deck || 0) % 5;
+    boss = [golem, worm, kraken, sentinel, hydra][kind];
     boss.spawn(pile, 25 + (S.deck || 0) * 10);
     bossCam = BOSS_CAM;
     setMusicIntensity(1);
@@ -1353,6 +1354,7 @@ function checkMilestones() {
       'Der Haufen bewegt sich … ein Schrottwurm! Pack ihn, wenn er auftaucht!',
       'Oben auf dem Gipfel: eine Schrott-Krake! Erst die Arme abmontieren, dann den Kopf.',
       'Eine Wächter-Sonde! Wenn sie zum Scannen runterkommt: erst die Schilde, dann den Kern packen.',
+      'Eine Schrott-Hydra mit drei Köpfen! Immer nur einer schaut raus – fahr hin und pack ihn!',
     ][kind], 5);
     $('golem-name').textContent = boss.name;
     $('golem-bar').classList.remove('hidden');
@@ -2007,7 +2009,7 @@ function setupWorld(state) {
   if (pileView) pileView.dispose(scene);
   capsules.clear();
   events.clear();
-  golem.remove(); worm.remove(); kraken.remove(); sentinel.remove(); boss = golem;
+  golem.remove(); worm.remove(); kraken.remove(); sentinel.remove(); hydra.remove(); boss = golem;
   $('golem-bar').classList.add('hidden');
   $('event').classList.add('hidden');
   env.setStorm(false);
@@ -2928,4 +2930,4 @@ $('splash').addEventListener('click', () => {
 });
 
 // test hook
-window.__nx = { golem, worm, kraken, sentinel, get boss() { return boss; }, playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { golem, worm, kraken, sentinel, hydra, get boss() { return boss; }, playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
