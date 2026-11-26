@@ -114,7 +114,7 @@ export class NexusBot {
     const holeGeo = new THREE.CircleGeometry(0.014, 10);
     for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) {
       const h = new THREE.Mesh(holeGeo, dark);
-      h.position.set(-0.08 + c * 0.04, 0.23 - r * 0.045, 0.201);
+      h.position.set(-0.08 + c * 0.04, 0.23 - r * 0.045, 0.2075);   // in front of the chest panel
       torso.add(h);
     }
 
@@ -228,6 +228,59 @@ export class NexusBot {
     }
     const hook = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 12), grey);
     hook.position.set(0, 0.14, -0.27); hook.rotation.x = Math.PI / 2; up.add(hook);
+
+    // ---- extra detail pass
+    // tracks: rubber cleats that scroll while driving, sprocket wheels and a road wheel on the outside
+    const cleatGeo = new THREE.BoxGeometry(0.13, 0.014, 0.028);
+    const cleatMat = new THREE.MeshStandardMaterial({ color: 0x3a3e45, roughness: 0.85 });
+    const sprGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.02, 14);
+    const hubGeo2 = new THREE.CylinderGeometry(0.03, 0.03, 0.03, 10);
+    this.treads = []; this.sprockets = [];
+    for (const tr of this.tracks) {
+      const sx = Math.sign(tr.position.x);
+      const tg = new THREE.Group(); tr.add(tg);
+      for (let k = 0; k < 10; k++) {
+        for (const y of [0.132, -0.132]) { const c = new THREE.Mesh(cleatGeo, cleatMat); c.position.set(0, y, -0.2 + k * 0.04); c.userData.y = y; tg.add(c); }
+      }
+      this.treads.push(tg);
+      for (const z of [-0.2, 0, 0.2]) {
+        const w = new THREE.Group(); w.position.set(sx * 0.085, z === 0 ? -0.04 : 0, z);
+        const disc = new THREE.Mesh(z === 0 ? new THREE.CylinderGeometry(0.055, 0.055, 0.02, 12) : sprGeo, z === 0 ? dark : grey); disc.rotation.z = Math.PI / 2;
+        const hub = new THREE.Mesh(hubGeo2, teal); hub.rotation.z = Math.PI / 2; hub.position.x = sx * 0.01;
+        const sp = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.1, 0.014), dark); sp.position.x = sx * 0.012;
+        w.add(disc, hub, sp); tr.add(w); this.sprockets.push(w);
+      }
+    }
+    // chest: recessed speaker panel, Nexus emblem and two calm status lights
+    const chest = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.13, 0.012, 2, 0.02), seamMat);
+    chest.position.set(0, 0.21, 0.197); torso.add(chest);
+    const chestIn = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.11, 0.012, 2, 0.018), white);
+    chestIn.position.set(0, 0.21, 0.2); torso.add(chestIn);
+    const emblem = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 6, 18), glow);
+    emblem.position.set(0.17, 0.28, 0.2); torso.add(emblem);
+    const emCore = new THREE.Mesh(new THREE.CircleGeometry(0.009, 10), glow); emCore.position.set(0.17, 0.28, 0.202); torso.add(emCore);
+    for (const [x, c] of [[-0.17, 0x7cff9a], [-0.13, 0xffd36a]]) {
+      const l = new THREE.Mesh(new THREE.CircleGeometry(0.01, 10), new THREE.MeshBasicMaterial({ color: c })); l.position.set(x, 0.28, 0.201); torso.add(l);
+    }
+    // shoulder pads, elbow rings and wrist cuffs
+    for (const a of this.arms) {
+      const pad = shadow(new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), white));
+      pad.position.set(a.side * 0.03, 0.015, 0); pad.scale.set(1, 0.7, 1); a.shoulder.add(pad);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.047, 0.012, 6, 16), grey); ring.rotation.x = Math.PI / 2; a.elbow.add(ring);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 14), teal); cuff.position.y = -0.135; a.elbow.add(cuff);
+    }
+    // ears: little speaker grilles
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const gr = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.012, 0.07), dark);
+      gr.position.set(sx * 0.371, 0.035 - k * 0.035, 0); head.add(gr);
+    }
+    // base: front bumper with a light strip and corner bolts
+    const bump = shadow(new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.06, 0.05, 2, 0.02), seamMat));
+    bump.position.set(0, 0.09, 0.255); up.add(bump);
+    for (const sx of [-1, 1]) {
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.01, 8), grey);
+      bolt.rotation.x = Math.PI / 2; bolt.position.set(sx * 0.22, 0.25, 0.251); up.add(bolt);
+    }
 
     // ---- upgrade attachments
     this.antenna = new THREE.Group();
@@ -527,6 +580,12 @@ export class NexusBot {
       }
     }
     for (const tr of this.tracks) tr.position.y = 0.13 + (moving ? Math.abs(Math.sin(t * 20)) * 0.006 : 0);
+    if (moving && this.treads) {
+      // cleats run backwards on top and forwards underneath; sprockets turn along
+      this.treadOff = ((this.treadOff || 0) + dt * 0.9) % 0.06;
+      for (const tg of this.treads) tg.children.forEach((c, i) => { const k = Math.floor(i / 2); const zz = (k * 0.06 + (c.userData.y > 0 ? -this.treadOff : this.treadOff) + 0.6) % 0.6; c.position.z = -0.2 + zz * 0.67; });
+      for (const w of this.sprockets) w.rotation.x -= dt * 12;
+    }
     // evolution animations (gentle)
     if (this.mk >= 4) this.jets.forEach((j, i) => { j.scale.y = (moving ? 1.3 : 0.6) + Math.sin(t * 3 + i) * 0.1; });
     if (this.mk >= 5) { this.halo.rotation.z += dt * 0.6; this.halo.position.y = 0.38 + Math.sin(t * 1.5) * 0.015; }
