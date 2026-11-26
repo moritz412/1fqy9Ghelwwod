@@ -210,7 +210,29 @@ export function buildEnvironment(scene, renderer) {
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
     );
     beam.position.y = 20;
-    g.add(pad, ring, terminal, screen, beam);
+    // console frame: side pylons with light strips, a roof visor and a base plinth
+    const stripM = new THREE.MeshBasicMaterial({ color });
+    const side = new THREE.Vector3(Math.cos(out), 0, -Math.sin(out));
+    for (const sgn of [-1, 1]) {
+      const py = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.7, 0.75), white);
+      py.position.set(tx + side.x * 1.0 * sgn, 1.35, tz + side.z * 1.0 * sgn); py.rotation.y = out; py.castShadow = true;
+      const ls = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.0, 0.04), stripM);
+      ls.position.set(tx + side.x * 1.0 * sgn - Math.sin(out) * 0.39, 1.35, tz + side.z * 1.0 * sgn - Math.cos(out) * 0.39); ls.rotation.y = out;
+      g.add(py, ls);
+    }
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.16, 1.1), white);
+    visor.position.set(tx - Math.sin(out) * 0.15, 2.72, tz - Math.cos(out) * 0.15); visor.rotation.y = out; visor.castShadow = true;
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.2, 1.0), dark);
+    plinth.position.set(tx, 0.1, tz); plinth.rotation.y = out;
+    // segmented inner ring of marker lights on the pad
+    const marks = new THREE.Group();
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const mk = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.03, 0.08), stripM);
+      mk.position.set(Math.cos(a) * (r - 0.75), 0.19, Math.sin(a) * (r - 0.75)); mk.rotation.y = -a + Math.PI / 2;
+      marks.add(mk);
+    }
+    g.add(pad, ring, terminal, screen, beam, visor, plinth, marks);
     if (extra) extra(g, out, r);
     g.position.set(pos.x, 0, pos.z);
     scene.add(g);
@@ -223,20 +245,34 @@ export function buildEnvironment(scene, renderer) {
   }
   const ablage = makeStation(WORLD.dock, 0x6ff3f0, 'NEXUS', 'ABLAGE', (g, out, r) => {
     // recycler funnel
-    const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.35, 1.1, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a909c, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide }));
-    funnel.position.set(-Math.sin(out + 0.9) * (r + 0.4), 1.6, -Math.cos(out + 0.9) * (r + 0.4));
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.1, 8), dark);
-    leg.position.set(funnel.position.x, 0.55, funnel.position.z);
-    g.add(funnel, leg);
+    // recycler intake: white housing with a glowing intake ring
+    const fx = -Math.sin(out + 0.9) * (r + 0.4), fz = -Math.cos(out + 0.9) * (r + 0.4);
+    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.9, 1.4, 20), white); housing.position.set(fx, 0.7, fz); housing.castShadow = true;
+    const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 20), dark); mouth.position.set(fx, 1.42, fz);
+    const intake = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.05, 6, 28), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 })); intake.rotation.x = Math.PI / 2; intake.position.set(fx, 1.44, fz);
+    const bandR = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.92, 0.14, 20), dark); bandR.position.set(fx, 0.35, fz);
+    g.add(housing, mouth, intake, bandR);
   });
   const shopSt = makeStation(WORLD.shop, 0xffb347, 'NEXUS', 'SHOP', (g, out, r) => {
     // workshop arch
-    const archMat = new THREE.MeshStandardMaterial({ color: 0xffb347, metalness: 0.3, roughness: 0.4 });
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(r + 0.1, 0.12, 8, 40, Math.PI), archMat);
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(r + 0.1, 0.16, 8, 48, Math.PI), white);
     arch.rotation.y = out + Math.PI / 2;
     arch.position.y = 0.1;
     arch.castShadow = true;
-    g.add(arch);
+    const archGlow = new THREE.Mesh(new THREE.TorusGeometry(r - 0.08, 0.035, 4, 48, Math.PI), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
+    archGlow.rotation.y = out + Math.PI / 2; archGlow.position.y = 0.1;
+    // tool rack beside the console
+    const rx = -Math.sin(out - 0.9) * (r + 0.3), rz = -Math.cos(out - 0.9) * (r + 0.3);
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.3), white); rack.position.set(rx, 0.75, rz); rack.rotation.y = out - 0.9; rack.castShadow = true;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 0.04), dark); back.position.set(rx - Math.sin(out - 0.9) * 0.17, 0.8, rz - Math.cos(out - 0.9) * 0.17); back.rotation.y = out - 0.9;
+    g.add(arch, archGlow, rack, back);
+    const toolM = new THREE.MeshStandardMaterial({ color: 0xc8ced8, metalness: 0.8, roughness: 0.3 });
+    for (let k = 0; k < 3; k++) {
+      const tool = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8), toolM);
+      const off = (k - 1) * 0.3;
+      tool.position.set(back.position.x + Math.cos(out - 0.9) * off - Math.sin(out - 0.9) * 0.06, 0.85, back.position.z - Math.sin(out - 0.9) * off - Math.cos(out - 0.9) * 0.06);
+      g.add(tool);
+    }
   });
 
   // ---- small outposts scattered around the deck edge (decor, some animated)
