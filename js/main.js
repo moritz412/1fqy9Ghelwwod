@@ -1343,7 +1343,7 @@ function checkMilestones() {
   const gAt = twist('nest') ? [25, 75] : [50];
   if (S.golemDone && !S.golemN) S.golemN = 1;
   if (!boss.active && (S.golemN || 0) < gAt.length && pct >= gAt[S.golemN || 0]) {
-    const kind = twist('nest') ? ((S.golemN || 0) === 1 ? 1 : 0) : (S.deck || 0) % 5;
+    const kind = ((S.deck || 0) + (twist('nest') ? (S.golemN || 0) * 2 : 0)) % 5;
     boss = [golem, worm, kraken, sentinel, hydra][kind];
     boss.spawn(pile, 25 + (S.deck || 0) * 10);
     bossCam = BOSS_CAM;

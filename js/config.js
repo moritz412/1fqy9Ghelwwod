@@ -193,7 +193,7 @@ export const TWISTS = [
   { id: 'heavy', name: 'Schwerkraft ×1,5', desc: 'Nexus fährt etwas langsamer, packt aber 50 % mehr Teile pro Griff.' },
   { id: 'dark',  name: 'Notbeleuchtung',   desc: 'Halbdunkel auf dem Deck, Nexus fährt mit Scheinwerfer – seltene Funde doppelt so oft.' },
   { id: 'rush',  name: 'Schnellschicht',   desc: 'Ereignisse und Frachtkapseln kommen doppelt so oft.' },
-  { id: 'nest',  name: 'Golem-Nest',       desc: 'Zwei Bosse tauchen auf – ein Golem bei 25 %, ein Wurm bei 75 %.' },
+  { id: 'nest',  name: 'Boss-Nest',        desc: 'Zwei verschiedene Bosse tauchen auf – bei 25 % und bei 75 %.' },
 ];
 export const deckTwist = (n) => (n < DECKS.length ? null : TWISTS[(n - DECKS.length) % TWISTS.length]);
 export const STAR_BONUS = { finds: 0.25, helpers: 0.1 };
