@@ -240,6 +240,21 @@ export class PileView {
       vertexColors: true, roughness: 0.92, metalness: 0.08, flatShading: true,
       map: detail, bumpMap: detail, bumpScale: 1.2,
     }));
+    // break up the texture tiling: a second, much larger sample of the same texture modulates
+    // brightness and adds a faint warm/cool drift, so the heap reads as layered scrap, not wallpaper
+    this.mesh.material.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `
+        #ifdef USE_MAP
+          vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+          vec2 uvM = mat2(0.8, -0.6, 0.6, 0.8) * vMapUv * 0.11 + vec2(0.31, 0.17);
+          float macro = texture2D( map, uvM ).r;
+          float macro2 = texture2D( map, vMapUv * 0.037 + vec2(0.7, 0.2) ).g;
+          sampledDiffuseColor.rgb *= mix(0.72, 1.18, macro) * mix(0.85, 1.1, macro2);
+          sampledDiffuseColor.rgb *= mix(vec3(1.04, 0.98, 0.92), vec3(0.94, 0.99, 1.06), macro2);
+          diffuseColor *= sampledDiffuseColor;
+        #endif
+      `);
+    };
     this.mesh.receiveShadow = true;
     this.mesh.castShadow = true;
     scene.add(this.mesh);
@@ -524,10 +539,11 @@ function scrapDetailTexture() {
   g.fillRect(0, 0, S, S);
   const wrap = (fn) => { for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) fn(dx, dy); };
   // blotches
-  for (let k = 0; k < 260; k++) {
-    const x = rnd() * S, y = rnd() * S, r = 2 + rnd() * 10, v = 150 + rnd() * 105;
-    g.fillStyle = `rgb(${v},${v},${v})`;
-    wrap((dx, dy) => { g.beginPath(); g.arc(x + dx, y + dy, r, 0, Math.PI * 2); g.fill(); });
+  for (let k = 0; k < 320; k++) {
+    // irregular soft-edged blotches (squashed, rotated ellipses) instead of round dots
+    const x = rnd() * S, y = rnd() * S, r = 2 + rnd() * 9, v = 178 + rnd() * 70, sq = 0.4 + rnd() * 0.6, a = rnd() * Math.PI;
+    g.fillStyle = `rgba(${v},${v},${v},0.75)`;
+    wrap((dx, dy) => { g.beginPath(); g.ellipse(x + dx, y + dy, r, r * sq, a, 0, Math.PI * 2); g.fill(); });
   }
   // little plates / chunks
   for (let k = 0; k < 120; k++) {
