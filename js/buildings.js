@@ -1,6 +1,7 @@
 // Base building: build sites around the heap, production chain (extract -> buffer -> sort), power grid.
 import * as THREE from 'three';
 import { texMat } from './textures.js';
+import { mergeStatic } from './merge.js';
 
 export const SITE_ANGLES = [15, 32, 72, 112, 135, 158, 202, 225, 248, 275, 300, 325, 345].map((d) => (d * Math.PI) / 180);
 export const SITE_R = 21;
@@ -79,6 +80,7 @@ function hullBlock(w, h, d, type) {
   g.add(box(w * 0.6, 0.05, 0.02, STRIP, 0, h * 0.3, d / 2 + 0.01));
   g.add(box(0.02, 0.05, d * 0.6, STRIP, w / 2 + 0.01, h * 0.3, 0));
   g.add(box(w + 0.06, 0.08, d + 0.06, M.dark, 0, 0.04, 0));
+  g.userData.static = true;
   return g;
 }
 // radiator fin panels (space stations dump heat through these)
@@ -129,9 +131,9 @@ function model(type, lvl) {
   } else if (type === 'silo') {
     // pressurised cargo tank on landing struts
     const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.95, 2.2, 8, 20), M.white); tank.position.y = 2.15;
-    const bands = new THREE.Group();
+    const bands = new THREE.Group(); bands.userData.static = true;
     for (const y of [1.25, 2.15, 3.05]) bands.add(cyl(0.97, 0.97, 0.12, 24, y === 2.15 ? acc : M.grey, 0, y, 0));
-    const legs = new THREE.Group();
+    const legs = new THREE.Group(); legs.userData.static = true;
     for (let k = 0; k < 4; k++) {
       const a = k * Math.PI / 2 + 0.78;
       const l = cyl(0.06, 0.08, 1.1, 6, M.grey, Math.cos(a) * 0.85, 0.5, Math.sin(a) * 0.85); l.rotation.z = Math.cos(a) * 0.25; l.rotation.x = -Math.sin(a) * 0.25;
@@ -150,7 +152,7 @@ function model(type, lvl) {
     core.position.y = 1.55;
     const cage = new THREE.Group(); cage.position.y = 1.55;
     for (let k = 0; k < 3; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 8, 32), k === 1 ? STRIP : M.white); r.rotation.set(Math.PI / 2 + k * 1.05, k * 0.6, 0); cage.add(r); }
-    const pylons = new THREE.Group();
+    const pylons = new THREE.Group(); pylons.userData.static = true;
     for (let k = 0; k < 4; k++) {
       const a = k * Math.PI / 2;
       pylons.add(box(0.22, 2.6, 0.22, M.white, Math.cos(a) * 1.25, 1.3, Math.sin(a) * 1.25));
@@ -226,6 +228,8 @@ function model(type, lvl) {
   }
   g.scale.setScalar(s);
   g.traverse((o) => { if (o.isMesh && !(o.material && o.material.transparent) && o.material !== STRIP) o.castShadow = true; });
+  const statics = []; g.traverse((o) => { if (o.userData.static) statics.push(o); });
+  statics.forEach(mergeStatic);
   g.userData.anim = anim;
   return g;
 }
@@ -253,6 +257,7 @@ export class BaseView {
       const dots = new THREE.Group();
       for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; const d = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 8), STRIP); d.position.set(Math.cos(a) * 1.7, 0.135, Math.sin(a) * 1.7); dots.add(d); }
       site.add(padMesh, ring, rim, dots);
+      mergeStatic(dots);
       this.group.add(site);
       this.sites.push({ site, ring, building: null, key: '' });
     }

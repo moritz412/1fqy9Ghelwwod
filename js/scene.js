@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { WORLD } from './config.js';
 import { mulberry32 } from './noise.js';
 import { texMat, normalFromCanvas } from './textures.js';
+import { mergeStatic } from './merge.js';
 
 export function buildEnvironment(scene, renderer) {
   scene.background = new THREE.Color(0x02030a);
@@ -232,6 +233,7 @@ export function buildEnvironment(scene, renderer) {
       mk.position.set(Math.cos(a) * (r - 0.75), 0.19, Math.sin(a) * (r - 0.75)); mk.rotation.y = -a + Math.PI / 2;
       marks.add(mk);
     }
+    mergeStatic(marks);
     g.add(pad, ring, terminal, screen, beam, visor, plinth, marks);
     if (extra) extra(g, out, r);
     g.position.set(pos.x, 0, pos.z);
@@ -900,6 +902,7 @@ function buildOutposts(scene, m) {
     const pipeGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 4.2, 6), strip); pipeGlow.rotation.z = Math.PI / 2; pipeGlow.position.set(0, 0.52, 0);
     g.add(pipe, pipeGlow);
     shadowAll(g);
+    mergeStatic(g);
     place(g, 4.75, 27.5);
   }
   // 3) cargo pods: white hull modules with a coloured band and a light strip
@@ -920,6 +923,7 @@ function buildOutposts(scene, m) {
     }
     const cradle = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.15, 4), m.dark); cradle.position.y = 0.05; g.add(cradle);
     shadowAll(g);
+    mergeStatic(g);
     place(g, 2.35, 27);
   }
   // 4) robotic loading arm on a hull pedestal, moving a cargo pod back and forth
