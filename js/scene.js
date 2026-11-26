@@ -790,36 +790,51 @@ function buildOutposts(scene, m) {
     shadowAll(g);
     place(g, 4.75, 27.5);
   }
-  // 3) container stacks
+  // 3) cargo pods: white hull modules with a coloured band and a light strip
   {
     const g = new THREE.Group();
-    const geo = new THREE.BoxGeometry(2.6, 1.1, 1.1);
+    const geo = new THREE.CapsuleGeometry(0.55, 1.6, 4, 12); geo.rotateZ(Math.PI / 2);
+    const bandGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.35, 16); bandGeo.rotateZ(Math.PI / 2);
+    const lightM = new THREE.MeshBasicMaterial({ color: 0xfff1d6 });
+    const bandCols = [0x2f6fa0, 0xff8a3a, 0x3a8a5a, 0xd0a030];
     let k = 0;
     for (let x = 0; x < 3; x++) for (let y = 0; y < 3 - x % 2; y++) {
-      const c = new THREE.Mesh(geo, cont[(k++ * 3) % cont.length]);
-      c.position.set(x * 1.25 - 1.3, 0.55 + y * 1.1, (y % 2) * 0.2);
-      c.rotation.y = (x + y) % 2 ? Math.PI / 2 : 0;
-      g.add(c);
+      const pod = new THREE.Group();
+      pod.add(new THREE.Mesh(geo, tankMat));
+      const band = new THREE.Mesh(bandGeo, new THREE.MeshStandardMaterial({ color: bandCols[k++ % bandCols.length], metalness: 0.3, roughness: 0.5 })); pod.add(band);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.05), lightM); strip.position.set(0, 0, 0.56); pod.add(strip);
+      pod.position.set(0, 0.6 + y * 1.12, x * 1.2 - 1.2);
+      g.add(pod);
     }
+    const cradle = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.15, 4), m.dark); cradle.position.y = 0.05; g.add(cradle);
     shadowAll(g);
     place(g, 2.35, 27);
   }
-  // 4) cargo crane with moving arm
+  // 4) robotic loading arm on a hull pedestal, moving a cargo pod back and forth
   {
     const g = new THREE.Group();
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(0.6, 7, 0.6), orange); tower.position.y = 3.5;
-    const top = new THREE.Group(); top.position.y = 7;
-    const jib = new THREE.Mesh(new THREE.BoxGeometry(7, 0.35, 0.35), orange); jib.position.x = 2.5;
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.9), m.white); cab.position.set(0, -0.4, 0);
-    const trolley = new THREE.Group(); trolley.position.x = 4;
-    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 3, 4), m.dark); rope.position.y = -1.5;
-    const hook = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 1.2), cont[0]); hook.position.y = -3.2;
-    trolley.add(rope, hook);
-    top.add(jib, cab, trolley);
-    g.add(tower, top);
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.2, 1.2, 8), tankMat); ped.position.y = 0.6;
+    const turret = new THREE.Group(); turret.position.y = 1.25;
+    const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.4, 16), m.dark); turret.add(tb);
+    const shoulder = new THREE.Group(); shoulder.position.y = 0.3; turret.add(shoulder);
+    const up = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.4, 0.45), tankMat); up.position.y = 1.7; shoulder.add(up);
+    const j1 = new THREE.Mesh(new THREE.SphereGeometry(0.38, 14, 10), m.dark); shoulder.add(j1);
+    const elbow = new THREE.Group(); elbow.position.y = 3.4; shoulder.add(elbow);
+    const j2 = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 10), orange); elbow.add(j2);
+    const fore = new THREE.Mesh(new THREE.BoxGeometry(0.36, 2.8, 0.36), tankMat); fore.position.y = 1.4; elbow.add(fore);
+    const wrist = new THREE.Group(); wrist.position.y = 2.8; elbow.add(wrist);
+    const padM = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.15, 16), m.dark); padM.position.y = 0.1; wrist.add(padM);
+    const ringM = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 20), new THREE.MeshBasicMaterial({ color: 0xfff1d6 })); ringM.rotation.x = Math.PI / 2; ringM.position.y = 0.02; wrist.add(ringM);
+    const cargo = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.8, 4, 10), tankMat); cargo.rotation.z = Math.PI / 2; cargo.position.y = -0.45; wrist.add(cargo);
+    g.add(ped, turret);
     shadowAll(g);
     place(g, 3.4, 28);
-    anim.push((dt, t) => { top.rotation.y = Math.sin(t * 0.15) * 1.2; trolley.position.x = 3 + Math.sin(t * 0.3) * 1.6; });
+    anim.push((dt, t) => {
+      turret.rotation.y = Math.sin(t * 0.15) * 1.2;
+      shoulder.rotation.z = 0.5 + Math.sin(t * 0.3) * 0.2;
+      elbow.rotation.z = -2.1 + Math.sin(t * 0.3 + 0.8) * 0.25;
+      wrist.rotation.z = Math.PI - shoulder.rotation.z - elbow.rotation.z;   // keep the pad level
+    });
   }
   // 5) repair bay with idle mini-bot
   {
@@ -839,9 +854,9 @@ function buildOutposts(scene, m) {
     g.add(floor, arch, arm, mini);
     shadowAll(g);
     place(g, 4.3, 26.5);
-    anim.push((dt, t) => { spark.scale.setScalar(0.7 + 0.3 * Math.sin(t * 2.5)); arm.rotation.y = Math.sin(t * 1.5) * 0.3; mh.rotation.y = Math.sin(t * 0.7) * 0.4; });
+    anim.push((dt, t) => { arm.rotation.y = Math.sin(t * 1.5) * 0.3; mh.rotation.y = Math.sin(t * 0.7) * 0.4; });
   }
-  // 6) beacon pylons with pulsing lights
+  // 6) beacon pylons with steady lights
   for (const [ang, col] of [[5.2, 0x6ff3f0], [5.75, 0xffb347], [0.05, 0xb48cff]]) {
     const g = new THREE.Group();
     const pyl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.3, 3, 6), m.white); pyl.position.y = 1.5;
@@ -850,7 +865,7 @@ function buildOutposts(scene, m) {
     g.add(pyl, orb, ring);
     shadowAll(g);
     place(g, ang, 28.5);
-    anim.push((dt, t) => { ring.rotation.x += dt * 1.5; ring.rotation.y += dt; orb.scale.setScalar(1 + Math.sin(t * 3 + ang) * 0.15); });
+    anim.push((dt) => { ring.rotation.x += dt * 0.4; ring.rotation.y += dt * 0.3; });
   }
   // 7) solar panel array
   {
