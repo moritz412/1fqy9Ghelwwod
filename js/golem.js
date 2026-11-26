@@ -395,3 +395,145 @@ export class Kraken {
     this.falling = null;
   }
 }
+
+// ------------------------------------------------------------------ Wächter-Sonde: hovering alien probe with orbiting shield plates.
+// Cruises above the heap and sinks down to scan every few seconds - only then it can be grabbed.
+export class Sentinel {
+  constructor(scene) {
+    this.scene = scene;
+    this.g = null;
+    this.active = false;
+    this.falling = null;
+    this.name = 'Wächter-Sonde';
+  }
+
+  spawn(pile, hp) {
+    this.remove();
+    const g = new THREE.Group();
+    const chrome = new THREE.MeshStandardMaterial({ color: 0x7a8090, metalness: 0.85, roughness: 0.28 });
+    const hull = texMat('hull', 0xdfe3ea, { metalness: 0.4 });
+    const glow = new THREE.MeshBasicMaterial({ color: 0xb48cff });
+    const body = new THREE.Group(); g.add(body); this.body = body;
+    // core sphere with an equator band and a calm violet eye ring
+    const core = new THREE.Mesh(new THREE.SphereGeometry(1.0, 28, 18), chrome); core.castShadow = true; body.add(core);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.1, 8, 36), hull); band.rotation.x = Math.PI / 2; body.add(band);
+    // panel seams: thin dark rings at latitudes and a few meridians
+    const seamM = new THREE.MeshStandardMaterial({ color: 0x23262d, metalness: 0.6, roughness: 0.4 });
+    for (const y of [0.5, -0.5]) { const r = Math.sqrt(1 - y * y); const sm = new THREE.Mesh(new THREE.TorusGeometry(r * 1.005, 0.02, 4, 32), seamM); sm.rotation.x = Math.PI / 2; sm.position.y = y; body.add(sm); }
+    for (let k = 0; k < 4; k++) { const sm = new THREE.Mesh(new THREE.TorusGeometry(1.005, 0.02, 4, 40), seamM); sm.rotation.y = (k / 4) * Math.PI; body.add(sm); }
+    const eyeRing = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 8, 24), glow); eyeRing.rotation.x = Math.PI / 2; eyeRing.position.y = -0.92; body.add(eyeRing);
+    const eye = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), new THREE.MeshBasicMaterial({ color: 0xe8dcff })); eye.rotation.x = Math.PI / 2; eye.position.y = -0.97; body.add(eye);
+    // top antenna crown
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.9, 6), hull);
+      sp.position.set(Math.cos(a) * 0.35, 1.2, Math.sin(a) * 0.35); sp.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3); body.add(sp);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), glow); tip.position.set(Math.cos(a) * 0.5, 1.63, Math.sin(a) * 0.5); body.add(tip);
+    }
+    // scan beam (only visible while it hovers low)
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(1.3, 2.4, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xb48cff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.y = -2.1; g.add(beam); this.beam = beam;
+    // orbiting hexagonal shield plates
+    this.shields = new THREE.Group(); g.add(this.shields);
+    this.plates = [];
+    const plateGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.08, 6);
+    const N = 8;
+    for (let k = 0; k < N; k++) {
+      const p = new THREE.Group();
+      const a = (k / N) * Math.PI * 2;
+      p.position.set(Math.cos(a) * 2.0, (k % 2 ? 0.35 : -0.35), Math.sin(a) * 2.0);
+      p.lookAt(0, p.position.y, 0);
+      const m = new THREE.Mesh(plateGeo, hull); m.rotation.x = Math.PI / 2; m.castShadow = true; p.add(m);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 4, 6), glow); rim.position.z = -0.05; p.add(rim);
+      this.shields.add(p);
+      this.plates.push({ p, hp: 2 });
+    }
+    this.shieldHp = N * 2;
+    this.coreHp = Math.max(8, Math.round(hp / 2));
+    this.maxHp = this.shieldHp + this.coreHp; this.hp = this.maxHp;
+    this.g = g;
+    this.t = 0; this.cycle = 0; this.low = 0; this.enter = 0;
+    this.falling = null; this.flinch = 0;
+    this.scene.add(g);
+    this.active = true;
+    this.update(0, 0, pile);
+  }
+
+  // hover phases: 7 s cruising high, 1.5 s sinking, 5.5 s low (scanning), 1.5 s rising
+  get exposed() { return this.active && this.falling === null && this.low > 0.75; }
+  get reach() { return 3.6; }
+  get platesLeft() { return this.plates.reduce((n, q) => n + (q.hp > 0 ? 1 : 0), 0); }
+
+  targetNear(x, z) {
+    if (!this.g) return null;
+    if (!this.platesLeft) return this.g.position;
+    let best = null, bd = 1e9;
+    const v = new THREE.Vector3();
+    for (const q of this.plates) {
+      if (q.hp <= 0) continue;
+      q.p.getWorldPosition(v);
+      const d = Math.hypot(v.x - x, v.z - z);
+      if (d < bd) { bd = d; best = q; }
+    }
+    this._near = best;
+    return best ? best.p.getWorldPosition(new THREE.Vector3()) : this.g.position;
+  }
+
+  hit(dust) {
+    if (!this.exposed) return false;
+    this.hp = Math.max(0, this.hp - 1);
+    this.flinch = 0.3;
+    if (this.platesLeft) {
+      const q = this._near && this._near.hp > 0 ? this._near : this.plates.find((r) => r.hp > 0);
+      q.hp--;
+      if (dust) dust(q.p.getWorldPosition(new THREE.Vector3()));
+      if (q.hp <= 0) q.p.visible = false; else q.p.scale.setScalar(0.75);
+      return false;
+    }
+    if (dust) dust(this.g.position.clone());
+    this.body.scale.setScalar(0.6 + 0.4 * this.hp / this.coreHp);
+    if (this.hp <= 0) { this.falling = 0; return true; }
+    return false;
+  }
+
+  update(dt, t, pile) {
+    if (!this.g) return;
+    this.t += dt;
+    const g = this.g;
+    if (this.falling !== null) {
+      this.falling += dt;
+      g.position.y -= dt * 3;
+      g.rotation.z += dt * 1.5;
+      g.scale.setScalar(Math.max(0.01, 1 - this.falling / 1.8));
+      this.beam.material.opacity = 0;
+      if (this.falling > 1.8) this.remove();
+      return;
+    }
+    this.enter = Math.min(1, this.enter + dt * 0.4);
+    // slow lissajous drift over the heap; it holds still while scanning
+    const P = 15.5;
+    this.cycle = (this.cycle + dt) % P;
+    const c = this.cycle;
+    const low = c < 7 ? 0 : c < 8.5 ? (c - 7) / 1.5 : c < 14 ? 1 : 1 - (c - 14) / 1.5;
+    this.low = low * low * (3 - 2 * low);
+    this.drift = (this.drift || 0) + dt * (1 - this.low) * 0.18;
+    const x = Math.sin(this.drift * 1.3) * 6.5, z = Math.sin(this.drift * 2.0 + 0.6) * 5.5;
+    const ground = Math.max(0, pile.heightAt(x, z));
+    const hi = ground + 6.5, lo = ground + 1.9;
+    g.position.set(x, hi + (lo - hi) * this.low + (1 - this.enter) * 14 + Math.sin(this.t * 1.1) * 0.12, z);
+    this.shields.rotation.y += dt * (0.5 - this.low * 0.3);
+    this.body.rotation.y += dt * 0.25;
+    this.beam.material.opacity = 0.1 * this.low;
+    this.beam.scale.set(1, 1, 1);
+    if (this.flinch > 0) { this.flinch -= dt; g.position.x += Math.sin(t * 60) * 0.05; }
+  }
+
+  get position() { return this.g ? this.g.position : null; }
+
+  remove() {
+    if (this.g) this.scene.remove(this.g);
+    this.g = null;
+    this.active = false;
+    this.falling = null;
+  }
+}
