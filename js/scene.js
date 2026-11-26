@@ -241,6 +241,7 @@ export function buildEnvironment(scene, renderer) {
 
   // ---- small outposts scattered around the deck edge (decor, some animated)
   const outposts = buildOutposts(scene, { white, dark, glow, postMat });
+  const gantry = buildGantry(scene);
 
   // ---- landing pad for the lander
   {
@@ -516,6 +517,7 @@ export function buildEnvironment(scene, renderer) {
       motes.material.size = baseMoteSize * (1 + storm * 1.5);
       motes.material.opacity = 0.55 + storm * 0.3;
       outposts.update(dt, t);
+      gantry.update(dt, t);
       for (const sh of traffic) {
         const u = sh.userData;
         const a = t * u.speed * u.dir + u.phase;
@@ -689,6 +691,50 @@ function softTexture() {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+// ------------------------------------------------------------------ overhead gantry crane
+function buildGantry(scene) {
+  const steel = texMat('metal', 0x7d848e, { metalness: 0.7, roughness: 0.45 });
+  const yellow = texMat('metal', 0xe0a83a, { metalness: 0.5, roughness: 0.5 });
+  const haz = texMat('hazard');
+  const dark = new THREE.MeshStandardMaterial({ color: 0x24282e, roughness: 0.7 });
+  const g = new THREE.Group();
+  const H = 22, X = 27, Z0 = -24, Z1 = 16;
+  const sh = (m) => { m.castShadow = true; m.receiveShadow = true; return m; };
+  // pillars and rails
+  for (const sx of [-1, 1]) {
+    for (const z of [Z0, Z1]) {
+      const p = sh(new THREE.Mesh(new THREE.BoxGeometry(0.9, H, 0.9), steel)); p.position.set(sx * X, H / 2, z); g.add(p);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 1.8), haz); foot.position.set(sx * X, 0.2, z); g.add(foot);
+      for (let k = 1; k < 5; k++) { const br = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 2.2), dark); br.position.set(sx * X, (k / 5) * H, z); br.rotation.x = 0.8; g.add(br); }
+    }
+    const rail = sh(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, Z1 - Z0 + 2), steel)); rail.position.set(sx * X, H + 0.45, (Z0 + Z1) / 2); g.add(rail);
+  }
+  // moving bridge with a trolley and a hook
+  const bridge = new THREE.Group(); bridge.position.y = H + 1.3; g.add(bridge);
+  for (const dz of [-0.7, 0.7]) { const b = sh(new THREE.Mesh(new THREE.BoxGeometry(X * 2 + 1.5, 0.9, 0.45), yellow)); b.position.z = dz; bridge.add(b); }
+  for (let k = -12; k <= 12; k++) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 1.4), dark); r.position.x = k * 2.15; bridge.add(r); }
+  for (const sx of [-1, 1]) { const end = sh(new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 2.4), steel)); end.position.x = sx * X; bridge.add(end); }
+  const trolley = new THREE.Group(); trolley.position.y = -0.2; bridge.add(trolley);
+  const tb = sh(new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.1, 2.2), yellow)); tb.position.y = 0.5; trolley.add(tb);
+  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.6, 12), dark); motor.rotation.z = Math.PI / 2; motor.position.set(0, 1.25, 0); trolley.add(motor);
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.3), new THREE.MeshBasicMaterial({ color: 0xffe2a0 })); lamp.position.set(0, -0.1, 1.0); trolley.add(lamp);
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), dark); trolley.add(cable);
+  const hook = new THREE.Group(); trolley.add(hook);
+  const block = sh(new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.4), haz)); hook.add(block);
+  const h = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.08, 6, 12, Math.PI * 1.4), steel); h.position.y = -0.7; h.rotation.z = Math.PI * 0.8; hook.add(h);
+  scene.add(g);
+  return {
+    group: g,
+    update(dt, t) {
+      bridge.position.z = (Z0 + Z1) / 2 + Math.sin(t * 0.045) * ((Z1 - Z0) / 2 - 2);
+      trolley.position.x = Math.sin(t * 0.07 + 1) * (X - 4);
+      const drop = 6 + Math.sin(t * 0.11) * 2.5;
+      hook.position.y = -drop; hook.rotation.z = Math.sin(t * 0.6) * 0.04;
+      cable.scale.y = drop; cable.position.y = -drop / 2;
+    },
+  };
 }
 
 // ------------------------------------------------------------------ outposts
