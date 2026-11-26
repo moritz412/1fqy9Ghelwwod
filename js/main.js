@@ -1889,6 +1889,14 @@ function renderArchive() {
     tip.className = 'lead small';
     tip.textContent = 'Jeder Stern gibt dauerhaft +25 % Fundwert. Fehlende Sterne kannst du später holen: Im Startmenü lassen sich alle freigespielten Decks erneut spielen.';
     list.appendChild(tip);
+    // boss overview: which boss lives here, and how often each one was beaten
+    const kinds = S.stats.bossKinds || {};
+    const bossList = [['golem', 'Schrottgolem'], ['worm', 'Schrottwurm'], ['kraken', 'Schrott-Krake'], ['sentinel', 'Wächter-Sonde'], ['hydra', 'Schrott-Hydra']];
+    const here = [(n) % 5]; if (twist('nest')) here.push((n + 2) % 5);
+    const bx = document.createElement('div');
+    bx.innerHTML = `<p class="lead"><b>Bosse</b> · erscheinen bei ${twist('nest') ? '25 % und 75 %' : '50 %'} des Decks</p><div class="stats">${bossList.map(([id, name], i) =>
+      `<span>${here.includes(i) ? '▸ ' : ''}${kinds[id] || here.includes(i) ? name : '???'}${here.includes(i) ? ' <small>(hier)</small>' : ''}</span><span>${kinds[id] ? `${kinds[id]}× besiegt` : 'noch nie besiegt'}</span>`).join('')}</div>`;
+    list.appendChild(bx);
   } else if (archTab === 'vault') {
     const head = document.createElement('p');
     head.className = 'lead small';
