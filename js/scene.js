@@ -693,46 +693,59 @@ function softTexture() {
   return t;
 }
 
-// ------------------------------------------------------------------ overhead gantry crane
+// ------------------------------------------------------------------ overhead gantry: a sci-fi tractor-beam crane
 function buildGantry(scene) {
-  const steel = texMat('metal', 0x7d848e, { metalness: 0.7, roughness: 0.45 });
-  const yellow = texMat('metal', 0xe0a83a, { metalness: 0.5, roughness: 0.5 });
-  const haz = texMat('hazard');
-  const dark = new THREE.MeshStandardMaterial({ color: 0x24282e, roughness: 0.7 });
+  const hull = texMat('hull', 0xe4e8ee, { metalness: 0.35, roughness: 0.4 });
+  const dark = texMat('metal', 0x3a4048, { metalness: 0.7, roughness: 0.45 });
+  const lightM = new THREE.MeshBasicMaterial({ color: 0xfff1d6 });
+  const accent = new THREE.MeshStandardMaterial({ color: 0xff8a3a, metalness: 0.3, roughness: 0.5 });
   const g = new THREE.Group();
   const H = 22, X = 27, Z0 = -24, Z1 = 16;
   const sh = (m) => { m.castShadow = true; m.receiveShadow = true; return m; };
-  // pillars and rails
+  // tapered pylons with a light strip and an orange collar
   for (const sx of [-1, 1]) {
     for (const z of [Z0, Z1]) {
-      const p = sh(new THREE.Mesh(new THREE.BoxGeometry(0.9, H, 0.9), steel)); p.position.set(sx * X, H / 2, z); g.add(p);
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 1.8), haz); foot.position.set(sx * X, 0.2, z); g.add(foot);
-      for (let k = 1; k < 5; k++) { const br = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 2.2), dark); br.position.set(sx * X, (k / 5) * H, z); br.rotation.x = 0.8; g.add(br); }
+      const p = sh(new THREE.Mesh(new THREE.CylinderGeometry(0.45, 1.1, H, 6), hull)); p.position.set(sx * X, H / 2, z); g.add(p);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.08, H * 0.7, 0.08), lightM); strip.position.set(sx * X - sx * 0.62, H * 0.45, z); g.add(strip);
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.35, 6), accent); collar.position.set(sx * X, H * 0.8, z); g.add(collar);
+      const base = sh(new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.9, 0.5, 6), dark)); base.position.set(sx * X, 0.25, z); g.add(base);
     }
-    const rail = sh(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, Z1 - Z0 + 2), steel)); rail.position.set(sx * X, H + 0.45, (Z0 + Z1) / 2); g.add(rail);
+    const rail = sh(new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, Z1 - Z0 + 3), hull)); rail.position.set(sx * X, H + 0.35, (Z0 + Z1) / 2); g.add(rail);
+    const rs = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, Z1 - Z0 + 2.6), lightM); rs.position.set(sx * X - sx * 0.52, H + 0.2, (Z0 + Z1) / 2); g.add(rs);
   }
-  // moving bridge with a trolley and a hook
-  const bridge = new THREE.Group(); bridge.position.y = H + 1.3; g.add(bridge);
-  for (const dz of [-0.7, 0.7]) { const b = sh(new THREE.Mesh(new THREE.BoxGeometry(X * 2 + 1.5, 0.9, 0.45), yellow)); b.position.z = dz; bridge.add(b); }
-  for (let k = -12; k <= 12; k++) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 1.4), dark); r.position.x = k * 2.15; bridge.add(r); }
-  for (const sx of [-1, 1]) { const end = sh(new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 2.4), steel)); end.position.x = sx * X; bridge.add(end); }
-  const trolley = new THREE.Group(); trolley.position.y = -0.2; bridge.add(trolley);
-  const tb = sh(new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.1, 2.2), yellow)); tb.position.y = 0.5; trolley.add(tb);
-  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.6, 12), dark); motor.rotation.z = Math.PI / 2; motor.position.set(0, 1.25, 0); trolley.add(motor);
-  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.3), new THREE.MeshBasicMaterial({ color: 0xffe2a0 })); lamp.position.set(0, -0.1, 1.0); trolley.add(lamp);
-  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), dark); trolley.add(cable);
-  const hook = new THREE.Group(); trolley.add(hook);
-  const block = sh(new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.4), haz)); hook.add(block);
-  const h = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.08, 6, 12, Math.PI * 1.4), steel); h.position.y = -0.7; h.rotation.z = Math.PI * 0.8; hook.add(h);
+  // bridge: twin hull beams with a centre light strip
+  const bridge = new THREE.Group(); bridge.position.y = H + 1.1; g.add(bridge);
+  for (const dz of [-0.6, 0.6]) { const b = sh(new THREE.Mesh(new THREE.BoxGeometry(X * 2 + 1.5, 0.7, 0.5), hull)); b.position.z = dz; bridge.add(b); }
+  const bs = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.05, 0.08), lightM); bs.position.y = -0.36; bridge.add(bs);
+  for (const sx of [-1, 1]) { const end = sh(new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 2.2), dark)); end.position.x = sx * X; bridge.add(end); }
+  // trolley: rounded pod with an emitter dish underneath
+  const trolley = new THREE.Group(); trolley.position.y = -0.1; bridge.add(trolley);
+  const pod = sh(new THREE.Mesh(new THREE.SphereGeometry(1.2, 18, 12), hull)); pod.scale.set(1.3, 0.6, 1); pod.position.y = 0.3; trolley.add(pod);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(1.28, 0.06, 6, 28), accent); band.rotation.x = Math.PI / 2; band.scale.set(1.3, 1, 1); band.position.y = 0.3; trolley.add(band);
+  const emitter = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.3, 16), dark); emitter.position.y = -0.3; trolley.add(emitter);
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20), lightM); lens.rotation.x = Math.PI / 2; lens.position.y = -0.46; trolley.add(lens);
+  // soft tractor beam (steady, low opacity) and a hovering grapple drone
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xe8f4ff, transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.9, 1, 20, 1, true), beamMat); trolley.add(beam);
+  const claw = new THREE.Group(); trolley.add(claw);
+  const core = sh(new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), hull)); core.scale.y = 0.7; claw.add(core);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 6, 20), accent); ring.rotation.x = Math.PI / 2; claw.add(ring);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2;
+    const f = sh(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.18), dark));
+    f.position.set(Math.cos(a) * 0.45, -0.4, Math.sin(a) * 0.45); f.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35); claw.add(f);
+  }
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), lightM); eye.position.y = -0.2; claw.add(eye);
   scene.add(g);
   return {
     group: g,
     update(dt, t) {
       bridge.position.z = (Z0 + Z1) / 2 + Math.sin(t * 0.045) * ((Z1 - Z0) / 2 - 2);
       trolley.position.x = Math.sin(t * 0.07 + 1) * (X - 4);
-      const drop = 6 + Math.sin(t * 0.11) * 2.5;
-      hook.position.y = -drop; hook.rotation.z = Math.sin(t * 0.6) * 0.04;
-      cable.scale.y = drop; cable.position.y = -drop / 2;
+      const drop = 6.5 + Math.sin(t * 0.11) * 2.5;
+      claw.position.y = -drop; claw.rotation.y += dt * 0.3;
+      claw.position.x = Math.sin(t * 0.5) * 0.08;
+      beam.scale.y = drop - 0.5; beam.position.y = -0.5 - (drop - 0.5) / 2;
     },
   };
 }
