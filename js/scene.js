@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { WORLD } from './config.js';
 import { mulberry32 } from './noise.js';
 import { texMat, normalFromCanvas } from './textures.js';
-import { mergeStatic } from './merge.js';
+import { mergeStatic, mergeGeos } from './merge.js';
 
 export function buildEnvironment(scene, renderer) {
   scene.background = new THREE.Color(0x02030a);
@@ -103,7 +103,13 @@ export function buildEnvironment(scene, renderer) {
   scene.add(edge);
 
   // railing posts
-  const postGeo = new THREE.BoxGeometry(0.25, 1.4, 0.25);
+  const T4 = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
+  // slim post with a foot plate and a cap
+  const postGeo = mergeGeos([
+    [new THREE.BoxGeometry(0.16, 1.4, 0.16)],
+    [new THREE.BoxGeometry(0.36, 0.06, 0.3), T4(0, -0.67, 0)],
+    [new THREE.BoxGeometry(0.22, 0.08, 0.22), T4(0, 0.72, 0)],
+  ]);
   const postMat = new THREE.MeshStandardMaterial({ color: 0xe9edf2, metalness: 0.3, roughness: 0.4 });
   const posts = new THREE.InstancedMesh(postGeo, postMat, 48);
   const m = new THREE.Matrix4();
@@ -117,19 +123,34 @@ export function buildEnvironment(scene, renderer) {
   const rail = new THREE.Mesh(new THREE.TorusGeometry(31.4, 0.08, 6, 128), postMat);
   rail.rotation.x = Math.PI / 2; rail.position.y = 1.4;
   scene.add(rail);
+  const midRail = new THREE.Mesh(new THREE.TorusGeometry(31.4, 0.04, 5, 128), postMat);
+  midRail.rotation.x = Math.PI / 2; midRail.position.y = 0.75;
+  scene.add(midRail);
+  // faint glass panels between the posts
+  const glassRail = new THREE.Mesh(new THREE.CylinderGeometry(31.42, 31.42, 1.25, 128, 1, true), new THREE.MeshStandardMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide, depthWrite: false }));
+  glassRail.position.y = 0.72;
+  scene.add(glassRail);
 
   // hangar lamp posts with glowing heads
-  const lampPost = new THREE.CylinderGeometry(0.12, 0.16, 4, 8);
-  const lampHead = new THREE.BoxGeometry(0.9, 0.25, 0.5);
+  // lamp mast: tapered post, collar, curved arm and a housing; the glow sits under the housing
+  const lampPost = mergeGeos([
+    [new THREE.CylinderGeometry(0.1, 0.16, 4, 10)],
+    [new THREE.CylinderGeometry(0.3, 0.36, 0.2, 10), T4(0, -1.9, 0)],
+    [new THREE.CylinderGeometry(0.15, 0.15, 0.12, 10), T4(0, 0.6, 0)],
+    [new THREE.BoxGeometry(0.1, 0.1, 0.7), T4(0, 1.95, -0.3)],
+    [new THREE.BoxGeometry(1.0, 0.16, 0.56), T4(0, 2.06, -0.62)],
+  ]);
+  const lampHead = new THREE.BoxGeometry(0.88, 0.04, 0.46);
   const lampGlow = new THREE.MeshBasicMaterial({ color: 0xfff1d6 });
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
     const post = new THREE.Mesh(lampPost, postMat);
     post.position.set(Math.cos(a) * 28, 2, Math.sin(a) * 28);
+    post.lookAt(0, 2, 0); post.rotateY(Math.PI);    // arm (local -z) points to the deck centre
     post.castShadow = true;
     const head = new THREE.Mesh(lampHead, lampGlow);
-    head.position.set(Math.cos(a) * 27.6, 4, Math.sin(a) * 27.6);
-    head.lookAt(0, 4, 0);
+    head.position.set(Math.cos(a) * 27.38, 3.96, Math.sin(a) * 27.38);
+    head.lookAt(0, 3.96, 0);
     scene.add(post, head);
   }
   // floor guide lights leading to the market
