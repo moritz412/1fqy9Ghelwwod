@@ -4,7 +4,7 @@ import { Events, EVENT_TYPES } from './events.js';
 import { xpForLevel, LEVEL_BONUS, UNLOCKS, CONSUMABLES, RECIPES, makeContract, contractProgress, contractLabel } from './progression.js';
 import { Capsules, Dust, floatLabel } from './extras.js';
 import { startIconObserver } from './icons.js';
-import { Golem, Worm } from './golem.js';
+import { Golem, Worm, Kraken } from './golem.js';
 import { StationView, MODULES_ST, RANKS, stationRank, moduleCost, stationBonus, freeCells, STATION_POS, TONS_PER_PART, EXPEDITIONS, expSlots, makeTraderDeals } from './station.js';
 import { BaseView, BUILDINGS, baseStats, buildCost, SITE_COSTS, SITE_ANGLES, MAX_BLD_LEVEL, BUILD_UNLOCK_LEVEL, sitePos, bldValue } from './buildings.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
@@ -101,6 +101,7 @@ const baseView = new BaseView(scene);
 const stationView = new StationView(scene);
 const golem = new Golem(scene);
 const worm = new Worm(scene);
+const kraken = new Kraken(scene);
 let boss = golem;
 const dust = new Dust(scene);
 let shake = 0;
@@ -671,7 +672,8 @@ function doGrab(x, z) {
   if (met) openMeteor(met);
   const al = events.catchAlien(x, z, pickR + 0.4);
   if (al) catchAlien(al);
-  if (boss.exposed && boss.position && Math.hypot(boss.position.x - bot.group.position.x, boss.position.z - bot.group.position.z) < (boss === worm ? 3.2 : 4.5) + grabRadius()) {
+  const bossAt = boss.exposed && (boss.targetNear ? boss.targetNear(bot.group.position.x, bot.group.position.z) : boss.position);
+  if (bossAt && Math.hypot(bossAt.x - bot.group.position.x, bossAt.z - bot.group.position.z) < boss.reach + grabRadius()) {
     const down = boss.hit((pp) => { spawnDebris(pp.x, pp.y, pp.z, 5, 0, 0, 1.4); dust.puff(pp.x, pp.y, pp.z, 2, 1.2); });
     sfx.grab(4); shake = Math.max(shake, 0.12);
     if (down) golemDefeated();
@@ -1275,11 +1277,16 @@ function checkMilestones() {
   const gAt = twist('nest') ? [25, 75] : [50];
   if (S.golemDone && !S.golemN) S.golemN = 1;
   if (!boss.active && (S.golemN || 0) < gAt.length && pct >= gAt[S.golemN || 0]) {
-    const useWorm = twist('nest') ? (S.golemN || 0) === 1 : (S.deck || 0) % 2 === 1;
-    boss = useWorm ? worm : golem;
+    const kind = twist('nest') ? ((S.golemN || 0) === 1 ? 1 : 0) : (S.deck || 0) % 3;
+    boss = [golem, worm, kraken][kind];
     boss.spawn(pile, 25 + (S.deck || 0) * 10);
+    bossCam = BOSS_CAM;
     sfx.meteor(0.8); shake = 0.6;
-    say(useWorm ? 'Der Haufen bewegt sich … ein Schrottwurm! Pack ihn, wenn er auftaucht!' : 'Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!', 5);
+    say([
+      'Was ist DAS?! Ein Schrottgolem! Fahr hin und zerleg ihn – Griff für Griff!',
+      'Der Haufen bewegt sich … ein Schrottwurm! Pack ihn, wenn er auftaucht!',
+      'Oben auf dem Gipfel: eine Schrott-Krake! Erst die Arme abmontieren, dann den Kopf.',
+    ][kind], 5);
     $('golem-name').textContent = boss.name;
     $('golem-bar').classList.remove('hidden');
   }
@@ -1933,7 +1940,7 @@ function setupWorld(state) {
   if (pileView) pileView.dispose(scene);
   capsules.clear();
   events.clear();
-  golem.remove(); worm.remove(); boss = golem;
+  golem.remove(); worm.remove(); kraken.remove(); boss = golem;
   $('golem-bar').classList.add('hidden');
   $('event').classList.add('hidden');
   env.setStorm(false);
@@ -2728,9 +2735,22 @@ function updateCamera(dt) {
   const floor = Math.max(0, pile.heightAt(camera.position.x, camera.position.z)) + 0.5;
   if (camera.position.y < floor) camera.position.y = floor;
   camera.lookAt(camTarget);
+  // short, calm look at a boss when it appears
+  if (bossCam > 0 && boss.position) {
+    bossCam -= dt;
+    const w = Math.sin(Math.min(1, (BOSS_CAM - bossCam) / BOSS_CAM) * Math.PI) * 0.9;
+    const bp = boss.position;
+    const dir = _bc.copy(camera.position).sub(bp).setY(0).normalize();
+    _bc2.set(bp.x + dir.x * 10, bp.y + 5.5, bp.z + dir.z * 10);
+    camera.position.lerp(_bc2, w * Math.min(1, dt * 4));
+    camera.lookAt(_bc.copy(camTarget).lerp(_bc2.set(bp.x, bp.y + 2, bp.z), w));
+  }
   const o = window.__camOverride;
   if (o) { camera.position.set(...o.pos); camera.lookAt(...o.look); }
 }
+const BOSS_CAM = 3.5;
+let bossCam = 0;
+const _bc = new THREE.Vector3(), _bc2 = new THREE.Vector3();
 
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -2840,4 +2860,4 @@ $('splash').addEventListener('click', () => {
 });
 
 // test hook
-window.__nx = { golem, worm, get boss() { return boss; }, playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
+window.__nx = { golem, worm, kraken, get boss() { return boss; }, playDeck, freeCellsTest: () => freeCells(S.station), selectFree: (c) => { stSel = { free: c }; renderStation(); }, checkDeckStars, totalStars, cineJump: (t) => { cine.t = t; cine.update(t, 0.02); }, bloom, gfx, rebuildDrones, env, renderer, scene, camera, renderItems, quality, setLow: () => { quality.level = 1; quality.low = 5; quality.warm = 0; quality.t = 3; quality.frames = 1; }, get S() { return S; }, get pile() { return pile; }, openArchive, doGrab, coreFound, openShop, sellCargo, bot, capsules, events, nextDeck, useTurbo };
