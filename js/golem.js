@@ -17,7 +17,8 @@ export class Golem {
   spawn(pile, hp) {
     this.remove();
     const g = new THREE.Group();
-    const mats = [texMat('metal', 0x8a8f98), texMat('metal', 0xa0623a), texMat('hull', 0xcfd3d8), texMat('metal', 0x5a5f66)];
+    const BO = { metalness: 0.35, roughness: 0.55, emissive: 0x1a1c20 };   // bosses: less metallic so the shadow side doesn't turn black
+    const mats = [texMat('metal', 0x9aa0a8, BO), texMat('metal', 0xb0703f, BO), texMat('hull', 0xd6dade, BO), texMat('metal', 0x6e747c, BO)];
     const chunks = [];
     const box = (w, h, d, x, y, z, m, parent = g) => {
       const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats[m % mats.length]);
@@ -152,8 +153,8 @@ export class Worm {
   spawn(pile, hp) {
     this.remove();
     const g = new THREE.Group();
-    const ring = texMat('metal', 0x9a7a5a, { roughness: 0.45 });
-    const ring2 = texMat('metal', 0x6d737c, { roughness: 0.5 });
+    const ring = texMat('metal', 0x9a7a5a, { roughness: 0.5, metalness: 0.4, emissive: 0x16140f });
+    const ring2 = texMat('metal', 0x6d737c, { roughness: 0.55, metalness: 0.4, emissive: 0x121418 });
     const plate = texMat('hull', 0xd7dade);
     this.segs = [];
     const N = 14;
@@ -277,8 +278,8 @@ export class Kraken {
     this.remove();
     const g = new THREE.Group();
     const shell = texMat('hull', 0xc9ccd2);
-    const link = texMat('metal', 0x8a6a52, { roughness: 0.45 });
-    const link2 = texMat('metal', 0x5f656e, { roughness: 0.5 });
+    const link = texMat('metal', 0x8a6a52, { roughness: 0.5, metalness: 0.4, emissive: 0x16110c });
+    const link2 = texMat('metal', 0x5f656e, { roughness: 0.55, metalness: 0.4, emissive: 0x111317 });
     const eyeM = new THREE.MeshBasicMaterial({ color: 0xffb347 });
     // head: dome with plates and a big eye
     const head = new THREE.Group();
@@ -551,8 +552,8 @@ export class Hydra {
   spawn(pile, hp) {
     this.remove();
     const g = new THREE.Group();
-    const plate = texMat('metal', 0xa8b4a2, { roughness: 0.45 });
-    const plate2 = texMat('metal', 0x6e7a6a, { roughness: 0.5 });
+    const plate = texMat('metal', 0xa8b4a2, { roughness: 0.5, metalness: 0.35, emissive: 0x141a14 });
+    const plate2 = texMat('metal', 0x7e8a7a, { roughness: 0.55, metalness: 0.35, emissive: 0x141a14 });
     const visorM = new THREE.MeshBasicMaterial({ color: 0x7cff9a });
     this.heads = [];
     const per = Math.max(6, Math.round(hp / 4) + 3);
