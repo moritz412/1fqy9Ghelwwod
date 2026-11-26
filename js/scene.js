@@ -494,6 +494,54 @@ export function buildEnvironment(scene, renderer) {
         g.add(cl);
       }
     }
+    // ---- sky features per deck: things drifting slowly around the station
+    const skyRing = (n, make) => {
+      for (let k = 0; k < n; k++) {
+        const a = rr() * Math.PI * 2, r = 48 + rr() * 38;
+        const m = make(k);
+        m.position.set(Math.cos(a) * r, 8 + rr() * 28, Math.sin(a) * r);
+        m.rotation.set(rr() * 6, rr() * 6, rr() * 6);
+        m.userData.spin = (rr() - 0.5) * 0.25;
+        g.add(m);
+      }
+    };
+    if (kind === 'ice') {
+      const iceM = new THREE.MeshStandardMaterial({ color: 0xdff6ff, emissive: 0x2a6a90, emissiveIntensity: 0.35, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.8, flatShading: true });
+      skyRing(16, () => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5 + rr() * 4, 0), iceM); m.scale.set(1, 0.6 + rr() * 0.8, 1); return m; });
+      // a comet with a soft tail far away
+      const comet = new THREE.Group();
+      const head = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 10), new THREE.MeshBasicMaterial({ color: 0xeaf8ff }));
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(2.6, 30, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      tail.rotation.z = -Math.PI / 2; tail.position.x = 15.5;
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebTex, color: 0xbfe8ff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending })); halo.scale.setScalar(9);
+      comet.add(head, tail, halo);
+      comet.position.set(-70, 48, -60); comet.rotation.set(0.2, 0.8, -0.25); comet.scale.setScalar(2);
+      g.add(comet);
+    } else if (kind === 'crystal') {
+      const cols = [0xc9a0ff, 0x7ae0ff, 0xff9ae0];
+      skyRing(14, (k) => {
+        const col = cols[k % 3];
+        const m = new THREE.Mesh(new THREE.OctahedronGeometry(1.2 + rr() * 3, 0), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.45, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.8, flatShading: true }));
+        m.scale.y = 1.6 + rr();
+        return m;
+      });
+    } else if (kind === 'lava') {
+      const emberM = new THREE.MeshStandardMaterial({ color: 0x2a120a, roughness: 0.9, flatShading: true, emissive: 0xff4a10, emissiveIntensity: 0.35 });
+      skyRing(14, () => new THREE.Mesh(new THREE.DodecahedronGeometry(1.5 + rr() * 4, 0), emberM));
+    } else if (kind === 'alien') {
+      // a distant alien mothership: flat saucer with calm glowing rings
+      const ms = new THREE.Group();
+      const hullM = new THREE.MeshStandardMaterial({ color: 0x6a8a82, metalness: 0.6, roughness: 0.35, emissive: 0x0a2018 });
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(14, 18, 2.4, 48), hullM);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(6, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), hullM); dome.position.y = 1.2;
+      const ring1 = new THREE.Mesh(new THREE.TorusGeometry(16.5, 0.35, 8, 64), new THREE.MeshBasicMaterial({ color: 0x7cff9a })); ring1.rotation.x = Math.PI / 2; ring1.position.y = -0.8;
+      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(9, 0.25, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc07aff })); ring2.rotation.x = Math.PI / 2; ring2.position.y = -1.3;
+      ms.add(disc, dome, ring1, ring2);
+      for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; const l = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xd0ffd8 })); l.position.set(Math.cos(a) * 12, -1.25, Math.sin(a) * 12); ms.add(l); }
+      ms.position.set(60, 55, -90); ms.rotation.set(0.25, 0, 0.12); ms.scale.setScalar(1.4);
+      ms.userData.spin = 0.03;
+      g.add(ms);
+    }
     g.userData.kind = kind;
     scene.add(g);
     return g;
