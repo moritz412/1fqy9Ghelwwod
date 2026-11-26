@@ -159,6 +159,17 @@ export class NexusBot {
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.34), new THREE.MeshBasicMaterial({ map: this.faceTex }));
     screen.position.set(0, -0.02, 0.177);     // in front of the bezel (bezel front face is at 0.173)
     head.add(screen);
+    // glass sheen over the display: a soft diagonal highlight
+    {
+      const gc = document.createElement('canvas'); gc.width = 128; gc.height = 88;
+      const gx = gc.getContext('2d');
+      const gr = gx.createLinearGradient(0, 0, 128, 88);
+      gr.addColorStop(0, 'rgba(255,255,255,0.22)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.06)'); gr.addColorStop(0.36, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      gx.fillStyle = gr; gx.fillRect(0, 0, 128, 88);
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.34), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(gc), transparent: true, depthWrite: false }));
+      glass.position.set(0, -0.02, 0.179);
+      head.add(glass);
+    }
     const bezel = new THREE.Mesh(new RoundedBoxGeometry(0.58, 0.38, 0.02, 3, 0.03), dark);
     bezel.position.set(0, -0.02, 0.163);
     head.add(bezel);
