@@ -303,24 +303,49 @@ export function buildEnvironment(scene, renderer) {
   const trophies = buildTrophies(scene, { white, dark });
   const gantry = buildGantry(scene);
 
-  // ---- landing pad for the lander
+  // ---- landing pad for the lander: raised octagonal platform with landing rings, chevrons,
+  // corner light posts and an umbilical service tower
   {
+    const R = WORLD.pad.r;
     const padG = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(WORLD.pad.r, WORLD.pad.r + 0.3, 0.16, 8), new THREE.MeshStandardMaterial({ color: 0x4a505c, metalness: 0.5, roughness: 0.5 }));
-    base.position.y = 0.08; base.receiveShadow = true;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(WORLD.pad.r - 0.35, 0.06, 6, 8), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
-    ring.rotation.x = Math.PI / 2; ring.position.y = 0.18;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(R, R + 0.3, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0x3a404b, metalness: 0.5, roughness: 0.5 }));
+    base.position.y = 0.1; base.receiveShadow = true; base.rotation.y = Math.PI / 8;
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.32, R + 0.36, 0.1, 8, 1, true), white); rim.position.y = 0.06; rim.rotation.y = Math.PI / 8;
+    const ringM = new THREE.MeshBasicMaterial({ color: 0x9fe8ff });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R - 0.35, 0.05, 6, 48), ringM); ring.rotation.x = Math.PI / 2; ring.position.y = 0.21;
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.04, 6, 40), ringM); ring2.rotation.x = Math.PI / 2; ring2.position.y = 0.21;
     const markMat = new THREE.MeshBasicMaterial({ color: 0xeef1f5 });
-    const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.02, 1.8), markMat); h1.position.set(-0.6, 0.17, 0);
-    const h2 = h1.clone(); h2.position.x = 0.6;
-    const h3 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.02, 0.25), markMat); h3.position.y = 0.17;
-    padG.add(base, ring, h1, h2, h3);
+    padG.add(base, rim, ring, ring2);
+    // four landing-foot targets and chevrons pointing to the centre
+    for (let k = 0; k < 4; k++) {
+      const a2 = Math.PI / 4 + (k * Math.PI) / 2;
+      const t = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.36, 20), markMat); t.rotation.x = -Math.PI / 2; t.position.set(Math.cos(a2) * 1.75, 0.205, Math.sin(a2) * 1.75); padG.add(t);
+      const c = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), markMat); c.rotation.x = -Math.PI / 2; c.position.set(Math.cos(a2) * 1.75, 0.206, Math.sin(a2) * 1.75); padG.add(c);
+      const b2 = k * Math.PI / 2;
+      for (const sgn of [-1, 1]) {
+        const ch = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.1), markMat);
+        ch.position.set(Math.cos(b2) * 2.3 + Math.cos(b2 + Math.PI / 2) * sgn * 0.16, 0.205, Math.sin(b2) * 2.3 + Math.sin(b2 + Math.PI / 2) * sgn * 0.16);
+        ch.rotation.y = -b2 - sgn * 0.6; padG.add(ch);
+      }
+    }
+    // corner light posts
     for (let k = 0; k < 8; k++) {
       const a2 = (k / 8) * Math.PI * 2;
-      const l = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: k % 2 ? 0xffb347 : 0xffffff }));
-      l.position.set(Math.cos(a2) * (WORLD.pad.r + 0.1), 0.2, Math.sin(a2) * (WORLD.pad.r + 0.1));
-      padG.add(l);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.45, 6), white); post.position.set(Math.cos(a2) * (R + 0.15), 0.32, Math.sin(a2) * (R + 0.15));
+      const l = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshBasicMaterial({ color: k % 2 ? 0x9fe8ff : 0xffffff })); l.position.set(Math.cos(a2) * (R + 0.15), 0.58, Math.sin(a2) * (R + 0.15));
+      padG.add(post, l);
     }
+    // umbilical service tower on the outer side
+    const tw = new THREE.Group(); tw.position.set(0, 0, -(R + 1.2)); tw.rotation.y = Math.PI;
+    const mast = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3.2, 0.4), white); mast.position.y = 1.6; mast.castShadow = true;
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.9), dark); foot.position.y = 0.1;
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 1.4), white); arm.position.set(0, 2.6, -0.8); arm.castShadow = true;
+    const hose = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 6, 14, Math.PI), dark); hose.position.set(0, 2.1, -1.4); hose.rotation.y = Math.PI / 2;
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 2.4, 0.03), ringM); strip.position.set(0, 1.5, -0.21);
+    const beaconT = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff5050 })); beaconT.position.y = 3.3;
+    for (let k = 0; k < 4; k++) { const br = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.04), dark); br.position.set(0, 0.5 + k * 0.7, -0.21); tw.add(br); }
+    tw.add(mast, foot, arm, hose, strip, beaconT);
+    padG.add(tw);
     padG.position.set(WORLD.pad.x, 0, WORLD.pad.z);
     padG.rotation.y = Math.atan2(-WORLD.pad.x, -WORLD.pad.z);
     scene.add(padG);
