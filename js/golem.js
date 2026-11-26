@@ -1,6 +1,7 @@
 // The Scrap Golem: a big, slow, friendly-looking heap of scrap that Nexus dismantles piece by piece.
 import * as THREE from 'three';
 import { texMat } from './textures.js';
+import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 
 export class Golem {
   constructor(scene) {
@@ -574,12 +575,15 @@ export class Hydra {
       }
       // head: wedge skull with jaw and a glowing visor
       const head = new THREE.Group(); head.position.y = N * 0.48 + 0.2; neck.add(head);
-      const skull = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 1.4), plate); skull.position.z = 0.25; skull.castShadow = true;
-      const snout = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.35, 0.7), plate2); snout.position.set(0, -0.05, 1.15);
-      const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.18, 1.2), plate2); jaw.position.set(0, -0.42, 0.55);
-      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.5), visorM); visor.position.set(0, 0.12, 0.75);
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.9), plate2); fin.position.set(0, 0.45, 0.0);
-      head.add(skull, snout, jaw, visor, fin);
+      const skull = new THREE.Mesh(new RoundedBoxGeometry(0.9, 0.6, 1.4, 3, 0.16), plate); skull.position.z = 0.25; skull.castShadow = true;
+      const snout = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.36, 0.75, 3, 0.12), plate2); snout.position.set(0, -0.05, 1.12);
+      const jaw = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.18, 1.2, 2, 0.07), plate2); jaw.position.set(0, -0.4, 0.55);
+      const visor = new THREE.Mesh(new RoundedBoxGeometry(0.94, 0.12, 0.42, 2, 0.05), visorM); visor.position.set(0, 0.12, 0.72);
+      head.add(skull, snout, jaw, visor);
+      // dorsal fins along the back of the skull
+      for (let f = 0; f < 3; f++) { const fin = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.4 - f * 0.08, 4), plate2); fin.position.set(0, 0.42 - f * 0.04, 0.3 - f * 0.35); fin.rotation.x = -0.5; head.add(fin); }
+      // two small fangs
+      for (const fx of [-0.22, 0.22]) { const fang = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.18, 6), plate); fang.position.set(fx, -0.28, 1.3); fang.rotation.x = Math.PI; head.add(fang); }
       this.heads.push({ root, neck, head, jaw, hp: per, max: per, up: 0, ph: Math.random() * 6 });
     }
     this.maxHp = per * 3; this.hp = this.maxHp;
