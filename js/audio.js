@@ -173,48 +173,66 @@ export function setEngine(v, level = 0) {
 
 // ---------------------------------------------------------------- generative music (one mood per deck)
 const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
-let delayIn = null;
-// chords: midi notes; scale: melody notes; bar: seconds per chord; pluck/pad timbres; perc: base drum density
+let delayIn = null, hall = null;
+// Orchestral space score: strings, brass motifs, timpani, harp and choir, all synthesised.
+// chords: midi triads (root first); motifs: [semitones above chord root, length in 16ths] (null = rest)
+const HERO = [[[0, 3], [7, 3], [12, 8], [11, 1], [9, 1]], [[7, 4], [12, 2], [14, 2], [16, 6], [null, 2]], [[12, 6], [7, 2], [9, 2], [7, 2], [4, 4]], [[0, 2], [4, 2], [7, 4], [12, 8]]];
+const MARCH = [[[0, 3], [0, 1], [0, 3], [0, 1], [3, 4], [7, 4]], [[7, 3], [8, 1], [7, 3], [5, 1], [3, 8]], [[0, 2], [3, 2], [7, 2], [12, 6], [11, 2], [null, 2]]];
+const MYSTIC = [[[0, 6], [2, 2], [4, 8]], [[7, 4], [6, 4], [4, 8]], [[12, 8], [11, 4], [7, 4]]];
+const SERENE = [[[0, 4], [4, 4], [7, 8]], [[9, 6], [7, 2], [4, 8]], [[12, 12], [null, 4]], [[7, 4], [11, 4], [12, 8]]];
 const THEMES = {
-  hangar:  { chords: [[57, 60, 64, 67, 71], [53, 57, 60, 64, 67], [48, 55, 59, 62, 64], [55, 59, 62, 66, 69]], scale: [69, 71, 72, 74, 76, 79, 81, 83, 84, 86, 88], bar: 8, pad: 'triangle', pluck: 'sine', density: 0.35, perc: 0 },
-  ice:     { chords: [[50, 57, 62, 66, 69], [55, 59, 62, 66, 71], [52, 59, 64, 68, 71], [57, 61, 64, 68, 73]], scale: [74, 76, 78, 81, 83, 86, 88, 90, 93], bar: 9, pad: 'sine', pluck: 'sine', density: 0.28, perc: 0, bell: true },
-  gold:    { chords: [[50, 57, 60, 65, 69], [48, 55, 58, 62, 67], [46, 53, 57, 62, 65], [45, 52, 57, 60, 64]], scale: [62, 64, 65, 67, 69, 72, 74, 76, 77], bar: 6, pad: 'sawtooth', pluck: 'triangle', density: 0.42, perc: 0.6 },
-  alien:   { chords: [[48, 54, 58, 62, 66], [50, 56, 60, 64, 68], [46, 52, 56, 60, 64], [52, 58, 62, 66, 70]], scale: [60, 62, 64, 66, 68, 70, 72, 74, 76, 78], bar: 7, pad: 'square', pluck: 'sine', density: 0.33, perc: 0.25, wobble: true },
-  lava:    { chords: [[45, 52, 55, 60, 64], [41, 48, 53, 57, 60], [43, 50, 55, 58, 62], [40, 47, 52, 55, 59]], scale: [57, 59, 60, 62, 64, 67, 69, 72], bar: 6, pad: 'sawtooth', pluck: 'triangle', density: 0.3, perc: 0.5 },
-  crystal: { chords: [[52, 59, 64, 68, 71], [57, 61, 64, 69, 73], [54, 61, 66, 69, 73], [59, 63, 66, 71, 75]], scale: [76, 78, 80, 83, 85, 88, 90, 92, 95], bar: 9, pad: 'sine', pluck: 'sine', density: 0.32, perc: 0, bell: true },
-  station: { chords: [[48, 55, 60, 64, 67], [53, 57, 60, 65, 69], [55, 59, 62, 67, 71], [52, 55, 60, 64, 67]], scale: [72, 74, 76, 79, 81, 84, 86, 88], bar: 10, pad: 'triangle', pluck: 'sine', density: 0.2, perc: 0, choir: true },
+  hangar:  { chords: [[48, 52, 55], [44, 48, 51], [46, 50, 53], [48, 52, 55]], motifs: HERO, bar: 4.2, brass: 0.75, harp: 0.5, choir: 0, perc: 0.15 },
+  ice:     { chords: [[50, 54, 57], [52, 56, 59], [50, 54, 57], [47, 50, 54]], motifs: SERENE, bar: 5, brass: 0.3, harp: 0.9, choir: 0.4, perc: 0, bell: true },
+  gold:    { chords: [[50, 53, 57], [46, 50, 53], [48, 52, 55], [45, 49, 52]], motifs: MARCH, bar: 4, brass: 0.85, harp: 0.3, choir: 0, perc: 0.5 },
+  alien:   { chords: [[48, 52, 56], [50, 54, 58], [46, 50, 54], [52, 56, 60]], motifs: MYSTIC, bar: 5, brass: 0.35, harp: 0.6, choir: 0.6, perc: 0.1 },
+  lava:    { chords: [[43, 46, 50], [39, 43, 46], [43, 46, 50], [38, 42, 45]], motifs: MARCH, bar: 4.4, brass: 0.8, harp: 0.15, choir: 0.3, perc: 0.6 },
+  crystal: { chords: [[52, 56, 59], [54, 58, 61], [49, 52, 56], [57, 61, 64]], motifs: SERENE, bar: 5, brass: 0.35, harp: 1, choir: 0.5, perc: 0, bell: true },
+  station: { chords: [[48, 52, 55], [53, 57, 60], [43, 47, 50], [48, 52, 55]], motifs: HERO, bar: 5.5, brass: 0.5, harp: 0.5, choir: 0.8, perc: 0.05 },
 };
 let theme = THEMES.hangar, nextTheme = null, intensity = 0;
 export function setMusicTheme(name) { if (THEMES[name] && THEMES[name] !== theme) nextTheme = THEMES[name]; }
 export function setMusicIntensity(v) { intensity = v; }
 
-function startMusic() {
-  const d = ctx.createDelay(1.5); d.delayTime.value = 0.42;
-  const fb = ctx.createGain(); fb.gain.value = 0.38;
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2500;
-  d.connect(lp).connect(fb).connect(d);
-  lp.connect(musicBus);
-  delayIn = ctx.createGain(); delayIn.gain.value = 0.6;
-  delayIn.connect(d); delayIn.connect(musicBus);
+function makeHall() {
+  const len = Math.floor(ctx.sampleRate * 3.2);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+  const cv = ctx.createConvolver(); cv.buffer = buf;
+  const wet = ctx.createGain(); wet.gain.value = 0.5;
+  cv.connect(wet).connect(musicBus);
+  const inp = ctx.createGain(); inp.connect(cv); inp.connect(musicBus);
+  return inp;
+}
 
+function startMusic() {
+  hall = makeHall();
+  delayIn = hall;
   let bar = 0;
   let next = ctx.currentTime + 0.3;
   const schedule = () => {
     while (next < ctx.currentTime + 1.5) {
-      if (nextTheme && bar % 2 === 0) { theme = nextTheme; nextTheme = null; }
-      const T = theme, BAR = T.bar;
+      if (nextTheme && bar % 4 === 0) { theme = nextTheme; nextTheme = null; }
+      const T = theme, BAR = T.bar, st = BAR / 16;
       const chord = T.chords[bar % T.chords.length];
-      pad(chord, next, BAR, T);
-      const steps = 16;
-      for (let s = 0; s < steps; s++) {
-        if (Math.random() < T.density * (1 + intensity * 0.6)) {
-          const note = T.scale[Math.floor(Math.random() * T.scale.length)];
-          pluck(midi(note), next + s * (BAR / steps), 0.05 + Math.random() * 0.04, T);
-        }
-      }
+      strings(chord, next, BAR);
       if (bar % 2 === 0) bass(midi(chord[0] - 12), next, BAR);
-      const perc = Math.min(1, T.perc + intensity);
-      if (perc > 0.05) drums(next, BAR, perc);
+      // phrase structure: 8 bars; brass speaks in bars 2-3 and 6-7, harp fills the rest
+      const ph = bar % 8;
+      if ((ph === 2 || ph === 3 || ph === 6 || ph === 7) && Math.random() < T.brass + intensity * 0.3) {
+        const motif = T.motifs[(Math.floor(bar / 2) + (ph >= 6 ? 1 : 0)) % T.motifs.length];
+        let s = 0;
+        const root = chord[0] + 12;
+        for (const [iv, len] of motif) {
+          if (iv !== null) brass(midi(root + iv), next + s * st, len * st, ph >= 6 ? 0.05 : 0.04);
+          s += len;
+        }
+      } else if (Math.random() < T.harp) {
+        const notes = [...chord.map((m) => m + 12), ...chord.map((m) => m + 24)];
+        for (let k = 0; k < notes.length; k++) harp(midi(notes[k]), next + k * st * 2, T.bell);
+      }
+      if (T.choir && (ph === 0 || ph === 4) && Math.random() < T.choir) choir(chord, next, BAR * 2);
+      const perc = Math.min(1, T.perc + intensity * 0.8);
+      timpani(midi(chord[0] - 12), next, BAR, perc, ph === 7);
       next += BAR;
       bar++;
     }
@@ -223,65 +241,100 @@ function startMusic() {
   musicTimer = setInterval(schedule, 500);
 }
 
-function pad(chord, t, dur, T) {
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = T.pad === 'sawtooth' ? 700 : T.pad === 'square' ? 600 : 900; f.Q.value = 0.7;
+// string section: three detuned saws per note, slow swell, gentle vibrato
+function strings(chord, t, dur) {
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1600; f.Q.value = 0.5;
   const g = ctx.createGain();
-  const vol = T.pad === 'triangle' || T.pad === 'sine' ? 0.05 : 0.022;
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(vol, t + 2.5);
-  g.gain.linearRampToValueAtTime(vol * 0.8, t + dur - 1.5);
-  g.gain.linearRampToValueAtTime(0.0001, t + dur + 1.5);
-  f.connect(g).connect(musicBus);
-  if (T.wobble) { const l = ctx.createOscillator(); l.frequency.value = 0.35; const lg = ctx.createGain(); lg.gain.value = 300; l.connect(lg).connect(f.frequency); l.start(t); l.stop(t + dur + 1.6); }
-  for (const m of chord.slice(0, 4)) for (const det of [-6, 6]) {
-    const o = ctx.createOscillator(); o.type = T.pad;
-    o.frequency.value = midi(T.choir ? m + 12 : m); o.detune.value = det;
-    o.connect(f); o.start(t); o.stop(t + dur + 1.6);
+  g.gain.linearRampToValueAtTime(0.016, t + 1.2);
+  g.gain.linearRampToValueAtTime(0.013, t + dur - 0.4);
+  g.gain.linearRampToValueAtTime(0.0001, t + dur + 1.2);
+  f.connect(g).connect(hall);
+  const vib = ctx.createOscillator(); vib.frequency.value = 5.2; const vg = ctx.createGain(); vg.gain.value = 6; vib.connect(vg);
+  vib.start(t); vib.stop(t + dur + 1.3);
+  const voices = [...chord, chord[0] + 12, chord[1] + 12];
+  for (const m of voices) for (const det of [-9, 0, 9]) {
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.value = midi(m); o.detune.value = det; vg.connect(o.detune);
+    o.connect(f); o.start(t); o.stop(t + dur + 1.3);
   }
 }
-function pluck(freq, t, vol, T) {
-  const o = ctx.createOscillator(); o.type = T.pluck; o.frequency.value = freq;
-  const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq * (T.bell ? 2.76 : 2);
+// brass: saw + square, filter opens with the swell, slight scoop into the note
+function brass(freq, t, len, vol) {
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(350, t); f.frequency.linearRampToValueAtTime(2200, t + 0.12); f.frequency.linearRampToValueAtTime(1300, t + Math.max(0.2, len));
   const g = ctx.createGain();
-  const len = T.bell ? 2.2 : 1.2;
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-  const g2 = ctx.createGain(); g2.gain.value = T.bell ? 0.35 : 0.15;
-  o.connect(g); o2.connect(g2).connect(g);
-  if (T.wobble) { o.frequency.setValueAtTime(freq * 0.97, t); o.frequency.linearRampToValueAtTime(freq, t + 0.15); }
-  g.connect(delayIn);
+  g.gain.linearRampToValueAtTime(vol, t + 0.08);
+  g.gain.setValueAtTime(vol * 0.85, t + Math.max(0.1, len - 0.08));
+  g.gain.linearRampToValueAtTime(0.0001, t + len + 0.35);
+  f.connect(g).connect(hall);
+  for (const [type, mul, det] of [['sawtooth', 1, -5], ['sawtooth', 1, 5], ['square', 0.5, 0]]) {
+    const o = ctx.createOscillator(); o.type = type; o.detune.value = det;
+    o.frequency.setValueAtTime(freq * mul * 0.985, t); o.frequency.linearRampToValueAtTime(freq * mul, t + 0.07);
+    o.connect(f); o.start(t); o.stop(t + len + 0.4);
+  }
+}
+// harp / celesta: plucked arpeggios
+function harp(freq, t, bell) {
+  const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+  const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * (bell ? 4 : 2);
+  const g = ctx.createGain(); const len = bell ? 2.4 : 1.6;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.045, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  const g2 = ctx.createGain(); g2.gain.value = bell ? 0.3 : 0.12;
+  o.connect(g); o2.connect(g2).connect(g); g.connect(hall);
   o.start(t); o2.start(t); o.stop(t + len + 0.1); o2.stop(t + len + 0.1);
 }
-function bass(freq, t, dur) {
-  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+// wordless choir: saws through two vowel formants
+function choir(chord, t, dur) {
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.09, t + 0.8);
-  g.gain.linearRampToValueAtTime(0.0001, t + dur * 2);
-  o.connect(g).connect(musicBus);
-  o.start(t); o.stop(t + dur * 2 + 0.1);
-}
-// soft drums: kick on beats, hats in between (density 0..1)
-function drums(t0, dur, density) {
-  const beats = Math.round(dur * 2);           // ~120 bpm feel
-  const step = dur / beats;
-  for (let b = 0; b < beats; b++) {
-    const t = t0 + b * step;
-    if (b % 2 === 0 || density > 0.7) {
-      const o = ctx.createOscillator(); o.type = 'sine';
-      o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.18);
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12 * density, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-      o.connect(g).connect(musicBus); o.start(t); o.stop(t + 0.32);
-    }
-    if (density > 0.3) {
-      const th = t + step / 2;
-      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
-      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.03 * density, th); g.gain.exponentialRampToValueAtTime(0.0001, th + 0.05);
-      src.connect(f).connect(g).connect(musicBus); src.start(th, Math.random()); src.stop(th + 0.06);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.03, t + 2.5); g.gain.linearRampToValueAtTime(0.0001, t + dur + 1);
+  g.connect(hall);
+  for (const fq of [700, 1150]) {
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = 6;
+    bp.connect(g);
+    for (const m of chord) for (const det of [-7, 7]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midi(m + 12); o.detune.value = det;
+      o.connect(bp); o.start(t); o.stop(t + dur + 1.1);
     }
   }
+}
+function bass(freq, t, dur) {
+  const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 320;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.06, t + 0.6);
+  g.gain.linearRampToValueAtTime(0.0001, t + dur * 2);
+  o.connect(f).connect(g).connect(hall);
+  o.start(t); o.stop(t + dur * 2 + 0.1);
+}
+function timpHit(freq, t, vol) {
+  const o = ctx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(freq * 1.5, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.08);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+  o.connect(g).connect(hall); o.start(t); o.stop(t + 1.2);
+  const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600;
+  const ng = ctx.createGain(); ng.gain.setValueAtTime(vol * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+  src.connect(lp).connect(ng).connect(hall); src.start(t, Math.random()); src.stop(t + 0.2);
+}
+// timpani on the downbeat; with more intensity a march pattern, roll into the next phrase
+function timpani(freq, t0, dur, density, roll) {
+  if (density < 0.05) return;
+  const q = dur / 4;
+  timpHit(freq, t0, 0.14 * density + 0.03);
+  if (density > 0.4) { timpHit(freq * 1.5, t0 + q * 2, 0.08 * density); timpHit(freq, t0 + q * 3, 0.06 * density); }
+  if (density > 0.7) {
+    for (let k = 0; k < 4; k++) { // snare-like march taps
+      const th = t0 + q * k + q / 2;
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 0.8;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.025 * density, th); g.gain.exponentialRampToValueAtTime(0.0001, th + 0.09);
+      src.connect(bp).connect(g).connect(hall); src.start(th, Math.random()); src.stop(th + 0.1);
+    }
+  }
+  if (roll) for (let k = 0; k < 10; k++) timpHit(freq, t0 + dur - q + (k / 10) * q, 0.015 + k * 0.006 * density);
 }
 
 // ---------------------------------------------------------------- deck ambience
