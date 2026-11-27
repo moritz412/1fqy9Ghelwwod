@@ -313,8 +313,11 @@ export class PileView {
     core.scale.y = 1.4;
     const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.025, 8, 40), new THREE.MeshBasicMaterial({ color: 0x6ff3f0 }));
     halo.rotation.x = Math.PI / 2;
-    const light = new THREE.PointLight(0x6ff3f0, 6, 5);
-    this.ringMesh.add(core, halo, light);
+    // permanent light (toggling a light's visibility recompiles every shader)
+    this.coreLight = new THREE.PointLight(0x6ff3f0, 0, 5);
+    this.coreLight.position.set(0, -20, 0);
+    scene.add(this.coreLight);
+    this.ringMesh.add(core, halo);
     this.ringMesh.visible = false;
     scene.add(this.ringMesh);
 
@@ -513,20 +516,22 @@ export class PileView {
   }
 
   dispose(scene) {
-    scene.remove(this.mesh, this.ringMesh, this.glitter, ...this.pebMeshes, ...this.junkMeshes);
+    scene.remove(this.mesh, this.ringMesh, this.coreLight, this.glitter, ...this.pebMeshes, ...this.junkMeshes);
     this.mesh.geometry.dispose();
   }
 
   updateRing(dt, glitterDepth) {
     const p = this.pile;
-    if (p.ring.found) { this.ringMesh.visible = false; this.glitter.visible = false; return; }
+    if (p.ring.found) { this.ringMesh.visible = false; this.glitter.visible = false; this.coreLight.intensity = 0; return; }
     const above = p.stonesAboveRing();
     const [x, z] = p.cellCenter(p.ring.c);
     if (above === 0) {
       this.ringMesh.visible = true;
       this.ringMesh.position.set(x, Math.max(0.05, p.heightAt(x, z)) + 0.35 + Math.sin(performance.now() / 300) * 0.05, z);
       this.ringMesh.rotation.y += dt * 1.5;
-    } else this.ringMesh.visible = false;
+      this.coreLight.position.copy(this.ringMesh.position);
+      this.coreLight.intensity = 6;
+    } else { this.ringMesh.visible = false; this.coreLight.intensity = 0; }
 
     // occasional glitter flash through the stones
     this.glitterT -= dt;

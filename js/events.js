@@ -35,6 +35,29 @@ export class Events {
     this.trailGeo = new THREE.CylinderGeometry(0.04, 0.35, 8, 10, 1, true);
     this.trailGeo.translate(0, 4, 0);
     this.trailMat = new THREE.MeshBasicMaterial({ color: 0xff9a4a, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    this.lavaMat = new THREE.MeshStandardMaterial({ color: 0x2a0a04, emissive: 0xff3a0a, emissiveIntensity: 1.6, roughness: 0.7, flatShading: true });
+    // soft glow sprite instead of a light per meteor
+    const gc = document.createElement('canvas');
+    gc.width = gc.height = 64;
+    const gg = gc.getContext('2d');
+    const rg = gg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, 'rgba(255,220,170,0.9)'); rg.addColorStop(0.35, 'rgba(255,140,60,0.4)'); rg.addColorStop(1, 'rgba(255,120,40,0)');
+    gg.fillStyle = rg; gg.fillRect(0, 0, 64, 64);
+    this.glowMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    // ONE permanent light, shared by all meteors. Adding/removing lights at runtime forces
+    // every shader to recompile, which froze phones on each impact.
+    this.light = new THREE.PointLight(0xff8a3a, 0, 7);
+    this.light.position.set(0, -20, 0);
+    scene.add(this.light);
+    this.lightOwner = null;
+    // pre-compile the meteor materials so the first impact doesn't stall
+    this.warm = new THREE.Group();
+    for (const o of [new THREE.Mesh(this.rockGeo, this.rockMat), new THREE.Mesh(this.rockGeo, this.lavaMat), new THREE.Mesh(this.trailGeo, this.trailMat), new THREE.Sprite(this.glowMat)]) {
+      o.frustumCulled = false; o.scale.setScalar(0.001); this.warm.add(o);
+    }
+    this.warm.position.set(0, -30, 0);
+    scene.add(this.warm);
+    this.warmT = 3;
   }
 
   get luckFactor() { return this.active && this.active.type === 'luck' ? 2 : 1; }
@@ -56,21 +79,24 @@ export class Events {
       if (cell >= 0 && pile.counts[cell] > 50) break;
     }
     const lava = this.active && this.active.type === 'eruption';
-    if (!this.lavaMat) this.lavaMat = new THREE.MeshStandardMaterial({ color: 0x2a0a04, emissive: 0xff3a0a, emissiveIntensity: 1.6, roughness: 0.7, flatShading: true });
     const mesh = new THREE.Mesh(this.rockGeo, lava ? this.lavaMat : this.rockMat);
     mesh.castShadow = true;
     const trail = new THREE.Mesh(this.trailGeo, this.trailMat);
-    const light = new THREE.PointLight(0xff8a3a, 4, 6);
+    const glow = new THREE.Sprite(this.glowMat);
+    glow.scale.setScalar(2.2);
     const grp = new THREE.Group();
-    grp.add(mesh, trail, light);
+    grp.add(mesh, trail, glow);
     const from = new THREE.Vector3(x + 18, 45, z - 10);
     grp.position.copy(from);
     trail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(18, 45, -10).normalize());
     this.scene.add(grp);
-    this.meteors.push({ grp, mesh, trail, light, from, x, z, t: 0, fall: 1.4 + Math.random() * 0.4, landed: false, life: 35 });
+    const m = { grp, mesh, trail, glow, from, x, z, t: 0, fall: 1.4 + Math.random() * 0.4, landed: false, life: 35 };
+    this.meteors.push(m);
+    this.lightOwner = m;
   }
 
   update(dt, t, pile, camera) {
+    if (this.warm && (this.warmT -= dt) <= 0) { this.scene.remove(this.warm); this.warm = null; }
     // schedule
     if (!this.active) {
       this.next -= dt * (this.speed || 1);
@@ -104,7 +130,7 @@ export class Events {
         if (f >= 1) {
           m.landed = true;
           m.trail.visible = false;
-          m.light.intensity = 2;
+          m.glow.scale.setScalar(1.4);
           this.hooks.onImpact(m.grp.position.clone());
         }
       } else {
@@ -114,6 +140,19 @@ export class Events {
         this.rockMat.emissiveIntensity = 0.85 + Math.sin(t * 1.1) * 0.12;
         if (m.life <= 0) { this.scene.remove(m.grp); this.meteors.splice(k, 1); }
       }
+    }
+    this.updateLight(dt);
+  }
+
+  updateLight(dt) {
+    const o = this.lightOwner;
+    if (o && this.meteors.includes(o)) {
+      this.light.position.copy(o.grp.position);
+      const target = o.landed ? 2 : 4;
+      this.light.intensity += (target - this.light.intensity) * Math.min(1, dt * 8);
+    } else {
+      this.lightOwner = this.meteors.length ? this.meteors[this.meteors.length - 1] : null;
+      if (!this.lightOwner) this.light.intensity = Math.max(0, this.light.intensity - dt * 6);
     }
   }
 
